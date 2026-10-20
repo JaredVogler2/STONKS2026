@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* APEX design tokens. Dark ink is the default; light is opt-in (cookie apex_theme=light). Colour is never the only
+/* APEX design tokens. Text tokens meet WCAG AA (>= 4.5:1) on every surface and on their own 15% tints (checked by e2e/a11y.spec.ts). Dark ink is the default; light is opt-in (cookie apex_theme=light). Colour is never the only
  * carrier of meaning: every status also has a text label and, where it matters, a shape. */
 :root,
 :root[data-theme="dark"] {
@@ -12,8 +12,8 @@
   --line: #222a34;
   --line-strong: #2e3844;
   --text: #e4eaf1;
-  --muted: #8d99a8;
-  --faint: #5f6b7a;
+  --muted: #9aa6b4;
+  --faint: #929eac;
   --pos: #3fae86;
   --neg: #dd7d6c;
   --warn: #d4a64e;
@@ -32,13 +32,13 @@
   --line: #dce1e7;
   --line-strong: #c6cdd6;
   --text: #111821;
-  --muted: #536173;
-  --faint: #7d8896;
-  --pos: #1d7f5b;
-  --neg: #b9503d;
-  --warn: #946414;
-  --info: #2c67a3;
-  --demo: #6f46ab;
+  --muted: #46535f;
+  --faint: #535e6b;
+  --pos: #136447;
+  --neg: #9a3b28;
+  --warn: #714d0f;
+  --info: #20558a;
+  --demo: #5f3a95;
   --focus: #2c67a3;
   --grid: #e8ebef;
 }

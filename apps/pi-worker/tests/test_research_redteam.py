@@ -78,3 +78,21 @@ def test_champion_challenger_policy(planted):
     assert ok
     same, why = challenger_beats_champion(good, good, PromotionPolicy())
     assert not same  # equal performance never displaces an incumbent
+
+
+def test_permutation_gate_separates_real_edge_from_shuffled_noise(planted):
+    """promotion-policy-2: the holdout skill must beat the 95% quantile of K shuffled-label walk-forwards."""
+    policy = PromotionPolicy(shuffle_permutations=8)
+    d = evaluate_strategy(planted, REDTEAM_STRATEGY, MODEL_FEATURES, "synthetic_fixture", policy=policy)[0].to_dict()
+    sc, g = d["shuffled_control"], d["gates"]
+    assert d["policy_version"] == "promotion-policy-2"
+    assert sc["permutations"] == 8 and sc["skill_mean"] == g["shuffled_skill"]
+    assert g["brier_skill"] > g["shuffled_skill_q"] == sc["skill_q95"]
+    assert g["permutation_p"] == round(1 / 9, 4)  # beats every shuffle: the smallest p K=8 permutations allow
+    assert not any("quantile" in r for r in d["status_reasons"])
+
+    noise = planted.copy()
+    noise["outcome"] = np.random.default_rng(5).permutation(noise["outcome"].to_numpy())
+    bad = evaluate_strategy(noise, REDTEAM_STRATEGY, MODEL_FEATURES, "synthetic_fixture", policy=policy)[0].to_dict()
+    assert bad["confidence_status"] == "UNVALIDATED"
+    assert bad["gates"]["permutation_p"] > 0.05  # no edge: indistinguishable from its own shuffles

@@ -80,7 +80,7 @@ export default async function PositionsPage({ searchParams }: { searchParams: Pr
               {rows.map(({ p, as, fresh, isOpen }) => (
                 <tr key={p.position_id} className="hover:bg-surface-2/60">
                   <Td className="font-medium">
-                    <Link href={`/positions/${p.position_id}`} className="text-info hover:underline">{p.symbol}</Link>
+                    <Link href={`/positions/${p.position_id}`} className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info">{p.symbol}</Link>
                     {p.off_plan ? <Badge tone="warn" className="ml-1" title={p.off_plan_reasons.join(", ")}>off plan</Badge> : null}
                   </Td>
                   <Td><Badge>{p.state.toLowerCase().replace(/_/g, " ")}</Badge></Td>
