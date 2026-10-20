@@ -1,5 +1,9 @@
 # APEX / STONKS2026 — Complete coding-agent build program
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
 **Project:** https://github.com/JaredVogler2/STONKS2026  
 **Updated:** October 20, 2026  
 **Goal:** Build a production-quality, privately hosted, zero-recurring-subscription (within provider quotas) U.S. stock swing-trading **research and alerting** platform with 1–4 week horizons, Discord multi-user interaction, personal position tracking and risk alerts.
