@@ -128,7 +128,12 @@ class SyntheticMarket:
         return h.hexdigest()
 
 
-def universe_specs() -> list[AssetSpec]:
+def _symbol_seed(seed: int, symbol: str) -> int:
+    return int(hashlib.sha256(f"{seed}|{symbol}".encode()).hexdigest()[:15], 16)
+
+
+def universe_specs(stocks_per_sector: int = 8) -> list[AssetSpec]:
+    """Default (8 per sector) is the DEMO universe; research presets add more names without changing existing ones."""
     specs: list[AssetSpec] = [
         AssetSpec("DMSPY", "Demo Broad Market Index ETF", "benchmark", "benchmark", "ARCA", 320.0, 7.5e7, 1.0, 0.0,
                   instrument="etf"),
@@ -141,16 +146,23 @@ def universe_specs() -> list[AssetSpec]:
         specs.append(AssetSpec(etf, f"Demo {sector.replace('_', ' ').title()} Sector ETF", sector, "etf", "ARCA",
                                70.0, 1.2e7, SECTOR_BETA[sector], 0.0, instrument="etf"))
     rng = np.random.default_rng(DEFAULT_SEED)
-    for sector, (_, codes) in SECTORS.items():
+    for sector, (_, base_codes) in SECTORS.items():
         counters: dict[str, int] = {}
-        for code in codes:
+        codes = list(base_codes)
+        while len(codes) < stocks_per_sector:
+            codes.append(base_codes[len(codes) % len(base_codes)])
+        for i, code in enumerate(codes):
+            if i >= len(base_codes):
+                srng = np.random.default_rng(_symbol_seed(DEFAULT_SEED, f"{sector}|{i}"))
+            else:
+                srng = rng
             counters[code] = counters.get(code, 0) + 1
             n = counters[code]
             symbol = f"DM{code}{n}"
-            base_price = float(np.round(rng.uniform(18, 260), 2))
-            base_volume = float(np.round(rng.uniform(1.4e6, 1.2e7), -3))
-            beta = float(np.round(SECTOR_BETA[sector] * rng.uniform(0.75, 1.3), 3))
-            idio = float(np.round(rng.uniform(0.010, 0.022), 4))
+            base_price = float(np.round(srng.uniform(18, 260), 2))
+            base_volume = float(np.round(srng.uniform(1.4e6, 1.2e7), -3))
+            beta = float(np.round(SECTOR_BETA[sector] * srng.uniform(0.75, 1.3), 3))
+            idio = float(np.round(srng.uniform(0.010, 0.022), 4))
             exch = "NASDAQ" if code in {"SEMI", "SOFT", "BIO", "MEDIA"} else "NYSE"
             specs.append(AssetSpec(symbol, f"Demo {code.title()} Holdings {n}", sector, "stock", exch, base_price,
                                    base_volume, beta, idio))
@@ -197,7 +209,8 @@ def _regime_path(rng: np.random.Generator, n: int) -> np.ndarray:
 
 
 def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = DEFAULT_END,
-             calendar: MarketCalendar | None = None, symbols: list[str] | None = None) -> SyntheticMarket:
+             calendar: MarketCalendar | None = None, symbols: list[str] | None = None,
+             stocks_per_sector: int = 8) -> SyntheticMarket:
     cal = calendar or default_calendar()
     sessions = cal.sessions_between(start, end)
     n = len(sessions)
@@ -222,12 +235,12 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
             drift[i] = 0.985 * drift[i - 1] + eps[i]
         sector_ret[sec] = drift + sector_rng.normal(0, 0.0055, n)
 
-    specs = universe_specs()
+    specs = universe_specs(stocks_per_sector)
     if symbols is not None:
         wanted = set(symbols)
         specs = [s for s in specs if s.symbol in wanted]
-    asset_seeds = rng_assets.integers(0, 2**63 - 1, size=len(universe_specs()))
-    seed_by_symbol = {s.symbol: int(asset_seeds[i]) for i, s in enumerate(universe_specs())}
+    del rng_assets
+    seed_by_symbol = {s.symbol: _symbol_seed(seed, s.symbol) for s in specs}
 
     bars: dict[str, pd.DataFrame] = {}
     setups_rows: list[dict] = []
@@ -265,19 +278,21 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
                 idio_scale[lo:hi] *= 0.38
                 ret[lo:hi] = ret[lo:hi] * 0.45 + spec.beta * mu[lo:hi] * 0.2
                 regime = REGIMES[int(regime_idx[hi])]
-                p_up = {"bull": 0.66, "chop": 0.52, "riskoff": 0.28, "rebound": 0.6, "shock": 0.2}[regime]
+                p_up = {"bull": 0.62, "chop": 0.50, "riskoff": 0.28, "rebound": 0.58, "shock": 0.2}[regime]
+                # planted, OBSERVABLE-at-decision relationship: longer/tighter bases succeed more often
+                p_up = min(0.9, p_up + 0.012 * (base_len - 22))
                 success = rng.random() < p_up
                 run = int(rng.integers(8, 18))
                 if success:
-                    inject[hi:hi + run] += rng.uniform(0.0030, 0.0065)
-                    vol_surge[hi:hi + 3] *= rng.uniform(1.8, 3.0)
+                    inject[hi:hi + run] += rng.uniform(0.0040, 0.0080)
+                    vol_surge[hi:hi + 3] *= rng.uniform(2.2, 3.5)  # strong participation on real breakouts
                 else:
                     inject[hi:hi + 2] += 0.008
-                    inject[hi + 2:hi + 2 + run] -= rng.uniform(0.0025, 0.0055)
-                    vol_surge[hi:hi + 2] *= 1.6
+                    inject[hi + 2:hi + 2 + run] -= rng.uniform(0.0035, 0.0065)
+                    vol_surge[hi:hi + 2] *= rng.uniform(1.1, 1.5)
                 setups_rows.append({"symbol": spec.symbol, "base_start": sessions[lo], "breakout": sessions[hi],
                                     "regime": regime, "success": bool(success), "run": run})
-                i = hi + run + int(rng.integers(50, 150))
+                i = hi + run + int(rng.integers(40, 110))
             # remove the injected setups' unconditional drift: the simulated edge is TIMING only
             ret = ret + inject - inject.mean()
 
