@@ -1,5 +1,11 @@
 # PHASE 11 — Raspberry Pi 24/7 worker, private Vercel deployment and resilient zero-subscription operations
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
+**Specific Phase 11 additional deliverables:** private signed model registry + release API; Pi outbound manifest polling and signature/SHA256/feature-compatibility verification; safe non-executable model format; atomic swap, prior-version rollback, version acknowledgment and private system health. Implement GitHub Actions model release workflow, dashboard model version controls, secure short-lived release credentials and automatic catchup after outage. Absolutely no recurring laptop, SSH copying or manual deployment. Retain running validated model if candidate fails or budget exhausted (subject to expiry).
+
 ## Mission
 
 Make the application boot reliably and safely after power or network outage, stay within free plans and be maintainable by a complete Raspberry Pi beginner. All install instructions must use the existing `raspberry-pi` docs as starting point, updating them where needed.
