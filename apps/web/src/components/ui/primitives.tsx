@@ -87,7 +87,7 @@ export function Stat({ label, value, sub, tone = "neutral", help }: { label: str
     <div className="min-w-0 rounded-xl border border-line bg-surface px-3.5 py-3" title={help}>
       <div className="truncate text-[11px] font-medium uppercase tracking-wider text-faint">{label}</div>
       <div className={cn("num mt-1 truncate text-xl font-semibold", valueTone)}>{value}</div>
-      {sub ? <div className="mt-0.5 truncate text-xs text-muted">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 line-clamp-2 text-xs leading-snug text-muted">{sub}</div> : null}
     </div>
   );
 }
@@ -119,10 +119,10 @@ export function Notice({ tone = "info", title, children, action }: { tone?: Tone
   );
 }
 
-export function Table({ children, className, caption }: { children: ReactNode; className?: string; caption?: string }) {
+export function Table({ children, className, caption, compact }: { children: ReactNode; className?: string; caption?: string; compact?: boolean }) {
   return (
     <div className={cn("-mx-4 overflow-x-auto px-4", className)}>
-      <table className="w-full min-w-[560px] border-collapse text-left text-[13px]">
+      <table className={cn("w-full border-collapse text-left text-[13px]", !compact && "min-w-[560px]")}>
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         {children}
       </table>
@@ -142,7 +142,7 @@ export function Th({ children, className, align = "left" }: { children?: ReactNo
 export function Td({ children, className, align = "left" }: { children?: ReactNode; className?: string; align?: "left" | "right" | "center" }) {
   return (
     <td className={cn("border-b border-line/70 px-2 py-2 align-middle first:pl-0 last:pr-0",
-      align === "right" ? "num text-right" : align === "center" ? "text-center" : "text-left", className)}>
+      align === "right" ? "num whitespace-nowrap text-right" : align === "center" ? "text-center" : "text-left", className)}>
       {children}
     </td>
   );

@@ -21,6 +21,7 @@ from apex_worker.agent.crypto import load_signing_key, public_from_signing_key
 from apex_worker.demo.flow import MEMBERS, LocalDemo
 from apex_worker.notifications.render import render
 from apex_worker.runtime.local_sink import LocalSink
+from apex_worker.signals.candidates import feature_snapshots
 from apex_worker.timeutil import iso_utc
 
 SEED_VERSION = 1
@@ -60,10 +61,11 @@ class RecordingSink(LocalSink):
                      "asof_at": scan.asof_at, "universe_size": scan.stats.universe_size, "eligible_count": scan.stats.eligible,
                      "scanned_count": scan.stats.scanned, "published_count": len(outcome.signals),
                      "no_trade_reason": outcome.no_trade_reason, "is_demo": True,
-                     "metrics": {"vetoes": dict(scan.stats.vetoes), "triggered": scan.stats.triggered,
+                     "metrics": {"vetoes": dict(scan.stats.vetoes), "triggered": scan.stats.triggered, "sectors": scan.sectors,
                                  "decisions": [{"symbol": d.symbol, "outcome": d.outcome, "reasons": d.reasons[:4]}
                                                for d in outcome.decisions[:20]]}},
-            "candidates": cands, "regime": {**scan.regime, "version": "regime-rules-1"}}})
+            "candidates": cands, "regime": {**scan.regime, "version": "regime-rules-1"},
+            "feature_snapshots": feature_snapshots(scan, "replay", "demo")}})
 
     def save_assessment(self, pos, assessment, intent, now):
         super().save_assessment(pos, assessment, intent, now)

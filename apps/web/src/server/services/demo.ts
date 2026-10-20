@@ -128,13 +128,16 @@ async function applyCall(db: Db, seed: Seed, call: SeedCall, at: string, map: Re
       if (intent) {
         intent.route = { type: "DM", user_id: member.id, discord_user_id: b.discord_user_id };
         (intent.payload as Json).assessment = a;
-        intent.event_key = String(intent.event_key).replace(/^POS:[^:]+:[^:]+:/, `POS:${member.id}:${pid}:`);
+        const pyKey = String(intent.event_key);
+        intent.event_key = pyKey.replace(/^POS:[^:]+:[^:]+:/, `POS:${member.id}:${pid}:`);
+        map[`ek:${pyKey}`] = String(intent.event_key); // the seed acks by the Pi-side key
       }
       await ingestAssessments(db, [{ user_id: member.id, assessment: a, assessment_key: String(b.assessment_key), intent }]);
       return;
     }
     case "outbox_ack":
-      await ackOutboxByEventKey(db, seed.agent_id, String(b.event_key), b.status as "delivered" | "dm_blocked", b.rendered as Json | null);
+      await ackOutboxByEventKey(db, seed.agent_id, map[`ek:${String(b.event_key)}`] ?? String(b.event_key), b.status as "delivered" | "dm_blocked",
+        b.rendered as Json | null);
       return;
     case "backtest":
       await db.query(

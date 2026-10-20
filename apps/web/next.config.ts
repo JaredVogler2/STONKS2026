@@ -15,7 +15,8 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      // React dev tooling needs eval; production builds never get 'unsafe-eval'
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",
@@ -30,6 +31,7 @@ const securityHeaders = [
 
 const config: NextConfig = {
   reactStrictMode: true,
+  agentRules: false, // do not write framework AGENTS.md/CLAUDE.md files into the repo
   poweredByHeader: false,
   productionBrowserSourceMaps: false,
   serverExternalPackages: ["@electric-sql/pglite", "postgres"],

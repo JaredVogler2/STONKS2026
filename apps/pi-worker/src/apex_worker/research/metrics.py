@@ -92,6 +92,47 @@ def effective_sample_size(dates: pd.Series, holding_sessions: pd.Series) -> floa
     return float(min(len(dates), max(1.0, span / max(1.0, float(holding_sessions.fillna(1).mean())))))
 
 
+HOLD_BUCKETS = ((1, 1), (2, 2), (3, 5), (6, 10), (11, 15), (16, 20), (21, 10_000))
+
+
+def time_to_exit_histogram(filled: pd.DataFrame) -> dict:
+    """Sessions from fill to exit, by exit outcome (TARGET / STOP / TIME). Exits are first-touch on daily bars."""
+    out: dict[str, list[dict]] = {}
+    held = filled["sessions_held"].to_numpy(float)
+    for outcome in ("TARGET", "STOP", "TIME"):
+        mask = (
+            (filled["outcome"] == outcome).to_numpy()
+            if outcome != "TIME"
+            else filled["outcome"].isin(["TIME", "DATA_END"]).to_numpy()
+        )
+        h = held[mask]
+        out[outcome] = [
+            {
+                "bucket": f"{lo}" if lo == hi else (f"{lo}+" if hi >= 10_000 else f"{lo}-{hi}"),
+                "n": int(((h >= lo) & (h <= hi)).sum()),
+            }
+            for lo, hi in HOLD_BUCKETS
+        ]
+    return out
+
+
+def drawdown_curve(filled: pd.DataFrame, points: int = 60) -> list[dict]:
+    """Illustrative sequential equity: one unit per signal compounded in decision order (overlapping trades are not
+    capital-constrained), downsampled to at most `points` rows."""
+    f = filled.sort_values("decision_date")
+    r = f["return_net"].to_numpy(float)
+    if not len(r):
+        return []
+    equity = np.cumprod(1 + r)
+    peak = np.maximum.accumulate(np.concatenate([[1.0], equity]))[1:]
+    dd = equity / peak - 1
+    dates = pd.to_datetime(f["decision_date"]).dt.strftime("%Y-%m-%d").to_numpy()
+    idx = np.unique(np.linspace(0, len(r) - 1, num=min(points, len(r))).round().astype(int))
+    return [
+        {"date": str(dates[i]), "equity": round(float(equity[i]), 5), "drawdown": round(float(dd[i]), 5)} for i in idx
+    ]
+
+
 def economic_summary(events: pd.DataFrame) -> dict:
     f = events[events["filled"]] if "filled" in events else events
     r = f["return_net"].to_numpy(float) if len(f) else np.array([])
@@ -115,6 +156,10 @@ def economic_summary(events: pd.DataFrame) -> dict:
         "mean_mae": round(float(f["mae"].mean()), 6) if len(f) and "mae" in f else None,
         "mean_sessions_held": round(float(f["sessions_held"].mean()), 2) if len(f) and "sessions_held" in f else None,
     }
+    if len(f) and "sessions_held" in f:
+        out["time_to_exit_hist"] = time_to_exit_histogram(f)
+    if len(f) and "decision_date" in f:
+        out["drawdown_curve"] = drawdown_curve(f)
     gains = r[r > 0].sum()
     losses = -r[r < 0].sum()
     out["profit_factor"] = round(float(gains / losses), 3) if len(r) >= 30 and losses > 0 else None

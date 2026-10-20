@@ -60,6 +60,7 @@ class LocalSink:
             "asof_at": scan.asof_at,
             "stats": scan.stats.to_dict(),
             "regime": scan.regime,
+            "sectors": scan.sectors,
             "no_trade_reason": outcome.no_trade_reason,
             "candidates": [{k: v for k, v in c.items() if k != "_internal"} for c in scan.candidates],
             "decisions": [

@@ -17,8 +17,8 @@ from datetime import datetime
 import pandas as pd
 
 from apex_worker.contracts import validate
-from apex_worker.features.compute import FEATURE_CATALOG, integrity_hash
-from apex_worker.features.panel import FeaturePanel
+from apex_worker.features.compute import FEATURE_CATALOG, FEATURE_VERSION, integrity_hash
+from apex_worker.features.panel import FeaturePanel, sector_context
 from apex_worker.features.regime import REGIME_STATES
 from apex_worker.market.calendar import MarketCalendar, default_calendar
 from apex_worker.signals.context import context_frame, decision_instant
@@ -69,6 +69,7 @@ class ScanResult:
     stats: ScanStats
     regime: dict
     no_trade_reason: str | None
+    sectors: list[dict] = field(default_factory=list)
 
 
 def candidate_id(symbol: str, strategy_id: str, session: str) -> str:
@@ -413,4 +414,22 @@ class CandidateEngine:
         if not any(c["gate_status"] == "PASS" for c in dedup):
             top = stats.vetoes.most_common(1)
             no_trade = "NO_QUALIFIED_CANDIDATE" + (f" (most common veto: {top[0][0]})" if top else "")
-        return ScanResult(sday, asof_iso, dedup, stats, regime, no_trade)
+        return ScanResult(sday, asof_iso, dedup, stats, regime, no_trade, sector_context(panel, session))
+
+
+def feature_snapshots(scan: ScanResult, provider: str, feed: str, limit: int = 12) -> list[dict]:
+    """FeatureSnapshot payloads for the scan's best candidates (raw values behind the evidence; NULL = insufficient
+    history). The integrity hash is the candidate's feature_snapshot_hash, so the server copy is verifiable."""
+    out = []
+    for c in scan.candidates[:limit]:
+        feats = (c.get("_internal") or {}).get("features")
+        if not feats:
+            continue
+        snap = {
+            "symbol": c["symbol"], "asof_at": c["asof_at"], "session_date": scan.session, "feature_version": FEATURE_VERSION,
+            "features": feats, "sources": [{"provider": provider, "feed": feed, "latest_bar_at": c["asof_at"]}],
+            "integrity_hash": c["feature_snapshot_hash"], "is_demo": bool(c.get("is_demo")),
+        }
+        validate("FeatureSnapshot", snap)
+        out.append(snap)
+    return out

@@ -49,7 +49,10 @@ export interface ServerEnv {
 }
 
 let cached: ServerEnv | null = null;
-const ephemeralSession = randomBytes(32);
+// Local DEMO only (no APEX_SESSION_SECRET): one random secret per process. Kept on globalThis because Next.js may
+// instantiate this module separately for route handlers and server components.
+const g = globalThis as unknown as { __apexEphemeralSession?: Buffer };
+const ephemeralSession = (g.__apexEphemeralSession ??= randomBytes(32));
 
 export function serverEnv(): ServerEnv {
   if (cached) return cached;

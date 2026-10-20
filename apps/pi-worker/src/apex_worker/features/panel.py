@@ -120,3 +120,43 @@ def panel_from_synthetic(market, symbols: list[str] | None = None, lookback: int
     }
     sector_etfs = {sec: etf for sec, (etf, _) in SECTORS.items()}
     return build_panel(bars, meta, "DMSPY", sector_etfs, lookback=lookback)
+
+
+def sector_context(panel: FeaturePanel, session) -> list[dict]:
+    """Per-sector strength at `session` (causal: only that session's row): the sector ETF's 20-session log return, its
+    percentile rank among sectors and the rank change over 20 sessions, plus the share of member stocks above SMA50."""
+    session = pd.Timestamp(session)
+    out: list[dict] = []
+    for sec, etf in sorted(panel.sector_etfs.items()):
+        f = panel.features.get(etf)
+        if f is None or session not in f.index:
+            continue
+        members = [
+            s for s, m in panel.meta.items() if m.sector == sec and m.asset_kind == "stock" and s in panel.features
+        ]
+        above = [
+            float(panel.features[s].loc[session, "dist_sma50_atr"] > 0)
+            for s in members
+            if session in panel.features[s].index and pd.notna(panel.features[s].loc[session, "dist_sma50_atr"])
+        ]
+
+        def val(frame_key: str, sec: str = sec):
+            try:
+                v = panel.sector_frame[(frame_key, sec)].get(session)
+            except KeyError:
+                return None
+            return None if v is None or pd.isna(v) else round(float(v), 4)
+
+        ret = f.loc[session, "ret_20"]
+        out.append(
+            {
+                "sector": sec,
+                "etf": etf,
+                "ret_20": None if pd.isna(ret) else round(float(ret), 5),
+                "rank_20": val("rank"),
+                "rank_change_20": val("rank_change_20"),
+                "breadth_above_sma50": round(sum(above) / len(above), 4) if above else None,
+                "members": len(members),
+            }
+        )
+    return out

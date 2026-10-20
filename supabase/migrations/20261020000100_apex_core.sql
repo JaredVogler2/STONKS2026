@@ -873,10 +873,10 @@ CREATE POLICY latest_quotes_read ON apex.latest_quotes FOR SELECT TO apex_member
 -- retention (Supabase Free: 500 MB hard limit; warn 350 MB, stop non-essential writes 450 MB)
 -- ---------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION apex.apply_retention(quote_days integer DEFAULT 14, heartbeat_days integer DEFAULT 7,
-                                                attempt_days integer DEFAULT 30)
+                                                attempt_days integer DEFAULT 30, feature_days integer DEFAULT 365)
 RETURNS jsonb LANGUAGE plpgsql AS $$
 DECLARE
-  q bigint; n bigint; h bigint; d bigint;
+  q bigint; n bigint; h bigint; d bigint; f bigint;
 BEGIN
   DELETE FROM apex.quote_events WHERE ts_received < now() - make_interval(days => quote_days);
   GET DIAGNOSTICS q = ROW_COUNT;
@@ -886,7 +886,9 @@ BEGIN
   GET DIAGNOSTICS h = ROW_COUNT;
   DELETE FROM apex.delivery_attempts WHERE occurred_at < now() - make_interval(days => attempt_days);
   GET DIAGNOSTICS d = ROW_COUNT;
-  RETURN jsonb_build_object('quote_events', q, 'agent_nonces', n, 'agent_heartbeats', h, 'delivery_attempts', d);
+  DELETE FROM apex.feature_snapshots WHERE asof_at < now() - make_interval(days => feature_days);
+  GET DIAGNOSTICS f = ROW_COUNT;
+  RETURN jsonb_build_object('quote_events', q, 'agent_nonces', n, 'agent_heartbeats', h, 'delivery_attempts', d, 'feature_snapshots', f);
 END $$;
 
 CREATE OR REPLACE FUNCTION apex.database_size_bytes() RETURNS bigint

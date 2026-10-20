@@ -120,6 +120,17 @@ export async function ingestScanRun(db: Db, agentId: string, body: Json): Promis
           Boolean(run.is_demo)],
       );
     }
+    // raw feature values behind the best candidates' evidence (bounded; NULL = insufficient history, never zero-filled)
+    for (const f of ((body.feature_snapshots as Json[] | undefined) ?? []).slice(0, 25)) {
+      assertContract("FeatureSnapshot", f);
+      if (Boolean(f.is_demo) !== Boolean(run.is_demo)) throw new HttpError(422, "MODE_MISMATCH", "feature snapshot mode must match the scan");
+      await sql.query(
+        `INSERT INTO apex.feature_snapshots(symbol, asof_at, session_date, feature_version, features_json, sources_json, integrity_hash, is_demo)
+         VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7,$8) ON CONFLICT (symbol, asof_at, feature_version) DO NOTHING`,
+        [f.symbol, f.asof_at, f.session_date ?? null, f.feature_version, JSON.stringify(f.features), JSON.stringify(f.sources), f.integrity_hash,
+          Boolean(f.is_demo)],
+      );
+    }
   });
   return { candidates: cands.length };
 }
@@ -291,12 +302,21 @@ export async function enqueueIntent(db: Db, intent: Json): Promise<boolean> {
 
 export async function leaseOutbox(db: Db, agentId: string, limit: number): Promise<{ outbox_id: string; attempt: number; intent: Json; discord_user_id: string | null; dm_opt_in: boolean }[]> {
   return db.tx(async (sql) => {
+    // owner-suppressed signals: their queued notices are never handed to the bot
+    await sql.query(
+      `UPDATE apex.notification_outbox o SET state = 'suppressed' WHERE o.state = 'pending' AND EXISTS (
+         SELECT 1 FROM apex.signal_events e WHERE e.event_type = 'ADMIN_REVIEW' AND e.payload_json->>'suppress_alerts' = 'true'
+           AND o.event_key LIKE '%' || e.signal_id || '%')`);
+    // owner STOP switch (fail closed): only system alerts are handed out while it is on
+    const ks = await sql.query<{ stopped: boolean }>("SELECT (value_json->>'stopped')::boolean AS stopped FROM apex.settings WHERE key = 'alerts.kill_switch'");
+    const stopped = ks[0]?.stopped === true;
     const rows = await sql.query<{ id: string; attempts: number; payload_json: Json; user_id: string | null }>(
       `SELECT id, attempts, payload_json, user_id FROM apex.notification_outbox
        WHERE (state = 'pending' OR (state = 'leased' AND lease_until < now())) AND next_attempt_at <= now()
+         AND (NOT $2::boolean OR kind = 'SYSTEM_ALERT')
        ORDER BY CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, created_at
        LIMIT $1 FOR UPDATE SKIP LOCKED`,
-      [Math.min(50, Math.max(1, limit))],
+      [Math.min(50, Math.max(1, limit)), stopped],
     );
     const out = [];
     for (const r of rows) {

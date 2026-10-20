@@ -15,7 +15,9 @@
     "gen": "node scripts/gen-embedded.mjs",
     "gen:check": "node scripts/gen-embedded.mjs --check",
     "prebuild": "node scripts/gen-embedded.mjs",
-    "predev": "node scripts/gen-embedded.mjs"
+    "predev": "node scripts/gen-embedded.mjs",
+    "demo": "node scripts/gen-embedded.mjs && node scripts/demo.mjs",
+    "demo:prod": "node scripts/demo.mjs --prod"
   },
   "dependencies": {
     "@apex/contracts": "workspace:*",

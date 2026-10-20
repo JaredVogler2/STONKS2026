@@ -288,6 +288,14 @@ export const SETTING_SCHEMAS = {
   "budgets": z.object({ actions_monthly_minutes: z.number().int().min(0).max(50_000), train_timeout_minutes: z.number().int().min(5).max(120),
     drift_enabled: z.boolean(), alpaca_daily_requests: z.number().int().min(100).max(300_000) }),
   "sec.contact": z.object({ user_agent: z.string().regex(/^[\x20-\x7e]{8,120}$/).refine((s) => /@/.test(s), "must include a contact email") }),
+  // guided-setup steps the app cannot verify itself, confirmed by the owner
+  "onboarding.manual": z.partialRecord(z.enum(["pi_assembled", "vercel_protected", "replay_passed"]), z.boolean()),
+  // fail-closed STOP switch: while stopped, no investment notice leaves the outbox (system alerts still do)
+  "alerts.kill_switch": z.object({ stopped: z.boolean(), reason: z.string().max(200) }),
+  // per-strategy on/off overrides read by the Pi at each scan; absent ids fall back to the strategy's own default
+  "strategies.enabled": z.record(z.string().regex(/^[a-z0-9_]{3,48}$/), z.boolean()),
+  // owner-only, opt-in: a HYPOTHETICAL account size used solely to express open risk as a % on the positions page
+  "owner.risk_budget": z.object({ enabled: z.boolean(), hypothetical_account_usd: z.number().min(1000).max(100_000_000) }),
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
@@ -304,6 +312,10 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: z.infer<(typeof SETTING_SCHE
   "models.policy": { promotion_mode: "manual", auto_requires_status: "CALIBRATED", poll_minutes: 45 },
   "budgets": { actions_monthly_minutes: 1500, train_timeout_minutes: 45, drift_enabled: true, alpaca_daily_requests: 150_000 },
   "sec.contact": { user_agent: "APEX research owner@example.com" },
+  "onboarding.manual": {},
+  "alerts.kill_switch": { stopped: false, reason: "" },
+  "strategies.enabled": {},
+  "owner.risk_budget": { enabled: false, hypothetical_account_usd: 25_000 },
 };
 
 export async function getSettings(db: Db): Promise<{ [K in SettingKey]: { value: z.infer<(typeof SETTING_SCHEMAS)[K]>; version: number; updated_at: string | null } }> {

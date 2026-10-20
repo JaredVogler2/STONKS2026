@@ -2,23 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
+import { buttonClass, type Variant } from "@/lib/button";
 import { cn } from "@/lib/cn";
 
 /* Every mutating control goes through this: same-origin fetch with the CSRF header, an explicit busy state, and the
  * server's real success/failure message (never an optimistic fake success). */
 
-export type Variant = "primary" | "secondary" | "danger" | "ghost";
-
-export const BUTTON: Record<Variant, string> = {
-  primary: "border-info/50 bg-info/15 text-fg hover:bg-info/25",
-  secondary: "border-line-strong bg-surface-2 text-fg hover:bg-surface-3",
-  danger: "border-neg/50 bg-neg/10 text-neg hover:bg-neg/20",
-  ghost: "border-transparent bg-transparent text-muted hover:bg-surface-2 hover:text-fg",
-};
-
-export const buttonClass = (variant: Variant = "secondary", extra?: string) =>
-  cn("inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-    BUTTON[variant], extra);
+export { buttonClass, type Variant } from "@/lib/button";
 
 export interface ApiResult { ok: boolean; status: number; data: Record<string, unknown> | null; message: string }
 
@@ -36,17 +26,19 @@ export async function callApi(url: string, method: string, body?: unknown): Prom
     } catch {
       data = null;
     }
-    const err = (data?.error as { code?: string; message?: string } | undefined) ?? null;
-    return { ok: res.ok, status: res.status, data, message: err ? `${err.message ?? "request failed"} (${err.code ?? res.status})` : res.ok ? "Done" : `HTTP ${res.status}` };
+    const err = (data?.error as { code?: string; message?: string; issues?: string[] } | undefined) ?? null;
+    const issues = err?.issues?.length ? `: ${err.issues.join("; ")}` : "";
+    return { ok: res.ok, status: res.status, data,
+      message: err ? `${err.message ?? "request failed"}${issues} (${err.code ?? res.status})` : res.ok ? "Done" : `HTTP ${res.status}` };
   } catch (e) {
     return { ok: false, status: 0, data: null, message: e instanceof Error ? `network error: ${e.message}` : "network error" };
   }
 }
 
 export function ActionButton({ url, method = "POST", body, label, busyLabel, confirm, variant = "secondary", successMessage, className, disabled,
-  disabledReason, icon, describe }: {
+  disabledReason, icon, duplicateMessage }: {
   url: string; method?: string; body?: unknown; label: ReactNode; busyLabel?: string; confirm?: string; variant?: Variant; successMessage?: string;
-  className?: string; disabled?: boolean; disabledReason?: string; icon?: ReactNode; describe?: (r: ApiResult) => string | null;
+  className?: string; disabled?: boolean; disabledReason?: string; icon?: ReactNode; duplicateMessage?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -60,7 +52,8 @@ export function ActionButton({ url, method = "POST", body, label, busyLabel, con
     setResult(r);
     if (r.ok) start(() => router.refresh());
   };
-  const shown = result ? (describe?.(result) ?? (result.ok ? (successMessage ?? result.message) : result.message)) : null;
+  const shown = !result ? null : !result.ok ? result.message
+    : result.data?.status === "duplicate" && duplicateMessage ? duplicateMessage : (successMessage ?? result.message);
   return (
     <span className="inline-flex flex-col items-start gap-1">
       <button type="button" onClick={run} disabled={disabled || busy || pending} className={buttonClass(variant, className)}

@@ -217,3 +217,42 @@ describe("model registry", () => {
     expect(createHash("sha256").update(artifact).digest("hex")).toBe(manifest.artifact_sha256);
   });
 });
+
+describe("notification outbox controls", () => {
+  it("DEMO private updates are acknowledged (sent or held privately), never left pending", async () => {
+    const dm = await db.query<{ state: string; n: number }>(
+      "SELECT state, count(*)::int AS n FROM apex.notification_outbox WHERE route_json->>'type' = 'DM' GROUP BY state");
+    expect(dm.length).toBeGreaterThan(0);
+    expect(dm.find((r) => r.state === "pending")?.n ?? 0).toBe(0);
+    const held = await db.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM apex.notification_outbox WHERE route_json->>'type' = 'DM' AND state = 'deferred' AND rendered_json IS NOT NULL");
+    expect(held[0]!.n).toBe(0); // personal content is never stored as a rendered channel post
+  });
+
+  it("the STOP switch hands out only system alerts, and owner suppression removes a signal's queued notices", async () => {
+    const { leaseOutbox } = await import("@/server/services/ingest");
+    const { putSetting } = await import("@/server/services/settings");
+    const { reviewSignal } = await import("@/server/services/explorer");
+    const open = await db.query<{ signal_id: string }>("SELECT signal_id FROM apex.signal_heads WHERE state IN ('PUBLISHED','ACTIVE') LIMIT 1");
+    const sid = open[0]!.signal_id;
+    const mk = (key: string, kind: string) => db.query(
+      `INSERT INTO apex.notification_outbox(event_key, route_json, kind, priority, payload_json, is_demo) VALUES ($1, '{"type":"CHANNEL","channel_key":"system_status"}'::jsonb, $2, 'NORMAL', '{}'::jsonb, true)`,
+      [key, kind]);
+    await mk(`TEST:SIGEVT:${sid}:x1`, "SIGNAL_UPDATE");
+    await mk(`TEST:SYS:${randomBytes(4).toString("hex")}`, "SYSTEM_ALERT");
+    const v = (await db.query<{ version: number }>("SELECT version FROM apex.settings WHERE key = 'alerts.kill_switch'"))[0]?.version ?? 0;
+    await putSetting(db, ownerId, "alerts.kill_switch", { stopped: true, reason: "test" }, v);
+    const leased = await leaseOutbox(db, "agt_demodevice01", 50);
+    expect(leased.length).toBeGreaterThan(0);
+    const kinds = await db.query<{ kind: string }>("SELECT kind FROM apex.notification_outbox WHERE id = ANY($1)", [leased.map((l) => l.outbox_id)]);
+    expect(new Set(kinds.map((k) => k.kind))).toEqual(new Set(["SYSTEM_ALERT"]));
+    await putSetting(db, ownerId, "alerts.kill_switch", { stopped: false, reason: "" }, v + 1);
+    expect(await code(reviewSignal(db, ownerId, sid, { note: "x", suppress: true }, new Date()))).toBe("422:NOTE_REQUIRED");
+    const r = await reviewSignal(db, ownerId, sid, { note: "test suppression", suppress: true }, new Date());
+    expect(r.suppressed_pending).toBeGreaterThanOrEqual(1);
+    const st = await db.query<{ state: string }>("SELECT state FROM apex.notification_outbox WHERE event_key = $1", [`TEST:SIGEVT:${sid}:x1`]);
+    expect(st[0]!.state).toBe("suppressed");
+    const head = await db.query<{ state: string }>("SELECT state FROM apex.signal_heads WHERE signal_id = $1", [sid]);
+    expect(["PUBLISHED", "ACTIVE"]).toContain(head[0]!.state); // review never changes lifecycle state
+  });
+});

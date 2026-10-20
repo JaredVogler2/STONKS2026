@@ -92,14 +92,17 @@ export async function computeHealth(db: Db, now: Date): Promise<ServiceHealth> {
   comps.push({ key: "alerts_delivery", label: "Alert delivery (outbox)", status: o.dead > 0 ? "DEGRADED" : oldest !== null && oldest > 1800 ? "DEGRADED" : "OK",
     age_seconds: oldest, detail: `${o.pending} pending, ${o.deferred} held privately (DMs off), ${o.dead} dead-letter`,
     action: o.dead > 0 ? "Operations -> Delivery: inspect dead letters and requeue" : undefined });
-  const champ = await db.query<{ id: string; validation_expires_at: Date }>(
-    "SELECT id, validation_expires_at FROM apex.model_versions WHERE status='champion' AND is_demo=$1 ORDER BY promoted_at DESC LIMIT 1", [isDemo]);
+  const champ = await db.query<{ id: string; validation_expires_at: Date; confidence: string | null }>(
+    `SELECT id, validation_expires_at, manifest_json->'evaluation'->>'confidence_status' AS confidence FROM apex.model_versions
+     WHERE status='champion' AND is_demo=$1 ORDER BY promoted_at DESC LIMIT 1`, [isDemo]);
   const runs = await db.query<{ finished_at: Date | null; started_at: Date; status: string }>(
     "SELECT finished_at, started_at, status FROM apex.training_runs WHERE workflow IN ('train_weekly','local_replay') ORDER BY started_at DESC LIMIT 1");
   const trainAge = age(now, runs[0]?.finished_at ?? runs[0]?.started_at);
   const expired = champ[0] && new Date(champ[0].validation_expires_at).getTime() < now.getTime();
-  comps.push({ key: "model", label: "Calibrated model", status: !champ[0] ? "UNCONFIGURED" : expired ? "STALE" : "OK", age_seconds: trainAge,
-    detail: !champ[0] ? "no champion: every signal is UNVALIDATED (no probabilities shown)" : `champion ${champ[0].id}${expired ? " - validation expired" : ""}`,
+  const calibrated = champ[0]?.confidence === "CALIBRATED";
+  comps.push({ key: "model", label: "Calibrated model", status: !champ[0] ? "UNCONFIGURED" : expired ? "STALE" : calibrated ? "OK" : "DEGRADED", age_seconds: trainAge,
+    detail: !champ[0] ? "no champion: every signal is UNVALIDATED (no probabilities shown)"
+      : `champion ${champ[0].id} (${(champ[0].confidence ?? "unknown").toLowerCase()})${expired ? " - validation expired" : ""}${!calibrated ? ": no calibrated probabilities" : ""}`,
     action: !champ[0] ? "Training runs weekly on GitHub Actions; a model is promoted only if it passes the frozen gates" : expired ? "Investigate missed training runs" : undefined });
   comps.push({ key: "training_schedule", label: "Weekly cloud training", status: !runs[0] ? "UNKNOWN" : trainAge! > TRAIN_SLA_DAYS * 86400 * 2 ? "DOWN" : trainAge! > TRAIN_SLA_DAYS * 86400 ? "DEGRADED" : "OK",
     age_seconds: trainAge, detail: runs[0] ? `last run ${runs[0].status}` : "no training run reported (GitHub schedule not yet configured or not run)",

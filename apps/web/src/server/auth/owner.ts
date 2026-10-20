@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createHash } from "node:crypto";
 import { getDb, type Db } from "../db";
 import { serverEnv } from "../env";
@@ -38,6 +39,13 @@ export async function currentOwner(): Promise<Owner | null> {
   } catch {
     return null;
   }
+}
+
+/** For pages: layouts and pages render concurrently, so every page re-checks the session itself. */
+export async function pageOwner(): Promise<Owner> {
+  const owner = await currentOwner();
+  if (!owner) redirect("/login");
+  return owner;
 }
 
 function cookieFrom(req: Request, name: string): string | undefined {

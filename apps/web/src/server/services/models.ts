@@ -220,3 +220,17 @@ export async function championSummaries(db: Db, isDemo: boolean): Promise<Record
     gates: { selected_mean_lower_p10: num((r.manifest_json.evaluation as Json)?.selected_mean_lower_p10) },
     confidence_status: (r.manifest_json.evaluation as Json)?.confidence_status }]));
 }
+
+/** Last successful scheduled training run and current champions' validity, for the Pi's missed-run / expiry notices. */
+export async function trainingStatus(db: Db, isDemo: boolean): Promise<{ last_success_at: string | null; last_run_at: string | null; last_run_status: string | null;
+  champions: { strategy_id: string; model_id: string; validation_expires_at: string }[] }> {
+  const ok = await db.query<{ at: Date | null }>(
+    "SELECT max(finished_at) AS at FROM apex.training_runs WHERE status = 'succeeded' AND workflow IN ('train_weekly','local_replay')");
+  const last = await db.query<{ started_at: Date; status: string }>(
+    "SELECT started_at, status FROM apex.training_runs WHERE workflow IN ('train_weekly','local_replay') ORDER BY started_at DESC LIMIT 1");
+  const champs = await db.query<{ strategy_id: string; id: string; validation_expires_at: Date }>(
+    "SELECT strategy_id, id, validation_expires_at FROM apex.model_versions WHERE status = 'champion' AND is_demo = $1 ORDER BY strategy_id", [isDemo]);
+  const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString().replace(/\.\d{3}Z$/, "Z") : null);
+  return { last_success_at: iso(ok[0]?.at), last_run_at: iso(last[0]?.started_at), last_run_status: last[0]?.status ?? null,
+    champions: champs.map((c) => ({ strategy_id: c.strategy_id, model_id: c.id, validation_expires_at: iso(c.validation_expires_at)! })) };
+}
