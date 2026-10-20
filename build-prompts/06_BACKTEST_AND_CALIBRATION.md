@@ -1,5 +1,11 @@
 # PHASE 06 — Historical research lab, true event-time backtests and calibration
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
+**Specific Phase 06 additional deliverables:** implement `.github/workflows/apex-model-train-weekly.yml` and `.github/workflows/apex-model-drift.yml` with hosted standard Linux runners, bounded durations, America/New_York schedule, manual dispatch, per-job quota budget, pinned actions, private environment secrets and reusable deterministic offline fixtures. Train/evaluate/calibrate unattended, register reproducible candidate model metadata, require holdout + challenger-vs-champion gate, and never automatically publish merely because a backtest is higher. Agent must document execution state and report whether workflow actually ran.
+
 ## Objective
 
 Determine empirically if APEX can produce an economic edge after costs, rather than merely telling a good story. Build a genuinely executable and repeatable backtesting/replay engine capable of comparing 1–4 week strategies against sensible baselines.
