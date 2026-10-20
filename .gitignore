@@ -1,0 +1,40 @@
+# dependencies / builds
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+playwright-report/
+test-results/
+coverage/
+
+# local state, databases, generated data (never commit)
+.apex-local/
+.apex/
+*.sqlite
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.parquet
+fixtures/demo/generated/
+apps/pi-worker/state/
+
+# secrets: never commit real environment files or keys
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+device_keys.json
+model_signing_key*
+backups/
+*.dump
+*.dump.gpg

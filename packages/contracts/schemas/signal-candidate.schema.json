@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/signal-candidate.schema.json",
+  "title": "SignalCandidate",
+  "description": "A ranked research candidate. quality_score is an internal ranking 0-100 and is NEVER a probability.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "symbol", "created_at", "asof_at", "strategy_id", "strategy_version", "quality_score", "gate_status", "reason_codes", "evidence", "is_demo"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^cand_[0-9a-f]{24}$" },
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "created_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "asof_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "strategy_id": { "type": "string", "pattern": "^[a-z0-9_]{2,48}$" },
+    "strategy_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "quality_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "gate_status": { "type": "string", "enum": ["PASS", "WATCH", "VETO"] },
+    "reason_codes": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,64}$" }, "maxItems": 32 },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positive", "negative"],
+      "properties": {
+        "positive": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/EvidenceItem" }, "maxItems": 16 },
+        "negative": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/EvidenceItem" }, "maxItems": 16 }
+      }
+    },
+    "group_scores": { "type": "object", "additionalProperties": { "type": ["number", "null"] } },
+    "regime": { "type": "string", "maxLength": 32 },
+    "feature_snapshot_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "is_demo": { "type": "boolean" }
+  }
+}

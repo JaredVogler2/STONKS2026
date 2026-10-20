@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/service-health.schema.json",
+  "title": "ServiceHealth",
+  "description": "Separate health lights. One green light is never sufficient.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generated_at", "overall", "release_mode", "components"],
+  "properties": {
+    "generated_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "overall": { "$ref": "common.schema.json#/$defs/HealthStatus" },
+    "release_mode": { "$ref": "common.schema.json#/$defs/ReleaseMode" },
+    "components": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "label", "status"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[a-z0-9_]{2,48}$" },
+          "label": { "type": "string", "maxLength": 64 },
+          "status": { "$ref": "common.schema.json#/$defs/HealthStatus" },
+          "last_ok_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+          "age_seconds": { "type": ["integer", "null"], "minimum": 0 },
+          "detail": { "type": "string", "maxLength": 240 },
+          "action": { "type": "string", "maxLength": 240, "description": "What the operator should do next" }
+        }
+      }
+    }
+  }
+}

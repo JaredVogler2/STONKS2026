@@ -1,0 +1,22 @@
+{
+  "name": "apex-stonks2026",
+  "private": true,
+  "version": "0.1.0",
+  "description": "APEX swing-trading research and alert platform (private)",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12 <23",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @apex/web dev",
+    "build": "pnpm --filter @apex/web build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "contracts:generate": "pnpm --filter @apex/contracts generate",
+    "contracts:check": "pnpm --filter @apex/contracts check",
+    "e2e": "pnpm --filter @apex/web e2e",
+    "secret-scan": "node scripts/secret-scan.mjs"
+  }
+}

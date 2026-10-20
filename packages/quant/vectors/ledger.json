@@ -1,0 +1,152 @@
+{
+  "description": "Shared FIFO ledger vectors. Both apps/pi-worker (Python) and apps/web (TypeScript) must reproduce these exactly. Events are applied one at a time with apply(); 'error' marks the step that must be rejected (the rejected event is not kept). Money values are rounded half-even to 6 decimal places.",
+  "version": "ledger-fifo-1",
+  "now": "2026-10-20T20:00:00Z",
+  "cases": [
+    {
+      "name": "single_open",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "180", "quantity": "20", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "20", "avg_cost": "180", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["20"], "unrealized_at": { "price": "186.5", "pnl": "130" } }
+    },
+    {
+      "name": "member_a_open_add_partial_close",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "180", "quantity": "20", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "ADD", "fill": { "price": "177", "quantity": "10", "fees": "0", "fill_at": "2026-10-02T15:00:00Z" } },
+        { "id": "e3", "type": "PARTIAL_EXIT", "fill": { "price": "190", "quantity": "15", "fees": "1", "fill_at": "2026-10-06T16:00:00Z" } },
+        { "id": "e4", "type": "CLOSE", "fill": { "price": "185", "quantity": "15", "fees": "0", "fill_at": "2026-10-08T19:00:00Z" } }
+      ],
+      "checkpoints": {
+        "e2": { "state": "OPEN", "total_quantity": "30", "avg_cost": "179", "realized_pnl": "0" },
+        "e3": { "state": "PARTIALLY_CLOSED", "total_quantity": "15", "avg_cost": "178", "realized_pnl": "149" }
+      },
+      "expect": { "state": "CLOSED", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "254", "fees_total": "1", "lots_remaining": ["0", "0"] }
+    },
+    {
+      "name": "buy_fees_in_cost_basis",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "10", "quantity": "3", "fees": "0.1", "fill_at": "2026-10-01T14:35:00Z" } }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "3", "avg_cost": "10.033333", "realized_pnl": "0", "fees_total": "0.1", "lots_remaining": ["3"], "unrealized_at": { "price": "10", "pnl": "-0.1" } }
+    },
+    {
+      "name": "fractional_shares",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "181.25", "quantity": "0.5", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "ADD", "fill": { "price": "179.5", "quantity": "1.25", "fees": "0", "fill_at": "2026-10-01T15:35:00Z" } },
+        { "id": "e3", "type": "PARTIAL_EXIT", "fill": { "price": "185", "quantity": "0.75", "fees": "0", "fill_at": "2026-10-03T15:35:00Z" } }
+      ],
+      "expect": { "state": "PARTIALLY_CLOSED", "total_quantity": "1", "avg_cost": "179.5", "realized_pnl": "3.25", "fees_total": "0", "lots_remaining": ["0", "1"] }
+    },
+    {
+      "name": "oversell_rejected",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "50", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "PARTIAL_EXIT", "fill": { "price": "55", "quantity": "11", "fees": "0", "fill_at": "2026-10-02T14:35:00Z" }, "error": "OVERSELL" }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "10", "avg_cost": "50", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["10"] }
+    },
+    {
+      "name": "sell_dated_before_buy_rejected",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "50", "quantity": "10", "fees": "0", "fill_at": "2026-10-05T14:35:00Z" } },
+        { "id": "e2", "type": "PARTIAL_EXIT", "fill": { "price": "55", "quantity": "5", "fees": "0", "fill_at": "2026-10-02T14:35:00Z" }, "error": "OVERSELL" }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "10", "avg_cost": "50", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["10"] }
+    },
+    {
+      "name": "correction_replaces_price_without_rewriting_history",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "190", "quantity": "5", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "CORRECT", "correction": { "target": "e1", "void": false, "replacement": { "price": "189.5", "quantity": "5", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } } }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "5", "avg_cost": "189.5", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["5"] }
+    },
+    {
+      "name": "void_then_cancel_correction",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "100", "quantity": "4", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "ADD", "fill": { "price": "90", "quantity": "4", "fees": "0", "fill_at": "2026-10-02T14:35:00Z" } },
+        { "id": "e3", "type": "CORRECT", "correction": { "target": "e2", "void": true } },
+        { "id": "e4", "type": "CANCEL_CORRECTION", "correction": { "target": "e3", "void": false } }
+      ],
+      "checkpoints": {
+        "e3": { "state": "OPEN", "total_quantity": "4", "avg_cost": "100", "realized_pnl": "0" }
+      },
+      "expect": { "state": "OPEN", "total_quantity": "8", "avg_cost": "95", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["4", "4"] }
+    },
+    {
+      "name": "correction_cannot_create_oversell",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "100", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "PARTIAL_EXIT", "fill": { "price": "110", "quantity": "8", "fees": "0", "fill_at": "2026-10-03T14:35:00Z" } },
+        { "id": "e3", "type": "CORRECT", "correction": { "target": "e1", "void": false, "replacement": { "price": "100", "quantity": "5", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } }, "error": "OVERSELL" }
+      ],
+      "expect": { "state": "PARTIALLY_CLOSED", "total_quantity": "2", "avg_cost": "100", "realized_pnl": "80", "fees_total": "0", "lots_remaining": ["2"] }
+    },
+    {
+      "name": "watch_then_open_then_close",
+      "events": [
+        { "id": "e1", "type": "WATCH" },
+        { "id": "e2", "type": "OPEN", "fill": { "price": "20", "quantity": "100", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e3", "type": "CLOSE", "fill": { "price": "19", "quantity": "100", "fees": "0.5", "fill_at": "2026-10-09T14:35:00Z" } }
+      ],
+      "checkpoints": { "e1": { "state": "WATCHING", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "0" } },
+      "expect": { "state": "CLOSED", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "-100.5", "fees_total": "0.5", "lots_remaining": ["0"] }
+    },
+    {
+      "name": "watch_then_unwatch",
+      "events": [
+        { "id": "e1", "type": "WATCH" },
+        { "id": "e2", "type": "UNWATCH" }
+      ],
+      "expect": { "state": "CLOSED", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "0", "fees_total": "0", "lots_remaining": [] }
+    },
+    {
+      "name": "add_after_close_rejected",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "20", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "CLOSE", "fill": { "price": "21", "quantity": "10", "fees": "0", "fill_at": "2026-10-02T14:35:00Z" } },
+        { "id": "e3", "type": "ADD", "fill": { "price": "20", "quantity": "5", "fees": "0", "fill_at": "2026-10-03T14:35:00Z" }, "error": "NOT_OPEN" }
+      ],
+      "expect": { "state": "CLOSED", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "10", "fees_total": "0", "lots_remaining": ["0"] }
+    },
+    {
+      "name": "double_open_rejected",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "20", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "OPEN", "fill": { "price": "21", "quantity": "10", "fees": "0", "fill_at": "2026-10-02T14:35:00Z" }, "error": "ALREADY_OPEN" }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "10", "avg_cost": "20", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["10"] }
+    },
+    {
+      "name": "cannot_correct_a_correction",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "20", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "CORRECT", "correction": { "target": "e1", "void": false, "replacement": { "price": "21", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } } },
+        { "id": "e3", "type": "CORRECT", "correction": { "target": "e2", "void": true }, "error": "BAD_TARGET" }
+      ],
+      "expect": { "state": "OPEN", "total_quantity": "10", "avg_cost": "21", "realized_pnl": "0", "fees_total": "0", "lots_remaining": ["10"] }
+    },
+    {
+      "name": "void_only_entry_closes_position",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "20", "quantity": "10", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "CORRECT", "correction": { "target": "e1", "void": true } }
+      ],
+      "expect": { "state": "CLOSED", "total_quantity": "0", "avg_cost": "0", "realized_pnl": "0", "fees_total": "0", "lots_remaining": [] }
+    },
+    {
+      "name": "fifo_across_three_lots_with_sell_fees",
+      "events": [
+        { "id": "e1", "type": "OPEN", "fill": { "price": "10", "quantity": "1", "fees": "0", "fill_at": "2026-10-01T14:35:00Z" } },
+        { "id": "e2", "type": "ADD", "fill": { "price": "11", "quantity": "1", "fees": "0", "fill_at": "2026-10-01T14:36:00Z" } },
+        { "id": "e3", "type": "ADD", "fill": { "price": "12", "quantity": "1", "fees": "0", "fill_at": "2026-10-01T14:37:00Z" } },
+        { "id": "e4", "type": "PARTIAL_EXIT", "fill": { "price": "13", "quantity": "2", "fees": "0.3", "fill_at": "2026-10-02T14:35:00Z" } }
+      ],
+      "expect": { "state": "PARTIALLY_CLOSED", "total_quantity": "1", "avg_cost": "12", "realized_pnl": "4.7", "fees_total": "0.3", "lots_remaining": ["0", "0", "1"] }
+    }
+  ]
+}

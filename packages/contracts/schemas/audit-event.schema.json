@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/audit-event.schema.json",
+  "title": "AuditEvent",
+  "description": "Append-only audit record. Metadata is redacted: it never contains secret values or personal fills.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["actor_type", "action", "entity", "at", "redacted_metadata"],
+  "properties": {
+    "id": { "$ref": "common.schema.json#/$defs/Uuid" },
+    "actor_type": { "type": "string", "enum": ["owner", "agent", "member", "system"] },
+    "actor_id": { "type": "string", "maxLength": 64 },
+    "action": { "type": "string", "pattern": "^[a-z0-9_.]{2,64}$" },
+    "entity": { "type": "string", "pattern": "^[a-z0-9_]{2,48}$" },
+    "entity_id": { "type": "string", "maxLength": 64 },
+    "at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "correlation_id": { "type": "string", "maxLength": 64 },
+    "redacted_metadata": { "type": "object" }
+  }
+}

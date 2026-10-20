@@ -1,0 +1,39 @@
+{
+  "description": "TEST-ONLY HMAC vectors shared by web (TS) and pi-worker (Python).",
+  "secret_b64": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+  "cases": [
+    {
+      "agent_id": "agt_testpi0001",
+      "method": "POST",
+      "path": "/api/v1/agent/heartbeat",
+      "timestamp": "1792512000",
+      "nonce": "AAAAAAAAAAAAAAAAAAAAAA",
+      "body": "{\"hello\":\"world\"}",
+      "body_sha256": "93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "canonical": "APEX-HMAC-SHA256-V1\nagt_testpi0001\nPOST\n/api/v1/agent/heartbeat\n1792512000\nAAAAAAAAAAAAAAAAAAAAAA\n93a23971a914e5eacbf0a8d25154cda309c3c1c72fbb9914d47c60f3cb681588",
+      "signature": "831ad86f6348227d7dc253ffee9df8952aacd2f6b5a0a61f9c644a99a77c7221"
+    },
+    {
+      "agent_id": "agt_testpi0001",
+      "method": "GET",
+      "path": "/api/v1/agent/work?limit=20",
+      "timestamp": "1792512060",
+      "nonce": "nonce-with_url-safe-chars-0123",
+      "body": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "canonical": "APEX-HMAC-SHA256-V1\nagt_testpi0001\nGET\n/api/v1/agent/work?limit=20\n1792512060\nnonce-with_url-safe-chars-0123\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "signature": "b1b9985583f18b8019df5de4420ddb36ec7d93ba0810a5f4eed289c910f83d69"
+    },
+    {
+      "agent_id": "agt_testpi0002",
+      "method": "POST",
+      "path": "/api/v1/agent/positions/events",
+      "timestamp": "1792512120",
+      "nonce": "ZZZZZZZZZZZZZZZZZZZZZZ",
+      "body": "{\"a\":[1,2,3],\"b\":\"ü\"}",
+      "body_sha256": "15292d2c66ae1db165662b6a20d58841b481490889f48738fa1ca91b36ec8c13",
+      "canonical": "APEX-HMAC-SHA256-V1\nagt_testpi0002\nPOST\n/api/v1/agent/positions/events\n1792512120\nZZZZZZZZZZZZZZZZZZZZZZ\n15292d2c66ae1db165662b6a20d58841b481490889f48738fa1ca91b36ec8c13",
+      "signature": "a2ef2fa06c758fb35a202bbdf5d7dd3b8941f3ee7764e0461dbc553a93e67dc0"
+    }
+  ]
+}

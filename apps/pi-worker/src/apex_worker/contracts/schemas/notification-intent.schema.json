@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/notification-intent.schema.json",
+  "title": "NotificationIntent",
+  "description": "Transactional-outbox notification intent. event_key is globally unique and makes delivery idempotent.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_key", "kind", "route", "priority", "payload", "created_at", "is_demo"],
+  "properties": {
+    "event_key": { "type": "string", "minLength": 8, "maxLength": 200, "pattern": "^[A-Za-z0-9:_.-]+$" },
+    "kind": { "type": "string", "enum": ["NEW_SIGNAL", "SIGNAL_UPDATE", "SIGNAL_CLOSED", "MARKET_INTEL", "PERFORMANCE_REPORT", "POSITION_CONFIRMATION", "POSITION_UPDATE", "SYSTEM_ALERT"] },
+    "route": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "channel_key"],
+          "properties": {
+            "type": { "const": "CHANNEL" },
+            "channel_key": { "type": "string", "enum": ["high_conviction_alerts", "active_trades", "exit_alerts", "market_intelligence", "performance_reports", "system_status"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "user_id"],
+          "properties": {
+            "type": { "const": "DM" },
+            "user_id": { "$ref": "common.schema.json#/$defs/Uuid" },
+            "discord_user_id": { "$ref": "common.schema.json#/$defs/DiscordSnowflake" }
+          }
+        }
+      ]
+    },
+    "priority": { "type": "string", "enum": ["LOW", "NORMAL", "HIGH", "URGENT"] },
+    "payload": { "type": "object", "description": "Structured template data; rendered deterministically at delivery" },
+    "created_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "source_event_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "is_demo": { "type": "boolean" }
+  }
+}

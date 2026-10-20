@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/feature-snapshot.schema.json",
+  "title": "FeatureSnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["symbol", "asof_at", "feature_version", "features", "sources", "integrity_hash", "is_demo"],
+  "properties": {
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "asof_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "session_date": { "$ref": "common.schema.json#/$defs/SessionDate" },
+    "feature_version": { "type": "string", "pattern": "^[a-z0-9_.-]{1,48}$" },
+    "features": {
+      "type": "object",
+      "description": "Feature name to value. NULL means insufficient history; it is never replaced with zero.",
+      "additionalProperties": { "type": ["number", "null"] },
+      "propertyNames": { "pattern": "^[a-z0-9_]{1,64}$" }
+    },
+    "sources": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "feed", "latest_bar_at"],
+        "properties": {
+          "provider": { "$ref": "common.schema.json#/$defs/Provider" },
+          "feed": { "$ref": "common.schema.json#/$defs/Feed" },
+          "latest_bar_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+          "bars_used": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "integrity_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 over canonical inputs + feature version" },
+    "is_demo": { "type": "boolean" }
+  }
+}

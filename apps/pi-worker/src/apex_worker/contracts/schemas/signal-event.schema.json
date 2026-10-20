@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/signal-event.schema.json",
+  "title": "SignalEvent",
+  "description": "Append-only signal lifecycle transition.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["signal_id", "event_type", "event_at", "dedupe_key", "from_state", "to_state", "cause", "payload"],
+  "properties": {
+    "signal_id": { "type": "string", "pattern": "^sig_[0-9a-f]{24}$" },
+    "event_type": { "type": "string", "enum": ["CREATED", "QUALIFIED", "PUBLISHED", "WATCH", "ACTIVATED", "UPGRADED", "DOWNGRADED", "TARGET_REACHED", "STOP_HIT", "TIME_WARNING", "EXPIRED", "INVALIDATED", "CLOSED", "DISCARDED", "NO_TRADE", "STALE_DATA", "ADMIN_REVIEW"] },
+    "event_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "dedupe_key": { "type": "string", "minLength": 8, "maxLength": 200 },
+    "from_state": { "anyOf": [{ "$ref": "trade-signal.schema.json#/$defs/SignalState" }, { "type": "null" }] },
+    "to_state": { "$ref": "trade-signal.schema.json#/$defs/SignalState" },
+    "cause": { "type": "string", "maxLength": 240 },
+    "evidence_asof_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "payload": { "type": "object" }
+  }
+}

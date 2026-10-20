@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/position-fill.schema.json",
+  "title": "PositionFill",
+  "description": "A SELF-REPORTED fill. It is not proof of broker execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["price", "quantity", "fees", "fill_at"],
+  "properties": {
+    "price": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "quantity": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "fees": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "fill_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" }
+  }
+}

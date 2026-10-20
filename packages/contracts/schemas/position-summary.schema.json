@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/position-summary.schema.json",
+  "title": "PositionSummary",
+  "description": "Projection derived from the immutable event ledger (FIFO). Re-creatable at any time.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["position_id", "symbol", "state", "total_quantity", "avg_cost", "realized_pnl", "fees_total", "lots", "opened_at", "off_plan", "cost_method"],
+  "properties": {
+    "position_id": { "$ref": "common.schema.json#/$defs/Uuid" },
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "signal_id": { "type": ["string", "null"], "pattern": "^sig_[0-9a-f]{24}$" },
+    "state": { "$ref": "position-event.schema.json#/$defs/PositionState" },
+    "total_quantity": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "avg_cost": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString", "description": "Remaining-lot average cost per share including buy fees" },
+    "realized_pnl": { "$ref": "common.schema.json#/$defs/DecimalString" },
+    "fees_total": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "cost_method": { "type": "string", "const": "FIFO" },
+    "opened_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "closed_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "off_plan": { "type": "boolean", "description": "Entry outside the published entry range or after entry expiry" },
+    "off_plan_reasons": { "type": "array", "items": { "type": "string", "maxLength": 64 }, "maxItems": 6 },
+    "lots": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lot_id", "fill_at", "fill_price", "quantity_initial", "quantity_remaining", "fees"],
+        "properties": {
+          "lot_id": { "$ref": "common.schema.json#/$defs/Uuid" },
+          "fill_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+          "fill_price": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+          "quantity_initial": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+          "quantity_remaining": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+          "fees": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" }
+        }
+      }
+    },
+    "event_count": { "type": "integer", "minimum": 0 }
+  }
+}
