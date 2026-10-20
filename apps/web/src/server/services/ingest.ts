@@ -342,6 +342,8 @@ export interface AckInput {
   retry_after_seconds?: number;
   discord_message_id?: string;
   error_code?: string;
+  /** the message as posted to a shared channel (ignored for DMs) */
+  rendered?: Json | null;
 }
 
 export async function ackOutbox(db: Db, agentId: string, ack: AckInput, maxAttempts = 8): Promise<string> {
@@ -361,6 +363,11 @@ export async function ackOutbox(db: Db, agentId: string, ack: AckInput, maxAttem
     if (ack.status === "delivered") {
       await sql.query("UPDATE apex.notification_outbox SET state='sent', attempts=$2, sent_at=now(), discord_message_id=$3, lease_until=NULL WHERE id=$1",
         [ack.outbox_id, attempts, ack.discord_message_id ?? null]);
+      // keep what was actually posted to a SHARED channel for the dashboard history (never stored for DMs)
+      if (ack.rendered && typeof ack.rendered === "object" && JSON.stringify(ack.rendered).length <= 12_000) {
+        await sql.query("UPDATE apex.notification_outbox SET rendered_json = $2::jsonb WHERE id = $1 AND route_json->>'type' = 'CHANNEL'",
+          [ack.outbox_id, JSON.stringify(ack.rendered)]);
+      }
       return "sent";
     }
     if (ack.status === "dm_blocked") {

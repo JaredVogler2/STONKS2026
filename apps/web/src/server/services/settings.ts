@@ -90,6 +90,14 @@ export interface IntegrationView {
   fields: { key: string; label: string; secret: boolean; help: string; configured: boolean; hint: string | null }[];
 }
 
+/** Current secret version per Pi-delivered integration, so the Pi can refetch after a rotation without a restart. */
+export async function secretVersions(db: Db): Promise<Record<string, number>> {
+  const rows = await db.query<{ provider: string; secret_version: number }>(
+    "SELECT provider, secret_version FROM apex.integration_status WHERE provider = ANY($1) AND status <> 'DISABLED'",
+    [PROVIDERS.filter((p) => p.deliveredToPi).map((p) => p.provider)]);
+  return Object.fromEntries(rows.map((r) => [r.provider, r.secret_version]));
+}
+
 export async function listIntegrations(db: Db): Promise<IntegrationView[]> {
   const enc = await db.query<{ provider: string; field: string; hint: string | null }>("SELECT provider, field, hint FROM apex.encrypted_integrations");
   const status = await db.query<{ provider: string; status: string; tested_at: Date | null; detail: string | null; secret_version: number; pi_ack_version: number }>(

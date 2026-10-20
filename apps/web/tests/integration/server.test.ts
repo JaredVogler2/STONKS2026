@@ -7,7 +7,7 @@ process.env.AGENT_HMAC_SECRET = Buffer.alloc(32, 7).toString("base64");
 process.env.APEX_CONFIG_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
 process.env.APEX_SESSION_SECRET = Buffer.alloc(32, 4).toString("base64");
 
-const { PgliteDb } = await import("@/server/db/pglite");
+const { openTestDb } = await import("../support/test-db");
 const { migrate } = await import("@/server/db/migrate");
 const { __setDbForTests } = await import("@/server/db");
 const { authenticateAgent } = await import("@/server/services/agents");
@@ -22,12 +22,12 @@ const { signRequest } = await import("@/server/security/hmac");
 const { canonicalJson } = await import("@/server/security/canonical");
 const { HttpError } = await import("@/server/http/responses");
 
-type Db = Awaited<ReturnType<typeof PgliteDb.open>>;
+type Db = Awaited<ReturnType<typeof openTestDb>>;
 let db: Db;
 let ownerId: string;
 
 beforeAll(async () => {
-  db = await PgliteDb.open(null);
+  db = await openTestDb();
   await migrate(db);
   __setDbForTests(db);
   await ensureDemoSeed(db);
@@ -64,6 +64,14 @@ describe("schema", () => {
     expect(await code(db.query("UPDATE apex.signal_events SET cause='x'"))).toMatch(/append-only/);
     expect(await code(db.query("UPDATE apex.audit_events SET action='x'"))).toMatch(/append-only/);
     expect(await code(db.query("DELETE FROM apex.audit_events"))).toMatch(/retained/);
+  });
+  it("JSON columns hold objects, never double-encoded JSON strings (driver regression)", async () => {
+    const r = await db.query<{ n: number }>(
+      `SELECT (SELECT count(*) FROM apex.signals WHERE jsonb_typeof(immutable_snapshot) <> 'object')
+            + (SELECT count(*) FROM apex.notification_outbox WHERE jsonb_typeof(payload_json) <> 'object')
+            + (SELECT count(*) FROM apex.scan_runs WHERE jsonb_typeof(metrics_json) <> 'object')
+            + (SELECT count(*) FROM apex.model_versions WHERE jsonb_typeof(manifest_json) <> 'object') AS n`);
+    expect(Number(r[0]!.n)).toBe(0);
   });
   it("UNVALIDATED signals cannot carry a probability (DB constraint)", async () => {
     const r = await db.query<{ n: number }>("SELECT count(*)::int AS n FROM apex.signals WHERE confidence_status='UNVALIDATED' AND confidence_probability IS NOT NULL");

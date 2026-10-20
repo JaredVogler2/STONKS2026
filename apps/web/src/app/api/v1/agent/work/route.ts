@@ -14,7 +14,9 @@ export const GET = agentRoute({}, async (ctx, agent, req) => {
   const champions = await championsForAgent(ctx.db, ctx.isDemo);
   return {
     server_time: new Date().toISOString(), release_mode: ctx.mode, outbox,
-    monitored_positions: positions.map((p) => ({ position_id: p.id, discord_user_id: p.discord_user_id, symbol: p.symbol, signal_id: p.signal_id, state: p.state })),
+    // user_id lets the Pi address the member's private assessment intent (the server re-checks it against the position)
+    monitored_positions: positions.map((p) => ({ position_id: p.id, user_id: p.user_id, discord_user_id: p.discord_user_id, symbol: p.symbol,
+      signal_id: p.signal_id, state: p.state })),
     champion_models: champions.map((m) => ({ model_id: m.model_id, strategy_id: m.strategy_id, validation_expires_at: m.validation_expires_at })),
   };
 });

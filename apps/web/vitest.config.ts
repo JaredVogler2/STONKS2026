@@ -14,5 +14,7 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 60000,
     pool: "forks",
+    // a shared scratch Postgres (APEX_TEST_DATABASE_URL) must not be reset by two files at once
+    fileParallelism: !process.env.APEX_TEST_DATABASE_URL,
   },
 });

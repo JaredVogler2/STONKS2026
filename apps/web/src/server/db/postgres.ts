@@ -4,6 +4,14 @@ import { enterMemberScope, type Db, type Row, type Sql } from "./types";
 
 type Client = ReturnType<typeof postgres>;
 
+/* Call sites pass json/jsonb parameters as JSON TEXT (JSON.stringify), as PGlite expects. postgres.js would JSON-encode
+ * that text a second time and store a JSON string instead of an object, so strings pass through unchanged here. */
+const jsonText = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
+const JSON_TYPES = {
+  json: { to: 114, from: [114], serialize: jsonText, parse: JSON.parse },
+  jsonb: { to: 3802, from: [3802], serialize: jsonText, parse: JSON.parse },
+};
+
 class PgSql implements Sql {
   constructor(private readonly c: Client | postgres.TransactionSql) {}
   async query<T extends Row = Row>(text: string, params: readonly unknown[] = []): Promise<T[]> {
@@ -27,6 +35,7 @@ export class PostgresDb implements Db {
       prepare: false, // required for Supabase transaction pooler (Supavisor)
       ssl: /localhost|127\.0\.0\.1/.test(url) ? false : "require",
       transform: { undefined: null },
+      types: JSON_TYPES,
       onnotice: () => undefined,
     });
   }
