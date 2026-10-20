@@ -264,3 +264,47 @@ describe("notification outbox controls", () => {
     expect(["PUBLISHED", "ACTIVE"]).toContain(head[0]!.state); // review never changes lifecycle state
   });
 });
+
+describe("Flow D: one signal, three members, exact private ledgers", () => {
+  it("A buys, adds, sells part and closes; B holds; C watches; nobody sees anyone else; the signal record is untouched", async () => {
+    const guild = (await db.query<{ g: string }>("SELECT discord_guild_id AS g FROM apex.guilds WHERE allowlisted LIMIT 1"))[0]!.g;
+    const sig = (await db.query<{ signal_id: string; symbol: string; state: string; outcome: string | null }>(
+      "SELECT signal_id, symbol, state, outcome FROM apex.signal_heads WHERE state IN ('PUBLISHED','ACTIVE') LIMIT 1"))[0]!;
+    const [a, b, c] = await Promise.all(["910000000000000001", "910000000000000002", "910000000000000003"].map((d) =>
+      resolveMember(db, d, { create: true, guildId: guild })));
+    const t = (h: number) => new Date(Date.UTC(2026, 9, 5, 14 + h, 0, 0));
+    const at = (h: number) => t(h).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const now = t(8);
+    const fill = (price: string, quantity: string, h: number, fees = "1") => ({ price, quantity, fees, fill_at: at(h) });
+    const openA = await recordPositionEvent(db, a!.id, { client_idempotency_key: "flowd-a-open", event_type: "OPEN", signal_id: sig.signal_id,
+      fill: fill("180", "20", 0), source: "discord" }, now, true);
+    const pid = openA.position.position_id;
+    await recordPositionEvent(db, a!.id, { client_idempotency_key: "flowd-a-add", event_type: "ADD", position_id: pid, fill: fill("186", "10", 1), source: "discord" }, now, true);
+    const part = await recordPositionEvent(db, a!.id, { client_idempotency_key: "flowd-a-sell", event_type: "PARTIAL_EXIT", position_id: pid,
+      fill: fill("195", "15", 2), source: "discord" }, now, true);
+    expect(part.position.state).toBe("PARTIALLY_CLOSED");
+    expect(Number(part.position.total_quantity)).toBe(15);
+    expect(Number(part.position.realized_pnl)).toBeCloseTo(223.25, 6); // 15*195 - 1 - (15*180 + 15/20 of the first buy fee)
+    expect(Number(part.position.avg_cost)).toBeCloseTo(2761.25 / 15, 6); // FIFO leaves 5 @180 (+fee share) and 10 @186 (+fee)
+    const closed = await recordPositionEvent(db, a!.id, { client_idempotency_key: "flowd-a-close", event_type: "CLOSE", position_id: pid,
+      fill: fill("190", "15", 3), source: "discord" }, now, true);
+    expect(closed.position.state).toBe("CLOSED");
+    expect(Number(closed.position.realized_pnl)).toBeCloseTo(311, 6);
+    expect(Number(closed.position.fees_total)).toBeCloseTo(4, 6);
+    const bOpen = await recordPositionEvent(db, b!.id, { client_idempotency_key: "flowd-b-open", event_type: "OPEN", signal_id: sig.signal_id,
+      fill: fill("190", "5", 1, "0"), source: "discord" }, now, true);
+    expect(Number(bOpen.position.avg_cost)).toBeCloseTo(190, 6);
+    const cWatch = await recordPositionEvent(db, c!.id, { client_idempotency_key: "flowd-c-watch", event_type: "WATCH", signal_id: sig.signal_id,
+      source: "discord" }, now, true);
+    expect(cWatch.position.state).toBe("WATCHING");
+    // privacy: each member's list contains only their own rows
+    const lists = await Promise.all([a, b, c].map((m) => listPositions(db, m!.id, true)));
+    expect(lists[0]!.map((p) => p.position_id)).toEqual([pid]);
+    expect(lists[1]!.every((p) => p.position_id !== pid)).toBe(true);
+    expect(lists[2]!.every((p) => p.state === "WATCHING")).toBe(true);
+    expect(await code(getPosition(db, b!.id, pid))).toBe("404:NOT_FOUND");
+    // the published signal's own record and outcome are independent of what members did
+    const after = (await db.query<{ state: string; outcome: string | null }>("SELECT state, outcome FROM apex.signal_heads WHERE signal_id = $1", [sig.signal_id]))[0]!;
+    expect(after).toEqual({ state: sig.state, outcome: sig.outcome });
+  });
+});
