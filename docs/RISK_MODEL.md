@@ -7,7 +7,7 @@ Every number below comes from code that runs the same way in live scanning and i
 - `research/execution.py`
 - `research/evaluate.py`
 
-Versions are stamped on every signal: `policy-1+levels-1`, `quality-1`, `apex-features-1`.
+Versions are stamped on every signal (`policy-1+levels-1`, `quality-1`, `apex-features-1`) and on every model (`promotion-policy-2`).
 
 ## 1. Eligibility (hard vetoes)
 
@@ -69,7 +69,7 @@ The forecast is the probability that the target is touched **before** the stop w
 - have a valid Ed25519 signature,
 - be unexpired (21-day validity),
 - be feature-compatible,
-- have passed the frozen promotion policy (`promotion-policy-1`).
+- have passed the frozen promotion policy (`promotion-policy-2`).
 
 | Gate (on the untouched holdout) | Required |
 |---|---|
@@ -80,7 +80,7 @@ The forecast is the probability that the target is touched **before** the stop w
 | Expected calibration error | ≤ 0.06 |
 | Selected trades (above the probability threshold chosen on development data only) | ≥ 30 |
 | p10 of the weekly block-bootstrap mean net return at 25 bps/side | > 0 |
-| Shuffled-label control skill | ≤ 0.01 (otherwise the pipeline is leaking) |
+| Shuffled-label controls (20 permutations) | mean shuffled skill ≤ 0.01 (otherwise the pipeline is leaking), and the real skill must beat the shuffled 95th percentile |
 | Challenger vs champion | skill gain ≥ 0.005 |
 
 What each outcome produces:
@@ -88,7 +88,7 @@ What each outcome produces:
 - **EXPERIMENTAL.** Shown for study only; never a high-conviction alert.
 - **UNVALIDATED.** No probability anywhere: not in Discord, not in the dashboard. The database enforces it with a CHECK constraint.
 
-A model trained on synthetic data is always UNVALIDATED outside DEMO.
+A model trained on synthetic data is always UNVALIDATED outside DEMO. Current research results, all synthetic, are in [BACKTEST_REPORT.md](BACKTEST_REPORT.md).
 
 ## 5. Publication tiers
 

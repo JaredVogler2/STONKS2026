@@ -1,6 +1,6 @@
 """Strategy evaluation, frozen promotion policy and champion/challenger comparison.
 
-The promotion policy below is FROZEN (version promotion-policy-1) before any candidate is compared to a
+The promotion policy below is FROZEN (version `POLICY_VERSION`) before any candidate is compared to a
 champion. A model is only CALIBRATED when every gate passes on the untouched holdout; EXPERIMENTAL with
 a smaller sample; otherwise UNVALIDATED (no probability is shown). Models trained on synthetic fixtures
 can never be used for live signals regardless of their metrics.
