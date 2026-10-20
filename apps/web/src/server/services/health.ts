@@ -2,6 +2,7 @@ import "server-only";
 import type { Db } from "../db";
 import { migrationStatus } from "../db/migrate";
 import { serverEnv, type ReleaseMode } from "../env";
+import { getSettings } from "./settings";
 
 /* Separate health lights; one green light is never sufficient. Every component says what to do next. */
 
@@ -26,8 +27,7 @@ export interface ServiceHealth {
 
 export const DB_WARN_BYTES = 350 * 1024 * 1024;
 export const DB_STOP_BYTES = 450 * 1024 * 1024;
-const HEARTBEAT_LATE_S = 3 * 60;
-const HEARTBEAT_DOWN_S = 10 * 60;
+const HEARTBEAT_INTERVAL_S = 60;
 const TRAIN_SLA_DAYS = 8;
 
 const iso = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -41,6 +41,9 @@ export async function computeHealth(db: Db, now: Date): Promise<ServiceHealth> {
   const env = serverEnv();
   const isDemo = env.mode === "DEMO";
   const comps: HealthComponent[] = [];
+  const sla = (await getSettings(db))["sla.freshness"].value;
+  const HEARTBEAT_LATE_S = sla.heartbeat_late_intervals * HEARTBEAT_INTERVAL_S;
+  const HEARTBEAT_DOWN_S = Math.max(HEARTBEAT_LATE_S * 3, 600);
 
   const hb = await db.query<{ agent_id: string; received_at: Date; payload_json: Record<string, unknown>; clock_skew_ms: number }>(
     `SELECT DISTINCT ON (agent_id) agent_id, received_at, payload_json, clock_skew_ms FROM apex.agent_heartbeats
@@ -68,7 +71,7 @@ export async function computeHealth(db: Db, now: Date): Promise<ServiceHealth> {
     "SELECT count(*)::int AS n, max(ts_received) AS newest, max(feed) AS feed FROM apex.latest_quotes");
   const qAge = age(now, quotes[0]?.newest);
   comps.push({ key: "market_feed", label: isDemo ? "Market feed (DEMO replay)" : "Market feed",
-    status: (feed?.status as HealthStatus) ?? (quotes[0]?.n ? "STALE" : "UNKNOWN"), age_seconds: qAge,
+    status: (feed?.status as HealthStatus) ?? (quotes[0]?.n ? (qAge !== null && qAge <= sla.priority_quote_stale_seconds ? "OK" : "STALE") : "UNKNOWN"), age_seconds: qAge,
     detail: isDemo ? "synthetic replay fixture - not market data" : `${quotes[0]?.n ?? 0} symbols cached; newest quote ${qAge ?? "n/a"}s old (${quotes[0]?.feed ?? "?"})`,
     action: feed?.status === "OK" ? undefined : "Configure Alpaca in Settings and confirm the Pi received it (secret version ack)" });
   const scan = await db.query<{ finished_at: Date | null; asof_at: Date }>("SELECT finished_at, asof_at FROM apex.scan_runs ORDER BY asof_at DESC LIMIT 1");

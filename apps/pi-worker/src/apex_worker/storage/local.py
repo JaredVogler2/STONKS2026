@@ -166,7 +166,12 @@ class LocalStore:
         self._conn = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None, timeout=10)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(SCHEMA)
-        self._conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
+        # highest schema any code version has applied; the Pi's rollback guard refuses code older than this
+        self._conn.execute(
+            "INSERT INTO meta(key,value) VALUES ('schema_version', ?) ON CONFLICT(key) DO UPDATE SET "
+            "value = CAST(MAX(CAST(value AS INTEGER), CAST(excluded.value AS INTEGER)) AS TEXT)",
+            (str(SCHEMA_VERSION),),
+        )
         if str(path) != ":memory:":
             with contextlib.suppress(OSError):
                 self.path.chmod(0o600)

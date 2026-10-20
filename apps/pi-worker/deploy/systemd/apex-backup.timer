@@ -1,0 +1,10 @@
+[Unit]
+Description=APEX nightly local backup (02:40 local time, after the nightly refresh)
+
+[Timer]
+OnCalendar=*-*-* 02:40:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -52,6 +52,11 @@ const FIELDS: Record<string, FieldSpec[]> = {
   ],
   "sec.contact": [{ path: "user_agent", label: "SEC User-Agent (name + email)", type: "text", help: "SEC EDGAR requires a descriptive User-Agent with contact email." }],
   "owner.risk_budget": [bool("enabled", "Show open risk against a hypothetical account"), num("hypothetical_account_usd", "Hypothetical account size ($)", 1000, 100_000_000)],
+  "sla.freshness": [
+    num("priority_quote_stale_seconds", "Streamed quote stale after (s)", 30, 3600, "Market open, subscribed symbols"),
+    num("bars_stale_minutes", "Broad bars stale after (min)", 5, 1440), num("heartbeat_late_intervals", "Pi heartbeat late after (missed 60 s beats)", 2, 20),
+    num("recovery_fresh_checks", "Fresh checks before recovery", 1, 10, "Hysteresis: avoids flapping warnings"),
+  ],
 };
 
 const SECTIONS: { id: string; title: string; definition: string; keys: string[] }[] = [
@@ -59,6 +64,7 @@ const SECTIONS: { id: string; title: string; definition: string; keys: string[] 
   { id: "risk", title: "Signal policy and risk wording", definition: "Gates for publishing. Changing them changes what is published, not what is validated; a recalibration is required before probabilities change.", keys: ["risk.policy"] },
   { id: "discord", title: "Discord channel map", definition: "Where each kind of notice goes. Personal position updates are always private DMs and are never routed to a channel.", keys: ["discord.channels"] },
   { id: "automation", title: "Models, budgets and sources", definition: "Model poll interval, free-tier budgets and the SEC contact string.", keys: ["models.policy", "budgets", "sec.contact", "owner.risk_budget"] },
+  { id: "sla", title: "Freshness goals", definition: "When data counts as stale. Stale inputs suppress price-based wording and raise a system warning after hysteresis. Goals, not guarantees of a free feed.", keys: ["sla.freshness"] },
 ];
 
 const INTEGRATION_STATUS: Record<string, { tone: Tone; label: string; glyph: string }> = {

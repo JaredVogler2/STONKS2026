@@ -288,6 +288,11 @@ export const SETTING_SCHEMAS = {
   "budgets": z.object({ actions_monthly_minutes: z.number().int().min(0).max(50_000), train_timeout_minutes: z.number().int().min(5).max(120),
     drift_enabled: z.boolean(), alpaca_daily_requests: z.number().int().min(100).max(300_000) }),
   "sec.contact": z.object({ user_agent: z.string().regex(/^[\x20-\x7e]{8,120}$/).refine((s) => /@/.test(s), "must include a contact email") }),
+  // freshness goals (not guarantees of a free feed): stale data suppresses price-based wording and raises a warning
+  "sla.freshness": z.object({
+    priority_quote_stale_seconds: z.number().int().min(30).max(3600), bars_stale_minutes: z.number().int().min(5).max(1440),
+    heartbeat_late_intervals: z.number().int().min(2).max(20), recovery_fresh_checks: z.number().int().min(1).max(10),
+  }),
   // guided-setup steps the app cannot verify itself, confirmed by the owner
   "onboarding.manual": z.partialRecord(z.enum(["pi_assembled", "vercel_protected", "replay_passed"]), z.boolean()),
   // fail-closed STOP switch: while stopped, no investment notice leaves the outbox (system alerts still do)
@@ -312,6 +317,7 @@ export const SETTING_DEFAULTS: { [K in SettingKey]: z.infer<(typeof SETTING_SCHE
   "models.policy": { promotion_mode: "manual", auto_requires_status: "CALIBRATED", poll_minutes: 45 },
   "budgets": { actions_monthly_minutes: 1500, train_timeout_minutes: 45, drift_enabled: true, alpaca_daily_requests: 150_000 },
   "sec.contact": { user_agent: "APEX research owner@example.com" },
+  "sla.freshness": { priority_quote_stale_seconds: 120, bars_stale_minutes: 30, heartbeat_late_intervals: 3, recovery_fresh_checks: 2 },
   "onboarding.manual": {},
   "alerts.kill_switch": { stopped: false, reason: "" },
   "strategies.enabled": {},
