@@ -31,8 +31,7 @@ class EnvelopeError(ValueError):
 
 
 def _raw_private(key) -> bytes:
-    return key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw,
-                             serialization.NoEncryption())
+    return key.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
 
 
 def _raw_public(key) -> bytes:
@@ -41,7 +40,7 @@ def _raw_public(key) -> bytes:
 
 def fingerprint(public_b64url: str) -> str:
     digest = hashlib.sha256(from_b64url(public_b64url)).hexdigest()[:16].upper()
-    return "-".join(digest[i:i + 4] for i in range(0, 16, 4))
+    return "-".join(digest[i : i + 4] for i in range(0, 16, 4))
 
 
 @dataclass
@@ -62,9 +61,12 @@ class DeviceKeys:
         return fingerprint(self.ed25519_public)
 
     def sign_pairing(self, code: str, server_nonce: str, agent_id: str) -> str:
-        msg = PAIRING_PROOF_PREFIX + canonical_json(
-            {"agent_id": agent_id, "code": code, "server_nonce": server_nonce, "x25519": self.x25519_public}
-        ).encode()
+        msg = (
+            PAIRING_PROOF_PREFIX
+            + canonical_json(
+                {"agent_id": agent_id, "code": code, "server_nonce": server_nonce, "x25519": self.x25519_public}
+            ).encode()
+        )
         return b64url(self.ed25519.sign(msg))
 
     @classmethod
@@ -91,8 +93,10 @@ class DeviceKeys:
         if mode & 0o077:
             raise PermissionError(f"{path} must be owner-only (chmod 600); found {oct(mode)}")
         data = json.loads(path.read_text())
-        return cls(X25519PrivateKey.from_private_bytes(from_b64url(data["x25519"])),
-                   Ed25519PrivateKey.from_private_bytes(from_b64url(data["ed25519"])))
+        return cls(
+            X25519PrivateKey.from_private_bytes(from_b64url(data["x25519"])),
+            Ed25519PrivateKey.from_private_bytes(from_b64url(data["ed25519"])),
+        )
 
 
 def open_envelope(private_key: X25519PrivateKey, envelope: dict, *, expected_device: str, now_iso: str) -> str:
@@ -107,8 +111,9 @@ def open_envelope(private_key: X25519PrivateKey, envelope: dict, *, expected_dev
             raise EnvelopeError("envelope expired")
         epk_raw = from_b64url(envelope["epk"])
         shared = private_key.exchange(X25519PublicKey.from_public_bytes(epk_raw))
-        key = HKDF(algorithm=hashes.SHA256(), length=32, salt=from_b64url(envelope["salt"]),
-                   info=ENVELOPE_INFO + epk_raw).derive(shared)
+        key = HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=from_b64url(envelope["salt"]), info=ENVELOPE_INFO + epk_raw
+        ).derive(shared)
         ct = from_b64url(envelope["ct"]) + from_b64url(envelope["tag"])
         plain = AESGCM(key).decrypt(from_b64url(envelope["iv"]), ct, canonical_json(meta).encode())
         return plain.decode("utf-8")
@@ -134,8 +139,9 @@ def verify_manifest(manifest: dict, trusted_keys: dict[int, str]) -> bool:
         pub = trusted_keys.get(version)
         if not pub:
             return False
-        Ed25519PublicKey.from_public_bytes(from_b64url(pub)).verify(from_b64url(manifest["signature"]),
-                                                                   manifest_message(manifest))
+        Ed25519PublicKey.from_public_bytes(from_b64url(pub)).verify(
+            from_b64url(manifest["signature"]), manifest_message(manifest)
+        )
         return True
     except (KeyError, ValueError, InvalidSignature, TypeError):
         return False

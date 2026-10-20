@@ -30,8 +30,9 @@ class SlotPlan:
     reserved_for_positions: int
 
 
-def plan_slots(requests: list[SlotRequest], current: set[str], max_slots: int = 25, sector_cap_share: float = 0.4
-               ) -> SlotPlan:
+def plan_slots(
+    requests: list[SlotRequest], current: set[str], max_slots: int = 25, sector_cap_share: float = 0.4
+) -> SlotPlan:
     best: dict[str, SlotRequest] = {}
     for r in requests:
         prev = best.get(r.symbol)
@@ -54,5 +55,10 @@ def plan_slots(requests: list[SlotRequest], current: set[str], max_slots: int = 
             per_sector[r.sector] += 1
     sel = set(selected)
     dropped = tuple(sorted(s for s in best if s not in sel))
-    return SlotPlan(tuple(selected), tuple(sorted(sel - current)), tuple(sorted(current - sel)), dropped,
-                    min(len(positions), max_slots))
+    return SlotPlan(
+        tuple(selected),
+        tuple(sorted(sel - current)),
+        tuple(sorted(current - sel)),
+        dropped,
+        min(len(positions), max_slots),
+    )

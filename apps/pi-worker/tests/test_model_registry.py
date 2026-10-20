@@ -26,7 +26,7 @@ def release(tmp_path_factory):
 
 
 def test_training_outputs_and_summary(release):
-    manifest, artifact, out = release
+    manifest, _artifact, out = release
     assert manifest["data_source"] == "synthetic_fixture" and manifest["is_demo"] is True
     assert "signature" in manifest
     assert (out / "summary.md").read_text().startswith("# APEX training run")
@@ -43,9 +43,16 @@ def test_install_activate_and_rollback(release, tmp_path):
     m2 = dict(manifest)
     a2 = artifact.replace(b'"metadata":{', b'"metadata":{"note":"v2",')
     import hashlib
+
     from apex_worker.models.manifest import sign
-    m2.update({"model_id": manifest["model_id"][:-2] + "zz", "artifact_sha256": hashlib.sha256(a2).hexdigest(),
-               "artifact_size_bytes": len(a2)})
+
+    m2.update(
+        {
+            "model_id": manifest["model_id"][:-2] + "zz",
+            "artifact_sha256": hashlib.sha256(a2).hexdigest(),
+            "artifact_size_bytes": len(a2),
+        }
+    )
     m2.pop("signature")
     m2 = sign(m2, KEY)
     store.install(m2, a2, NOW_ISO)
@@ -57,15 +64,18 @@ def test_install_activate_and_rollback(release, tmp_path):
     assert fresh.load_active(NOW_ISO).model_id == manifest["model_id"]
 
 
-@pytest.mark.parametrize("mutation,code", [
-    ("unsigned", "BAD_SIGNATURE"),
-    ("wrong_key", "BAD_SIGNATURE"),
-    ("tampered_artifact", "CHECKSUM_MISMATCH"),
-    ("tampered_manifest", "BAD_SIGNATURE"),
-    ("expired", "VALIDATION_EXPIRED"),
-    ("live_mode", "SYNTHETIC_NOT_ALLOWED"),
-    ("pickle_payload", "SIZE_MISMATCH"),
-])
+@pytest.mark.parametrize(
+    "mutation,code",
+    [
+        ("unsigned", "BAD_SIGNATURE"),
+        ("wrong_key", "BAD_SIGNATURE"),
+        ("tampered_artifact", "CHECKSUM_MISMATCH"),
+        ("tampered_manifest", "BAD_SIGNATURE"),
+        ("expired", "VALIDATION_EXPIRED"),
+        ("live_mode", "SYNTHETIC_NOT_ALLOWED"),
+        ("pickle_payload", "SIZE_MISMATCH"),
+    ],
+)
 def test_rejections_keep_previous_model(release, tmp_path, mutation, code):
     manifest, artifact, _ = release
     store = ModelStore(tmp_path, TRUST, "DEMO")
@@ -75,6 +85,7 @@ def test_rejections_keep_previous_model(release, tmp_path, mutation, code):
         m.pop("signature")
     elif mutation == "wrong_key":
         from apex_worker.models.manifest import sign
+
         m.pop("signature")
         m = sign(m, OTHER)
     elif mutation == "tampered_artifact":

@@ -17,7 +17,7 @@ def planted():
 
 
 def test_model_recovers_planted_relationship_out_of_sample(planted):
-    rep, wf = evaluate_strategy(planted, REDTEAM_STRATEGY, MODEL_FEATURES, "synthetic_fixture")
+    rep, _wf = evaluate_strategy(planted, REDTEAM_STRATEGY, MODEL_FEATURES, "synthetic_fixture")
     d = rep.to_dict()
     assert d["holdout"]["brier_skill"] > 0.05, d["holdout"]
     assert d["holdout"]["ece"] < 0.06

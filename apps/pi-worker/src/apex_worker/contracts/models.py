@@ -941,6 +941,8 @@ class SignalEvent(BaseModel):
         "NO_TRADE",
         "STALE_DATA",
         "ADMIN_REVIEW",
+        "INTRADAY_TARGET_TOUCH",
+        "INTRADAY_STOP_TOUCH",
     ]
     event_at: UtcTimestamp
     dedupe_key: str = Field(..., max_length=200, min_length=8)

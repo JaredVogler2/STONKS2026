@@ -7,7 +7,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from apex_worker.portfolio.ledger import (
-    Correction, EventType, Fill, LedgerError, LedgerEvent, PositionState, apply, fmt, parse_fill, replay,
+    Correction,
+    EventType,
+    Fill,
+    LedgerError,
+    LedgerEvent,
+    PositionState,
+    apply,
+    fmt,
+    parse_fill,
+    replay,
 )
 from apex_worker.timeutil import parse_utc
 
@@ -63,9 +72,16 @@ def test_shared_vectors(case):
 def test_parse_fill_rejects_bad_input():
     now = parse_utc("2026-10-20T20:00:00Z")
     t = parse_utc("2026-10-20T14:00:00Z")
-    for price, qty, code in [("-1", "1", "NON_POSITIVE"), ("0", "1", "NON_POSITIVE"), ("NaN", "1", "INVALID_NUMBER"),
-                             ("Infinity", "1", "INVALID_NUMBER"), ("1e9", "1", "TOO_LARGE"),
-                             ("1.00001", "1", "TOO_PRECISE"), ("1", "0.0000001", "TOO_PRECISE"), ("abc", "1", "INVALID_NUMBER")]:
+    for price, qty, code in [
+        ("-1", "1", "NON_POSITIVE"),
+        ("0", "1", "NON_POSITIVE"),
+        ("NaN", "1", "INVALID_NUMBER"),
+        ("Infinity", "1", "INVALID_NUMBER"),
+        ("1e9", "1", "TOO_LARGE"),
+        ("1.00001", "1", "TOO_PRECISE"),
+        ("1", "0.0000001", "TOO_PRECISE"),
+        ("abc", "1", "INVALID_NUMBER"),
+    ]:
         with pytest.raises(LedgerError) as err:
             parse_fill(price, qty, "0", t, now)
         assert err.value.code == code, (price, qty)
@@ -87,13 +103,23 @@ def test_property_conservation(buys, sell_frac, px):
     events, seq = [], 0
     for i, (p, q) in enumerate(buys):
         seq += 1
-        events.append(LedgerEvent(f"b{i}", seq, EventType.OPEN if i == 0 else EventType.ADD,
-                                  Fill(p, q, Decimal(0), parse_utc(f"2026-10-01T14:{30 + i:02d}:00Z"))))
+        events.append(
+            LedgerEvent(
+                f"b{i}",
+                seq,
+                EventType.OPEN if i == 0 else EventType.ADD,
+                Fill(p, q, Decimal(0), parse_utc(f"2026-10-01T14:{30 + i:02d}:00Z")),
+            )
+        )
     total = sum(q for _, q in buys)
     sell_q = (total * Decimal(str(sell_frac))).quantize(Decimal("0.01"))
     if sell_q > 0:
         seq += 1
-        events.append(LedgerEvent("s", seq, EventType.PARTIAL_EXIT, Fill(px, sell_q, Decimal(0), parse_utc("2026-10-05T15:00:00Z"))))
+        events.append(
+            LedgerEvent(
+                "s", seq, EventType.PARTIAL_EXIT, Fill(px, sell_q, Decimal(0), parse_utc("2026-10-05T15:00:00Z"))
+            )
+        )
     stt = replay(events)
     assert stt.total_quantity == total - sell_q >= 0
     cash_in = sum(p * q for p, q in buys)

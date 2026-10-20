@@ -7,6 +7,7 @@ same invariants: append-only events, transactional outbox, ownership-scoped posi
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import threading
@@ -125,8 +126,15 @@ CREATE TABLE IF NOT EXISTS position_assessments (
     position_id TEXT NOT NULL,
     assessment_key TEXT NOT NULL,
     body TEXT NOT NULL,
+    notified INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     PRIMARY KEY (position_id, assessment_key)
+);
+CREATE TABLE IF NOT EXISTS scan_runs (
+    id TEXT PRIMARY KEY,
+    session TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -160,10 +168,8 @@ class LocalStore:
         self._conn.executescript(SCHEMA)
         self._conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
         if str(path) != ":memory:":
-            try:
+            with contextlib.suppress(OSError):
                 self.path.chmod(0o600)
-            except OSError:
-                pass
 
     def close(self) -> None:
         with self._lock:
@@ -192,15 +198,18 @@ class LocalStore:
     # ---- members ---------------------------------------------------------
     def ensure_member(self, discord_user_id: str, now: datetime, role: str = "member") -> str:
         with self.tx() as c:
-            row = c.execute("SELECT id, revoked_at FROM app_users WHERE discord_user_id=?",
-                            (discord_user_id,)).fetchone()
+            row = c.execute(
+                "SELECT id, revoked_at FROM app_users WHERE discord_user_id=?", (discord_user_id,)
+            ).fetchone()
             if row:
                 if row["revoked_at"]:
                     raise OwnershipError("membership revoked")
                 return str(row["id"])
             uid = str(uuid.uuid4())
-            c.execute("INSERT INTO app_users(id, discord_user_id, role, created_at) VALUES (?,?,?,?)",
-                      (uid, discord_user_id, role, iso_utc(now)))
+            c.execute(
+                "INSERT INTO app_users(id, discord_user_id, role, created_at) VALUES (?,?,?,?)",
+                (uid, discord_user_id, role, iso_utc(now)),
+            )
             return uid
 
     def member_id(self, discord_user_id: str) -> str | None:
@@ -209,21 +218,28 @@ class LocalStore:
 
     def revoke_member(self, discord_user_id: str, now: datetime) -> None:
         with self.tx() as c:
-            c.execute("UPDATE app_users SET revoked_at=? WHERE discord_user_id=? AND revoked_at IS NULL",
-                      (iso_utc(now), discord_user_id))
+            c.execute(
+                "UPDATE app_users SET revoked_at=? WHERE discord_user_id=? AND revoked_at IS NULL",
+                (iso_utc(now), discord_user_id),
+            )
 
     def set_dm_opt_in(self, user_id: str, opt_in: bool) -> None:
         with self.tx() as c:
             c.execute("UPDATE app_users SET dm_opt_in=? WHERE id=?", (1 if opt_in else 0, user_id))
 
     def member_prefs(self, user_id: str) -> dict:
-        rows = self.query("SELECT discord_user_id, dm_opt_in, min_priority, revoked_at FROM app_users WHERE id=?",
-                          (user_id,))
+        rows = self.query(
+            "SELECT discord_user_id, dm_opt_in, min_priority, revoked_at FROM app_users WHERE id=?", (user_id,)
+        )
         if not rows:
             raise OwnershipError("unknown member")
         r = rows[0]
-        return {"discord_user_id": r["discord_user_id"], "dm_opt_in": bool(r["dm_opt_in"]),
-                "min_priority": r["min_priority"], "revoked": r["revoked_at"] is not None}
+        return {
+            "discord_user_id": r["discord_user_id"],
+            "dm_opt_in": bool(r["dm_opt_in"]),
+            "min_priority": r["min_priority"],
+            "revoked": r["revoked_at"] is not None,
+        }
 
     def delete_member_data(self, user_id: str) -> int:
         """Member-initiated deletion of their own positions; signals and aggregate stats are untouched."""
@@ -233,8 +249,10 @@ class LocalStore:
                 c.execute("DELETE FROM position_assessments WHERE position_id=?", (pid,))
             c.execute("DELETE FROM position_events WHERE user_id=?", (user_id,))
             c.execute("DELETE FROM positions WHERE user_id=?", (user_id,))
-            c.execute("UPDATE notification_outbox SET state='suppressed', payload='{}' WHERE user_id=? AND state != 'sent'",
-                      (user_id,))
+            c.execute(
+                "UPDATE notification_outbox SET state='suppressed', payload='{}' WHERE user_id=? AND state != 'sent'",
+                (user_id,),
+            )
             return len(pos)
 
     # ---- signals ---------------------------------------------------------
@@ -243,10 +261,19 @@ class LocalStore:
             cur = c.execute(
                 "INSERT OR IGNORE INTO signals(id, revision, symbol, state, is_demo, body, immutable_hash, created_at) "
                 "VALUES (?,?,?,?,?,?,?,?)",
-                (signal["id"], signal["revision"], signal["symbol"], signal["state"], 1 if signal["is_demo"] else 0,
-                 json.dumps(signal, sort_keys=True), signal["immutable_hash"], signal["created_at"]),
+                (
+                    signal["id"],
+                    signal["revision"],
+                    signal["symbol"],
+                    signal["state"],
+                    1 if signal["is_demo"] else 0,
+                    json.dumps(signal, sort_keys=True),
+                    signal["immutable_hash"],
+                    signal["created_at"],
+                ),
             )
             return cur.rowcount == 1
+
         if conn is not None:
             return _do(conn)
         with self.tx() as c:
@@ -257,17 +284,27 @@ class LocalStore:
             cur = c.execute(
                 "INSERT OR IGNORE INTO signal_events(signal_id, event_type, event_at, from_state, to_state, dedupe_key, body) "
                 "VALUES (?,?,?,?,?,?,?)",
-                (event["signal_id"], event["event_type"], event["event_at"], event["from_state"], event["to_state"],
-                 event["dedupe_key"], json.dumps(event, sort_keys=True)),
+                (
+                    event["signal_id"],
+                    event["event_type"],
+                    event["event_at"],
+                    event["from_state"],
+                    event["to_state"],
+                    event["dedupe_key"],
+                    json.dumps(event, sort_keys=True),
+                ),
             )
             return cur.rowcount == 1
+
         if conn is not None:
             return _do(conn)
         with self.tx() as c:
             return _do(c)
 
     def signal_state(self, signal_id: str) -> str | None:
-        rows = self.query("SELECT to_state FROM signal_events WHERE signal_id=? ORDER BY seq DESC LIMIT 1", (signal_id,))
+        rows = self.query(
+            "SELECT to_state FROM signal_events WHERE signal_id=? ORDER BY seq DESC LIMIT 1", (signal_id,)
+        )
         return rows[0]["to_state"] if rows else None
 
     def latest_signal(self, signal_id: str) -> dict | None:
@@ -288,15 +325,20 @@ class LocalStore:
         return out
 
     def signal_events(self, signal_id: str) -> list[dict]:
-        return [json.loads(r["body"]) for r in
-                self.query("SELECT body FROM signal_events WHERE signal_id=? ORDER BY seq", (signal_id,))]
+        return [
+            json.loads(r["body"])
+            for r in self.query("SELECT body FROM signal_events WHERE signal_id=? ORDER BY seq", (signal_id,))
+        ]
 
     # ---- positions -------------------------------------------------------
-    def create_position(self, c: sqlite3.Connection, user_id: str, symbol: str, signal_id: str | None,
-                        now: datetime, is_demo: bool) -> str:
+    def create_position(
+        self, c: sqlite3.Connection, user_id: str, symbol: str, signal_id: str | None, now: datetime, is_demo: bool
+    ) -> str:
         pid = str(uuid.uuid4())
-        c.execute("INSERT INTO positions(id, user_id, symbol, signal_id, state, is_demo, created_at) VALUES (?,?,?,?,?,?,?)",
-                  (pid, user_id, symbol, signal_id, "WATCHING", 1 if is_demo else 0, iso_utc(now)))
+        c.execute(
+            "INSERT INTO positions(id, user_id, symbol, signal_id, state, is_demo, created_at) VALUES (?,?,?,?,?,?,?)",
+            (pid, user_id, symbol, signal_id, "WATCHING", 1 if is_demo else 0, iso_utc(now)),
+        )
         return pid
 
     def owned_position(self, c: sqlite3.Connection | None, user_id: str, position_id: str) -> sqlite3.Row:
@@ -315,11 +357,22 @@ class LocalStore:
             ).fetchall()
 
     def find_idempotent(self, c: sqlite3.Connection, user_id: str, key: str) -> sqlite3.Row | None:
-        return c.execute("SELECT * FROM position_events WHERE user_id=? AND client_idempotency_key=?",
-                         (user_id, key)).fetchone()
+        return c.execute(
+            "SELECT * FROM position_events WHERE user_id=? AND client_idempotency_key=?", (user_id, key)
+        ).fetchone()
 
-    def insert_position_event(self, c: sqlite3.Connection, *, user_id: str, position_id: str, seq: int,
-                              event_type: str, key: str, body: dict, now: datetime) -> str:
+    def insert_position_event(
+        self,
+        c: sqlite3.Connection,
+        *,
+        user_id: str,
+        position_id: str,
+        seq: int,
+        event_type: str,
+        key: str,
+        body: dict,
+        now: datetime,
+    ) -> str:
         eid = body.get("event_id") or str(uuid.uuid4())
         c.execute(
             "INSERT INTO position_events(id, position_id, user_id, seq, event_type, client_idempotency_key, body, recorded_at) "
@@ -338,27 +391,56 @@ class LocalStore:
         return self.query(sql + " ORDER BY created_at DESC", (user_id,))
 
     def open_positions_for_symbol(self, symbol: str) -> list[sqlite3.Row]:
-        return self.query("SELECT * FROM positions WHERE symbol=? AND state IN ('OPEN','PARTIALLY_CLOSED','WATCHING')",
-                          (symbol,))
+        return self.query(
+            "SELECT * FROM positions WHERE symbol=? AND state IN ('OPEN','PARTIALLY_CLOSED','WATCHING')", (symbol,)
+        )
 
     def all_open_positions(self) -> list[sqlite3.Row]:
         return self.query("SELECT * FROM positions WHERE state IN ('OPEN','PARTIALLY_CLOSED','WATCHING')")
 
-    def save_assessment(self, position_id: str, key: str, body: dict, now: datetime,
-                        conn: sqlite3.Connection | None = None) -> bool:
+    def save_assessment(
+        self,
+        position_id: str,
+        key: str,
+        body: dict,
+        now: datetime,
+        conn: sqlite3.Connection | None = None,
+        notified: bool = False,
+    ) -> bool:
         def _do(c: sqlite3.Connection) -> bool:
-            cur = c.execute("INSERT OR IGNORE INTO position_assessments(position_id, assessment_key, body, created_at) "
-                            "VALUES (?,?,?,?)", (position_id, key, json.dumps(body, sort_keys=True), iso_utc(now)))
+            cur = c.execute(
+                "INSERT OR IGNORE INTO position_assessments(position_id, assessment_key, body, notified, created_at) "
+                "VALUES (?,?,?,?,?)",
+                (position_id, key, json.dumps(body, sort_keys=True), 1 if notified else 0, iso_utc(now)),
+            )
             return cur.rowcount == 1
+
         if conn is not None:
             return _do(conn)
         with self.tx() as c:
             return _do(c)
 
-    def last_assessment(self, position_id: str) -> dict | None:
-        rows = self.query("SELECT body FROM position_assessments WHERE position_id=? ORDER BY created_at DESC, rowid DESC "
-                          "LIMIT 1", (position_id,))
+    def last_assessment(self, position_id: str, notified_only: bool = False) -> dict | None:
+        where = " AND notified=1" if notified_only else ""
+        rows = self.query(
+            f"SELECT body FROM position_assessments WHERE position_id=?{where} "  # noqa: S608 - constant
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (position_id,),
+        )
         return json.loads(rows[0]["body"]) if rows else None
+
+    def save_scan(self, scan_id: str, session: str, body: dict, now: datetime) -> None:
+        with self.tx() as c:
+            c.execute(
+                "INSERT OR REPLACE INTO scan_runs(id, session, body, created_at) VALUES (?,?,?,?)",
+                (scan_id, session, json.dumps(body, sort_keys=True, default=str), iso_utc(now)),
+            )
+
+    def scans(self, limit: int = 30) -> list[dict]:
+        return [
+            json.loads(r["body"])
+            for r in self.query("SELECT body FROM scan_runs ORDER BY session DESC LIMIT ?", (limit,))
+        ]
 
     # ---- outbox ------------------------------------------------------------
     def enqueue(self, intent: dict, now: datetime, conn: sqlite3.Connection | None = None) -> bool:
@@ -370,10 +452,20 @@ class LocalStore:
             cur = c.execute(
                 "INSERT OR IGNORE INTO notification_outbox(id, event_key, user_id, route, kind, priority, next_attempt_at, "
                 "payload, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (str(uuid.uuid4()), intent["event_key"], user_id, json.dumps(route, sort_keys=True), intent["kind"],
-                 intent["priority"], iso_utc(now), json.dumps(intent, sort_keys=True), iso_utc(now)),
+                (
+                    str(uuid.uuid4()),
+                    intent["event_key"],
+                    user_id,
+                    json.dumps(route, sort_keys=True),
+                    intent["kind"],
+                    intent["priority"],
+                    iso_utc(now),
+                    json.dumps(intent, sort_keys=True),
+                    iso_utc(now),
+                ),
             )
             return cur.rowcount == 1
+
         if conn is not None:
             return _do(conn)
         with self.tx() as c:
@@ -383,12 +475,15 @@ class LocalStore:
         rows = self.query(
             "SELECT * FROM notification_outbox WHERE state IN ('pending','deferred') AND next_attempt_at <= ? "
             "ORDER BY CASE priority WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1 WHEN 'NORMAL' THEN 2 ELSE 3 END, created_at "
-            "LIMIT ?", (iso_utc(now), limit))
+            "LIMIT ?",
+            (iso_utc(now), limit),
+        )
         return [self._outbox_row(r) for r in rows]
 
     def pending_dm_for_user(self, user_id: str) -> list[OutboxRow]:
-        rows = self.query("SELECT * FROM notification_outbox WHERE user_id=? AND state='deferred' ORDER BY created_at",
-                          (user_id,))
+        rows = self.query(
+            "SELECT * FROM notification_outbox WHERE user_id=? AND state='deferred' ORDER BY created_at", (user_id,)
+        )
         return [self._outbox_row(r) for r in rows]
 
     def outbox_rows(self) -> list[OutboxRow]:
@@ -396,12 +491,31 @@ class LocalStore:
 
     @staticmethod
     def _outbox_row(r: sqlite3.Row) -> OutboxRow:
-        return OutboxRow(r["id"], r["event_key"], r["user_id"], json.loads(r["route"]), r["kind"], r["priority"],
-                         r["state"], r["attempts"], json.loads(r["payload"]), r["created_at"])
+        return OutboxRow(
+            r["id"],
+            r["event_key"],
+            r["user_id"],
+            json.loads(r["route"]),
+            r["kind"],
+            r["priority"],
+            r["state"],
+            r["attempts"],
+            json.loads(r["payload"]),
+            r["created_at"],
+        )
 
-    def ack_outbox(self, outbox_id: str, status: str, now: datetime, *, http_status: int | None = None,
-                   retry_after: float | None = None, discord_message_id: str | None = None,
-                   error: str | None = None, max_attempts: int = 8) -> str:
+    def ack_outbox(
+        self,
+        outbox_id: str,
+        status: str,
+        now: datetime,
+        *,
+        http_status: int | None = None,
+        retry_after: float | None = None,
+        discord_message_id: str | None = None,
+        error: str | None = None,
+        max_attempts: int = 8,
+    ) -> str:
         """status: delivered | failed | dm_blocked. Returns the new outbox state."""
         with self.tx() as c:
             row = c.execute("SELECT state, attempts FROM notification_outbox WHERE id=?", (outbox_id,)).fetchone()
@@ -411,25 +525,38 @@ class LocalStore:
                 return "sent"  # duplicate ack is harmless
             attempts = row["attempts"] + 1
             rl_until = iso_utc(now + timedelta(seconds=retry_after)) if retry_after else None
-            c.execute("INSERT INTO delivery_attempts(outbox_id, status, http_status, rate_limit_until, occurred_at) "
-                      "VALUES (?,?,?,?,?)", (outbox_id, status, http_status, rl_until, iso_utc(now)))
+            c.execute(
+                "INSERT INTO delivery_attempts(outbox_id, status, http_status, rate_limit_until, occurred_at) "
+                "VALUES (?,?,?,?,?)",
+                (outbox_id, status, http_status, rl_until, iso_utc(now)),
+            )
             if status == "delivered":
-                c.execute("UPDATE notification_outbox SET state='sent', attempts=?, sent_at=?, discord_message_id=? "
-                          "WHERE id=?", (attempts, iso_utc(now), discord_message_id, outbox_id))
+                c.execute(
+                    "UPDATE notification_outbox SET state='sent', attempts=?, sent_at=?, discord_message_id=? "
+                    "WHERE id=?",
+                    (attempts, iso_utc(now), discord_message_id, outbox_id),
+                )
                 return "sent"
             if status == "dm_blocked":
                 # never fall back to a public channel: hold privately until the member interacts again
-                c.execute("UPDATE notification_outbox SET state='deferred', attempts=?, next_attempt_at=?, last_error=? "
-                          "WHERE id=?", (attempts, "9999-12-31T00:00:00Z", "DM_BLOCKED", outbox_id))
+                c.execute(
+                    "UPDATE notification_outbox SET state='deferred', attempts=?, next_attempt_at=?, last_error=? "
+                    "WHERE id=?",
+                    (attempts, "9999-12-31T00:00:00Z", "DM_BLOCKED", outbox_id),
+                )
                 return "deferred"
             if attempts >= max_attempts:
-                c.execute("UPDATE notification_outbox SET state='dead_letter', attempts=?, last_error=? WHERE id=?",
-                          (attempts, (error or "failed")[:200], outbox_id))
+                c.execute(
+                    "UPDATE notification_outbox SET state='dead_letter', attempts=?, last_error=? WHERE id=?",
+                    (attempts, (error or "failed")[:200], outbox_id),
+                )
                 return "dead_letter"
-            backoff = retry_after if retry_after is not None else min(900.0, 2.0 ** attempts)
-            c.execute("UPDATE notification_outbox SET state='pending', attempts=?, next_attempt_at=?, last_error=? "
-                      "WHERE id=?", (attempts, iso_utc(now + timedelta(seconds=backoff)), (error or "failed")[:200],
-                                     outbox_id))
+            backoff = retry_after if retry_after is not None else min(900.0, 2.0**attempts)
+            c.execute(
+                "UPDATE notification_outbox SET state='pending', attempts=?, next_attempt_at=?, last_error=? "
+                "WHERE id=?",
+                (attempts, iso_utc(now + timedelta(seconds=backoff)), (error or "failed")[:200], outbox_id),
+            )
             return "pending"
 
     def release_deferred_for_user(self, user_id: str, now: datetime) -> list[OutboxRow]:
@@ -437,41 +564,55 @@ class LocalStore:
         rows = self.pending_dm_for_user(user_id)
         with self.tx() as c:
             for r in rows:
-                c.execute("UPDATE notification_outbox SET state='sent', sent_at=?, last_error='SHOWN_EPHEMERAL' WHERE id=?",
-                          (iso_utc(now), r.id))
+                c.execute(
+                    "UPDATE notification_outbox SET state='sent', sent_at=?, last_error='SHOWN_EPHEMERAL' WHERE id=?",
+                    (iso_utc(now), r.id),
+                )
         return rows
 
     # ---- spool (durable writes awaiting cloud ack) -----------------------------
     def spool_put(self, kind: str, key: str, payload: dict, now: datetime) -> bool:
         with self.tx() as c:
-            cur = c.execute("INSERT OR IGNORE INTO spool(kind, idempotency_key, payload, next_attempt_at, created_at) "
-                            "VALUES (?,?,?,?,?)", (kind, key, json.dumps(payload, sort_keys=True), iso_utc(now),
-                                                   iso_utc(now)))
+            cur = c.execute(
+                "INSERT OR IGNORE INTO spool(kind, idempotency_key, payload, next_attempt_at, created_at) "
+                "VALUES (?,?,?,?,?)",
+                (kind, key, json.dumps(payload, sort_keys=True), iso_utc(now), iso_utc(now)),
+            )
             return cur.rowcount == 1
 
     def spool_due(self, now: datetime, limit: int = 50) -> list[sqlite3.Row]:
-        return self.query("SELECT * FROM spool WHERE state='pending' AND next_attempt_at <= ? ORDER BY id LIMIT ?",
-                          (iso_utc(now), limit))
+        return self.query(
+            "SELECT * FROM spool WHERE state='pending' AND next_attempt_at <= ? ORDER BY id LIMIT ?",
+            (iso_utc(now), limit),
+        )
 
     def spool_pending_count(self) -> int:
         return int(self.query("SELECT COUNT(*) AS n FROM spool WHERE state='pending'")[0]["n"])
 
-    def spool_mark(self, spool_id: int, state: str, now: datetime, error: str | None = None,
-                   retry_in: float | None = None) -> None:
+    def spool_mark(
+        self, spool_id: int, state: str, now: datetime, error: str | None = None, retry_in: float | None = None
+    ) -> None:
         with self.tx() as c:
             if state == "retry":
-                c.execute("UPDATE spool SET attempts=attempts+1, next_attempt_at=?, last_error=? WHERE id=?",
-                          (iso_utc(now + timedelta(seconds=retry_in or 30)), (error or "")[:200], spool_id))
+                c.execute(
+                    "UPDATE spool SET attempts=attempts+1, next_attempt_at=?, last_error=? WHERE id=?",
+                    (iso_utc(now + timedelta(seconds=retry_in or 30)), (error or "")[:200], spool_id),
+                )
             else:
                 c.execute("UPDATE spool SET state=?, last_error=? WHERE id=?", (state, (error or None), spool_id))
 
     # ---- quotes ------------------------------------------------------------------
     def put_quote(self, observation: dict) -> None:
         with self.tx() as c:
-            c.execute("INSERT INTO quotes(symbol, body, ts_received) VALUES (?,?,?) ON CONFLICT(symbol) DO UPDATE SET "
-                      "body=excluded.body, ts_received=excluded.ts_received WHERE excluded.ts_received >= quotes.ts_received",
-                      (observation["symbol"], json.dumps(observation, sort_keys=True),
-                       observation["provenance"]["ts_received"]))
+            c.execute(
+                "INSERT INTO quotes(symbol, body, ts_received) VALUES (?,?,?) ON CONFLICT(symbol) DO UPDATE SET "
+                "body=excluded.body, ts_received=excluded.ts_received WHERE excluded.ts_received >= quotes.ts_received",
+                (
+                    observation["symbol"],
+                    json.dumps(observation, sort_keys=True),
+                    observation["provenance"]["ts_received"],
+                ),
+            )
 
     def get_quote(self, symbol: str) -> dict | None:
         rows = self.query("SELECT body FROM quotes WHERE symbol=?", (symbol,))

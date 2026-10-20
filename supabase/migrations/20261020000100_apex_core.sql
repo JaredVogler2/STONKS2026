@@ -615,9 +615,11 @@ CREATE TABLE apex.notification_outbox (
   source_event_at timestamptz,
   sent_at timestamptz,
   discord_message_id text,
+  rendered_json jsonb,  -- shared-channel render kept for the dashboard alert history (never stored for DMs)
   last_error text CHECK (last_error IS NULL OR length(last_error) <= 200),
   is_demo boolean NOT NULL DEFAULT false,
   CHECK ((route_json ->> 'type') IN ('CHANNEL', 'DM')),
+  CHECK (rendered_json IS NULL OR (route_json ->> 'type') = 'CHANNEL'),
   CHECK ((route_json ->> 'type') <> 'DM' OR user_id IS NOT NULL)
 );
 CREATE INDEX notification_outbox_due ON apex.notification_outbox (state, next_attempt_at);

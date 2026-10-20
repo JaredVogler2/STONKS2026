@@ -66,8 +66,15 @@ def _fit(train_df: pd.DataFrame, features: tuple[str, ...], cfg: ValidationConfi
     n = len(train_df)
     cut = int(n * (1 - cfg.calibration_fraction))
     fit_part, cal_part = train_df.iloc[:cut], train_df.iloc[cut:]
-    return train(_rows(fit_part, features), _labels(fit_part), features, _rows(cal_part, features), _labels(cal_part),
-                 l2=cfg.l2, metadata=meta)
+    return train(
+        _rows(fit_part, features),
+        _labels(fit_part),
+        features,
+        _rows(cal_part, features),
+        _labels(cal_part),
+        l2=cfg.l2,
+        metadata=meta,
+    )
 
 
 def _purge(train_df: pd.DataFrame, test_start: pd.Timestamp, embargo: int) -> pd.DataFrame:
@@ -76,8 +83,12 @@ def _purge(train_df: pd.DataFrame, test_start: pd.Timestamp, embargo: int) -> pd
     return train_df[ends < limit]
 
 
-def walk_forward(events: pd.DataFrame, features: tuple[str, ...], cfg: ValidationConfig = ValidationConfig(),
-                 shuffle_labels: bool = False) -> WalkForwardResult:
+def walk_forward(
+    events: pd.DataFrame,
+    features: tuple[str, ...],
+    cfg: ValidationConfig = ValidationConfig(),
+    shuffle_labels: bool = False,
+) -> WalkForwardResult:
     ev = events[events["filled"]].sort_values("decision_date").reset_index(drop=True)
     if shuffle_labels:
         rng = np.random.default_rng(cfg.seed)
@@ -108,9 +119,20 @@ def walk_forward(events: pd.DataFrame, features: tuple[str, ...], cfg: Validatio
         p = model.predict(_rows(te, features))
         y = (te["outcome"] == "TARGET").to_numpy(float)
         base = float((tr["outcome"] == "TARGET").mean())
-        folds.append(FoldResult(k, len(tr), len(te), str(t0.date()), str(t1.date()), round(M.brier(p[:, 0], y), 5),
-                                round(M.brier_skill(p[:, 0], y, base), 5), round(M.log_loss(p[:, 0], y), 5),
-                                round(M.ece(p[:, 0], y), 5), round(base, 4)))
+        folds.append(
+            FoldResult(
+                k,
+                len(tr),
+                len(te),
+                str(t0.date()),
+                str(t1.date()),
+                round(M.brier(p[:, 0], y), 5),
+                round(M.brier_skill(p[:, 0], y, base), 5),
+                round(M.log_loss(p[:, 0], y), 5),
+                round(M.ece(p[:, 0], y), 5),
+                round(base, 4),
+            )
+        )
         part = te.copy()
         part["p_target"], part["p_stop"], part["p_time"] = p[:, 0], p[:, 1], p[:, 2]
         part["y"] = y
@@ -122,15 +144,28 @@ def walk_forward(events: pd.DataFrame, features: tuple[str, ...], cfg: Validatio
     final = None
     hm: dict = {}
     if len(final_train) >= cfg.min_train and not holdout.empty:
-        final = _fit(final_train, features, cfg, {"trained_through": str(final_train["decision_date"].max().date()),
-                                                  "holdout_start": str(holdout_start.date())})
+        final = _fit(
+            final_train,
+            features,
+            cfg,
+            {
+                "trained_through": str(final_train["decision_date"].max().date()),
+                "holdout_start": str(holdout_start.date()),
+            },
+        )
         p = final.predict(_rows(holdout, features))
         y = (holdout["outcome"] == "TARGET").to_numpy(float)
         base = float((final_train["outcome"] == "TARGET").mean())
         holdout["p_target"], holdout["p_stop"], holdout["p_time"] = p[:, 0], p[:, 1], p[:, 2]
         holdout["y"] = y
-        hm = {"n": int(len(holdout)), "base_rate_train": round(base, 4), "observed_rate": round(float(y.mean()), 4),
-              "brier": round(M.brier(p[:, 0], y), 5), "brier_skill": round(M.brier_skill(p[:, 0], y, base), 5),
-              "log_loss": round(M.log_loss(p[:, 0], y), 5), "ece": round(M.ece(p[:, 0], y), 5),
-              "reliability": M.reliability(p[:, 0], y)}
+        hm = {
+            "n": len(holdout),
+            "base_rate_train": round(base, 4),
+            "observed_rate": round(float(y.mean()), 4),
+            "brier": round(M.brier(p[:, 0], y), 5),
+            "brier_skill": round(M.brier_skill(p[:, 0], y, base), 5),
+            "log_loss": round(M.log_loss(p[:, 0], y), 5),
+            "ece": round(M.ece(p[:, 0], y), 5),
+            "reliability": M.reliability(p[:, 0], y),
+        }
     return WalkForwardResult(folds, oos, holdout, holdout_start, final, hm, purged_total)

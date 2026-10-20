@@ -66,8 +66,10 @@ def build_manifest(inp: ReleaseInputs, signer_key_version: int, now: datetime) -
         "strategy_id": inp.strategy_id,
         "created_at": iso_utc(created),
         "training_window": inp.training_window,
-        "validation_window": {"holdout_start": inp.report.get("walk_forward", {}).get("holdout_start") or "",
-                              "policy_version": inp.report.get("policy_version", "")},
+        "validation_window": {
+            "holdout_start": inp.report.get("walk_forward", {}).get("holdout_start") or "",
+            "policy_version": inp.report.get("policy_version", ""),
+        },
         "training_data_hash": inp.training_data_hash,
         "label_definition": inp.label_definition,
         "feature_schema_version": feature_schema_version(),
@@ -110,8 +112,9 @@ class ManifestRejected(ValueError):
         self.detail = detail
 
 
-def verify_release(manifest: dict, artifact: bytes, trusted_keys: dict[int, str], *, now_iso: str,
-                   release_mode: str) -> None:
+def verify_release(
+    manifest: dict, artifact: bytes, trusted_keys: dict[int, str], *, now_iso: str, release_mode: str
+) -> None:
     """All checks the Pi runs BEFORE activation. Raises ManifestRejected with a stable code."""
     if manifest.get("schema") != MANIFEST_SCHEMA:
         raise ManifestRejected("UNSUPPORTED_SCHEMA", str(manifest.get("schema")))

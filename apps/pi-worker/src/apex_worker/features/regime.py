@@ -19,18 +19,25 @@ REGIME_STATES = ("trending_up", "choppy_neutral", "risk_off", "rebound", "volati
 
 def breadth_series(panel: dict[str, pd.DataFrame], min_names: int = 20) -> pd.DataFrame:
     """Share of names above their SMA50 / SMA200 and share making 20-day highs, per session."""
-    above50 = pd.DataFrame({s: (f["dist_sma50_atr"] > 0).astype(float).where(f["dist_sma50_atr"].notna())
-                            for s, f in panel.items()})
+    above50 = pd.DataFrame(
+        {s: (f["dist_sma50_atr"] > 0).astype(float).where(f["dist_sma50_atr"].notna()) for s, f in panel.items()}
+    )
     above200 = pd.DataFrame({s: f["above_sma200"] for s, f in panel.items()})
-    highs = pd.DataFrame({s: (f["days_since_high_20"] == 0).astype(float).where(f["days_since_high_20"].notna())
-                          for s, f in panel.items()})
+    highs = pd.DataFrame(
+        {
+            s: (f["days_since_high_20"] == 0).astype(float).where(f["days_since_high_20"].notna())
+            for s, f in panel.items()
+        }
+    )
     count = above50.notna().sum(axis=1)
-    out = pd.DataFrame({
-        "breadth_above_sma50": above50.mean(axis=1),
-        "breadth_above_sma200": above200.mean(axis=1),
-        "new_high_share_20": highs.mean(axis=1),
-        "breadth_names": count,
-    })
+    out = pd.DataFrame(
+        {
+            "breadth_above_sma50": above50.mean(axis=1),
+            "breadth_above_sma200": above200.mean(axis=1),
+            "new_high_share_20": highs.mean(axis=1),
+            "breadth_names": count,
+        }
+    )
     return out.where(count >= min_names)
 
 
@@ -62,12 +69,24 @@ def regime_frame(bench_features: pd.DataFrame, bench_bars: pd.DataFrame, breadth
     logits = pd.DataFrame(index=f.index)
     logits["trending_up"] = 1.6 * trend + 1.2 * slope + 1.2 * breadth_c - 0.8 * vol_z.clip(lower=0)
     logits["choppy_neutral"] = 0.6 - 1.2 * trend.abs() - 0.8 * slope.abs() - 0.3 * vol_z.clip(lower=0)
-    logits["risk_off"] = -1.5 * trend - 1.0 * slope - 1.2 * breadth_c + 0.2 * (dd.fillna(6) - 6) + 0.5 * vol_z.clip(lower=0)
-    logits["rebound"] = (2.5 * ((drawdown > 0.07) & (ret10 > 0.02)).astype(float) + 0.8 * _clip(ret10 * 15)
-                         - 0.8 * trend.clip(lower=0) - 1.0)
-    logits["volatility_shock"] = 2.2 * ((vol - 0.32) / 0.08).clip(lower=0, upper=3) + 1.5 * (-ret5 / 0.06).clip(0, 2) - 1.5
-    valid = (f["dist_sma200_atr"].notna() & f["rv_20"].notna() & b["breadth_above_sma50"].notna()
-             & logits.notna().all(axis=1))
+    logits["risk_off"] = (
+        -1.5 * trend - 1.0 * slope - 1.2 * breadth_c + 0.2 * (dd.fillna(6) - 6) + 0.5 * vol_z.clip(lower=0)
+    )
+    logits["rebound"] = (
+        2.5 * ((drawdown > 0.07) & (ret10 > 0.02)).astype(float)
+        + 0.8 * _clip(ret10 * 15)
+        - 0.8 * trend.clip(lower=0)
+        - 1.0
+    )
+    logits["volatility_shock"] = (
+        2.2 * ((vol - 0.32) / 0.08).clip(lower=0, upper=3) + 1.5 * (-ret5 / 0.06).clip(0, 2) - 1.5
+    )
+    valid = (
+        f["dist_sma200_atr"].notna()
+        & f["rv_20"].notna()
+        & b["breadth_above_sma50"].notna()
+        & logits.notna().all(axis=1)
+    )
     z = logits.where(valid, 0.0).to_numpy(dtype=float)
     z = z - z.max(axis=1, keepdims=True)
     e = np.exp(z)
@@ -92,6 +111,9 @@ def regime_at(frame: pd.DataFrame, session) -> dict:
         "label": str(row["label"]),
         "probabilities": {s: round(float(row[s]), 4) for s in REGIME_STATES},
         "version": REGIME_VERSION,
-        "inputs": {k.removeprefix("input_"): (None if pd.isna(row[k]) else round(float(row[k]), 6))
-                   for k in row.index if k.startswith("input_")},
+        "inputs": {
+            k.removeprefix("input_"): (None if pd.isna(row[k]) else round(float(row[k]), 6))
+            for k in row.index
+            if k.startswith("input_")
+        },
     }

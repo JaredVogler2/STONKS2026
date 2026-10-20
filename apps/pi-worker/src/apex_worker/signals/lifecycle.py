@@ -31,8 +31,13 @@ class SignalState(enum.StrEnum):
     INVALIDATED = "INVALIDATED"
 
 
-TERMINAL = {SignalState.CLOSED, SignalState.DISCARDED, SignalState.NO_TRADE, SignalState.EXPIRED,
-            SignalState.INVALIDATED}
+TERMINAL = {
+    SignalState.CLOSED,
+    SignalState.DISCARDED,
+    SignalState.NO_TRADE,
+    SignalState.EXPIRED,
+    SignalState.INVALIDATED,
+}
 
 ALLOWED: dict[SignalState | None, set[SignalState]] = {
     None: {SignalState.DISCOVERED},
@@ -44,7 +49,16 @@ ALLOWED: dict[SignalState | None, set[SignalState]] = {
 }
 
 # event types that annotate without changing state
-ANNOTATIONS = {"WATCH", "UPGRADED", "DOWNGRADED", "TIME_WARNING", "STALE_DATA", "ADMIN_REVIEW"}
+ANNOTATIONS = {
+    "WATCH",
+    "UPGRADED",
+    "DOWNGRADED",
+    "TIME_WARNING",
+    "STALE_DATA",
+    "ADMIN_REVIEW",
+    "INTRADAY_TARGET_TOUCH",
+    "INTRADAY_STOP_TOUCH",
+}
 
 EVENT_FOR_TARGET = {
     SignalState.DISCOVERED: "CREATED",
@@ -97,29 +111,72 @@ def dedupe_key(signal_id: str, event_type: str, discriminator: str) -> str:
     return f"{signal_id}:{event_type}:{digest}"
 
 
-def transition(signal_id: str, current: SignalState | None, target: SignalState, *, at: datetime, cause: str,
-               discriminator: str = "", event_type: str | None = None, evidence_asof_at: datetime | None = None,
-               payload: dict | None = None) -> SignalEventRecord:
+def transition(
+    signal_id: str,
+    current: SignalState | None,
+    target: SignalState,
+    *,
+    at: datetime,
+    cause: str,
+    discriminator: str = "",
+    event_type: str | None = None,
+    evidence_asof_at: datetime | None = None,
+    payload: dict | None = None,
+) -> SignalEventRecord:
     if target not in ALLOWED.get(current, set()):
         raise TransitionError(f"illegal signal transition {current} -> {target}")
     et = event_type or EVENT_FOR_TARGET[target]
-    return SignalEventRecord(signal_id, et, at, current, target, cause,
-                             dedupe_key(signal_id, et, discriminator or target.value), evidence_asof_at, payload or {})
+    return SignalEventRecord(
+        signal_id,
+        et,
+        at,
+        current,
+        target,
+        cause,
+        dedupe_key(signal_id, et, discriminator or target.value),
+        evidence_asof_at,
+        payload or {},
+    )
 
 
-def annotate(signal_id: str, current: SignalState, event_type: str, *, at: datetime, cause: str,
-             discriminator: str, evidence_asof_at: datetime | None = None,
-             payload: dict | None = None) -> SignalEventRecord:
+def annotate(
+    signal_id: str,
+    current: SignalState,
+    event_type: str,
+    *,
+    at: datetime,
+    cause: str,
+    discriminator: str,
+    evidence_asof_at: datetime | None = None,
+    payload: dict | None = None,
+) -> SignalEventRecord:
     if event_type not in ANNOTATIONS:
         raise TransitionError(f"{event_type} is not an annotation event")
     if current in TERMINAL:
         raise TransitionError("terminal signals are immutable")
-    return SignalEventRecord(signal_id, event_type, at, current, current, cause,
-                             dedupe_key(signal_id, event_type, discriminator), evidence_asof_at, payload or {})
+    return SignalEventRecord(
+        signal_id,
+        event_type,
+        at,
+        current,
+        current,
+        cause,
+        dedupe_key(signal_id, event_type, discriminator),
+        evidence_asof_at,
+        payload or {},
+    )
 
 
-def outcome_transition(signal_id: str, current: SignalState, outcome: str, *, at: datetime, cause: str,
-                       evidence_asof_at: datetime | None = None, payload: dict | None = None) -> SignalEventRecord:
+def outcome_transition(
+    signal_id: str,
+    current: SignalState,
+    outcome: str,
+    *,
+    at: datetime,
+    cause: str,
+    evidence_asof_at: datetime | None = None,
+    payload: dict | None = None,
+) -> SignalEventRecord:
     """Map a market outcome to the correct terminal transition.
 
     outcome: TARGET | STOP | TIME | ENTRY_EXPIRED | THESIS_INVALIDATED
@@ -133,8 +190,17 @@ def outcome_transition(signal_id: str, current: SignalState, outcome: str, *, at
     }
     target, et = mapping[outcome]
     data = {"outcome": outcome, **(payload or {})}
-    return transition(signal_id, current, target, at=at, cause=cause, discriminator=outcome, event_type=et,
-                      evidence_asof_at=evidence_asof_at, payload=data)
+    return transition(
+        signal_id,
+        current,
+        target,
+        at=at,
+        cause=cause,
+        discriminator=outcome,
+        event_type=et,
+        evidence_asof_at=evidence_asof_at,
+        payload=data,
+    )
 
 
 def signal_id_for(symbol: str, strategy_id: str, asof_session: str, policy_version: str) -> str:

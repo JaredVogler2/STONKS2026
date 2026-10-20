@@ -55,28 +55,36 @@ class QualityResult:
 
 
 def group_scores(row: Mapping) -> dict[str, float | None]:
-    price = _mean([
-        _t(_v(row, "trend_slope_50"), 0.15),
-        _t(_v(row, "dist_sma50_atr"), 2.0),
-        _t(_v(row, "xs_rank_ret_60"), 0.25, 0.5),
-        None if _v(row, "above_sma200") is None else (2 * _v(row, "above_sma200") - 1) * 0.6,  # type: ignore[operator]
-    ])
-    sector = _mean([
-        _t(_v(row, "rs_bench_20"), 0.06),
-        _t(_v(row, "rs_sector_20"), 0.05),
-        _t(_v(row, "sector_rank_20"), 0.3, 0.5),
-        _t(_v(row, "sector_rank_change_20"), 0.3),
-    ])
-    volume = _mean([
-        _t(_v(row, "rel_volume_1"), 0.8, 1.0),
-        _t(_v(row, "volume_z_1"), 2.0),
-        None if not _v(row, "up_down_vol_ratio_20") else math.tanh(math.log(_v(row, "up_down_vol_ratio_20")) / 0.4),  # type: ignore[arg-type]
-    ])
+    price = _mean(
+        [
+            _t(_v(row, "trend_slope_50"), 0.15),
+            _t(_v(row, "dist_sma50_atr"), 2.0),
+            _t(_v(row, "xs_rank_ret_60"), 0.25, 0.5),
+            None if _v(row, "above_sma200") is None else (2 * _v(row, "above_sma200") - 1) * 0.6,  # type: ignore[operator]
+        ]
+    )
+    sector = _mean(
+        [
+            _t(_v(row, "rs_bench_20"), 0.06),
+            _t(_v(row, "rs_sector_20"), 0.05),
+            _t(_v(row, "sector_rank_20"), 0.3, 0.5),
+            _t(_v(row, "sector_rank_change_20"), 0.3),
+        ]
+    )
+    volume = _mean(
+        [
+            _t(_v(row, "rel_volume_1"), 0.8, 1.0),
+            _t(_v(row, "volume_z_1"), 2.0),
+            None if not _v(row, "up_down_vol_ratio_20") else math.tanh(math.log(_v(row, "up_down_vol_ratio_20")) / 0.4),  # type: ignore[arg-type]
+        ]
+    )
     sq = _v(row, "squeeze_prev")
-    vol = _mean([
-        None if sq is None else math.tanh((0.5 - sq) / 0.25),
-        _t(_v(row, "vol_expansion"), 0.5, 1.0),
-    ])
+    vol = _mean(
+        [
+            None if sq is None else math.tanh((0.5 - sq) / 0.25),
+            _t(_v(row, "vol_expansion"), 0.5, 1.0),
+        ]
+    )
     p_up, p_reb = _v(row, "regime_p_trending_up"), _v(row, "regime_p_rebound")
     p_off, p_shock = _v(row, "regime_p_risk_off"), _v(row, "regime_p_volatility_shock")
     regime = None
@@ -123,5 +131,9 @@ def quality(row: Mapping, setup_score: float | None, earnings_status: str = "UNK
     raw = 50.0 + 50.0 * blended
     raw *= 0.85 + 0.15 * coverage  # incomplete evidence is penalized, never assumed neutral
     raw -= sum(pens.values())
-    return QualityResult(round(max(0.0, min(100.0, raw)), 2), {k: (None if v is None else round(v, 4)) for k, v in groups.items()},
-                         round(coverage, 3), {k: round(v, 2) for k, v in pens.items()})
+    return QualityResult(
+        round(max(0.0, min(100.0, raw)), 2),
+        {k: (None if v is None else round(v, 4)) for k, v in groups.items()},
+        round(coverage, 3),
+        {k: round(v, 2) for k, v in pens.items()},
+    )

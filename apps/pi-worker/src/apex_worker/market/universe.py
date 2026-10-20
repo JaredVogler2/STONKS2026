@@ -54,8 +54,12 @@ def tradability(asset: AssetInfo, overrides: UniverseOverrides) -> str:
     return "unknown"
 
 
-def evaluate_universe(assets: list[AssetInfo], daily: dict[str, pd.DataFrame], filters: UniverseFilters = UniverseFilters(),
-                      overrides: UniverseOverrides | None = None) -> list[UniverseDecision]:
+def evaluate_universe(
+    assets: list[AssetInfo],
+    daily: dict[str, pd.DataFrame],
+    filters: UniverseFilters = UniverseFilters(),
+    overrides: UniverseOverrides | None = None,
+) -> list[UniverseDecision]:
     ov = overrides or UniverseOverrides()
     out = []
     for a in sorted(assets, key=lambda x: x.symbol):
@@ -92,5 +96,7 @@ def evaluate_universe(assets: list[AssetInfo], daily: dict[str, pd.DataFrame], f
 
 
 def survivorship_warning(decisions: list[UniverseDecision]) -> str:
-    return ("Universe built from CURRENTLY listed assets: historical backtests omit delisted names "
-            "(survivorship bias) unless a point-in-time historical universe is supplied.")
+    return (
+        "Universe built from CURRENTLY listed assets: historical backtests omit delisted names "
+        "(survivorship bias) unless a point-in-time historical universe is supplied."
+    )

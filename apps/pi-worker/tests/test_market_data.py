@@ -22,17 +22,20 @@ NOW = datetime(2026, 10, 20, 15, 0, tzinfo=UTC)
 
 
 # ---------------- calendar (dates with known actual status) ----------------
-@pytest.mark.parametrize("day,is_session", [
-    ("2026-04-03", False),  # Good Friday
-    ("2026-01-19", False),  # MLK Day
-    ("2026-06-19", False),  # Juneteenth
-    ("2026-11-26", False),  # Thanksgiving
-    ("2026-12-25", False),  # Christmas
-    ("2027-12-24", False),  # Christmas (Sat) observed Friday
-    ("2026-07-03", False),  # Independence Day (Sat) observed Friday
-    ("2026-11-27", True),   # day after Thanksgiving: half day
-    ("2026-10-20", True),
-])
+@pytest.mark.parametrize(
+    "day,is_session",
+    [
+        ("2026-04-03", False),  # Good Friday
+        ("2026-01-19", False),  # MLK Day
+        ("2026-06-19", False),  # Juneteenth
+        ("2026-11-26", False),  # Thanksgiving
+        ("2026-12-25", False),  # Christmas
+        ("2027-12-24", False),  # Christmas (Sat) observed Friday
+        ("2026-07-03", False),  # Independence Day (Sat) observed Friday
+        ("2026-11-27", True),  # day after Thanksgiving: half day
+        ("2026-10-20", True),
+    ],
+)
 def test_calendar_known_holidays(day, is_session):
     assert default_calendar().is_session(date.fromisoformat(day)) is is_session
 
@@ -42,7 +45,9 @@ def test_half_day_close_and_after_hours():
     s = cal.session(date(2026, 11, 27))
     assert s.early_close and s.close_utc.astimezone(ET).hour == 13
     assert cal.phase(datetime(2026, 11, 27, 18, 30, tzinfo=UTC)).phase is MarketPhase.AFTER
-    assert cal.phase(datetime(2026, 11, 27, 22, 30, tzinfo=UTC)).phase is MarketPhase.CLOSED  # after-hours ends 17:00 ET
+    assert (
+        cal.phase(datetime(2026, 11, 27, 22, 30, tzinfo=UTC)).phase is MarketPhase.CLOSED
+    )  # after-hours ends 17:00 ET
 
 
 def test_dst_open_times():
@@ -66,8 +71,17 @@ def test_weekend_is_closed_with_next_open():
 
 # ---------------- validation / cache ----------------
 def _v(**kw):
-    base = dict(price=100.0, bid=99.99, ask=100.01, ts_exchange=NOW, ts_received=NOW, now=NOW, last_accepted_price=99.5,
-                last_accepted_ts=NOW - timedelta(seconds=30), reference_price=99.0)
+    base = dict(
+        price=100.0,
+        bid=99.99,
+        ask=100.01,
+        ts_exchange=NOW,
+        ts_received=NOW,
+        now=NOW,
+        last_accepted_price=99.5,
+        last_accepted_ts=NOW - timedelta(seconds=30),
+        reference_price=99.0,
+    )
     base.update(kw)
     return validate_price(**base)
 
@@ -94,11 +108,31 @@ def test_decision_class():
 
 def test_cache_never_lets_single_bad_print_through():
     cache = QuoteCache(reference_prices={"DMSEMI1": 100.0})
-    ok = cache.ingest(symbol="DMSEMI1", price=100.5, bid=None, ask=None, provider="replay", feed="demo", latency_class="replay",
-                      ts_exchange=NOW, ts_received=NOW, now=NOW)
+    ok = cache.ingest(
+        symbol="DMSEMI1",
+        price=100.5,
+        bid=None,
+        ask=None,
+        provider="replay",
+        feed="demo",
+        latency_class="replay",
+        ts_exchange=NOW,
+        ts_received=NOW,
+        now=NOW,
+    )
     assert ok is not None
-    bad = cache.ingest(symbol="DMSEMI1", price=30.0, bid=None, ask=None, provider="replay", feed="demo",
-                       latency_class="replay", ts_exchange=NOW + timedelta(seconds=1), ts_received=NOW, now=NOW + timedelta(seconds=2))
+    bad = cache.ingest(
+        symbol="DMSEMI1",
+        price=30.0,
+        bid=None,
+        ask=None,
+        provider="replay",
+        feed="demo",
+        latency_class="replay",
+        ts_exchange=NOW + timedelta(seconds=1),
+        ts_received=NOW,
+        now=NOW + timedelta(seconds=2),
+    )
     assert bad is None and cache.get("DMSEMI1").price == 100.5 and cache.quarantined()
     assert cache.stale_symbols(NOW + timedelta(minutes=10), 120) == ["DMSEMI1"]
 
@@ -189,8 +223,20 @@ def test_alpaca_corporate_actions_unsupported_returns_none():
 # ---------------- replay adapter ----------------
 @pytest.fixture(scope="module")
 def market():
-    return generate(symbols=["DMSPY", "DMSEMI1", "DMSPLIT1", "DMOTC1", "DMPENNY1", "DMLEV3X", "DMSPAC.WS", "DMNEW1",
-                             "DMTHIN1", "DMDELIST1"])
+    return generate(
+        symbols=[
+            "DMSPY",
+            "DMSEMI1",
+            "DMSPLIT1",
+            "DMOTC1",
+            "DMPENNY1",
+            "DMLEV3X",
+            "DMSPAC.WS",
+            "DMNEW1",
+            "DMTHIN1",
+            "DMDELIST1",
+        ]
+    )
 
 
 def test_replay_never_leaks_future(market):
@@ -198,8 +244,11 @@ def test_replay_never_leaks_future(market):
     ad = ReplayAdapter(market, clock)
     bars = asyncio.run(ad.get_daily_bars(["DMSEMI1"], date(2026, 1, 1), date(2026, 12, 31)))["DMSEMI1"]
     assert bars.index[-1] == pd.Timestamp("2026-09-14")  # today's bar not complete yet
-    intra = asyncio.run(ad.get_intraday_bars(["DMSEMI1"], datetime(2026, 9, 15, 13, 30, tzinfo=UTC),
-                                             datetime(2026, 9, 15, 20, 0, tzinfo=UTC)))["DMSEMI1"]
+    intra = asyncio.run(
+        ad.get_intraday_bars(
+            ["DMSEMI1"], datetime(2026, 9, 15, 13, 30, tzinfo=UTC), datetime(2026, 9, 15, 20, 0, tzinfo=UTC)
+        )
+    )["DMSEMI1"]
     assert intra.index.max() + timedelta(minutes=15) <= clock.now()
     lp = asyncio.run(ad.get_latest(["DMSEMI1"]))["DMSEMI1"]
     assert lp.ts_exchange <= clock.now() and lp.feed == "demo"
@@ -219,7 +268,9 @@ def test_universe_filters(market):
     ad = ReplayAdapter(market, clock)
     assets = asyncio.run(ad.get_assets())
     daily = asyncio.run(ad.get_daily_bars([a.symbol for a in assets], date(2025, 1, 1), date(2026, 10, 16)))
-    dec = {d.symbol: d for d in evaluate_universe(assets, daily, overrides=UniverseOverrides(user_verified={"DMSEMI1"}))}
+    dec = {
+        d.symbol: d for d in evaluate_universe(assets, daily, overrides=UniverseOverrides(user_verified={"DMSEMI1"}))
+    }
     assert dec["DMSEMI1"].eligible and dec["DMSEMI1"].tradability_status == "user_verified"
     assert "NOT_LISTED_EXCHANGE" in dec["DMOTC1"].reasons
     assert "PRICE_BELOW_MIN" in dec["DMPENNY1"].reasons
@@ -272,10 +323,20 @@ class FakeWS:
 def test_stream_auth_subscribe_reconnect_backfill():
     t = "2026-10-20T14:59:59Z"
     sessions = [
-        FakeWS([json.dumps([{"T": "success", "msg": "connected"}]), json.dumps([{"T": "success", "msg": "authenticated"}]),
-                json.dumps([{"T": "t", "S": "AAA", "p": 10.0, "s": 5, "t": t}])], fail_after=1),
-        FakeWS([json.dumps([{"T": "success", "msg": "authenticated"}]),
-                json.dumps([{"T": "q", "S": "AAA", "bp": 10.0, "ap": 10.02, "t": "2026-10-20T15:00:00Z"}])]),
+        FakeWS(
+            [
+                json.dumps([{"T": "success", "msg": "connected"}]),
+                json.dumps([{"T": "success", "msg": "authenticated"}]),
+                json.dumps([{"T": "t", "S": "AAA", "p": 10.0, "s": 5, "t": t}]),
+            ],
+            fail_after=1,
+        ),
+        FakeWS(
+            [
+                json.dumps([{"T": "success", "msg": "authenticated"}]),
+                json.dumps([{"T": "q", "S": "AAA", "bp": 10.0, "ap": 10.02, "t": "2026-10-20T15:00:00Z"}]),
+            ]
+        ),
     ]
     stop = asyncio.Event()
     backfilled = []
@@ -293,8 +354,15 @@ def test_stream_auth_subscribe_reconnect_backfill():
         return None
 
     cache = QuoteCache()
-    s = IexStream("K", "S", cache, connect=connect, now=lambda: datetime(2026, 10, 20, 15, 0, 1, tzinfo=UTC),
-                  backfill=backfill, sleep=no_sleep)
+    s = IexStream(
+        "K",
+        "S",
+        cache,
+        connect=connect,
+        now=lambda: datetime(2026, 10, 20, 15, 0, 1, tzinfo=UTC),
+        backfill=backfill,
+        sleep=no_sleep,
+    )
     s.set_symbols(["AAA"])
     asyncio.run(s.run(stop))
     assert s.health.reconnects >= 1 and backfilled == [["AAA"]]
@@ -305,6 +373,11 @@ def test_stream_auth_subscribe_reconnect_backfill():
 
 def test_stream_auth_error_raises():
     cache = QuoteCache()
-    s = IexStream("K", "S", cache, connect=lambda url, **kw: FakeWS([json.dumps([{"T": "error", "code": 402, "msg": "auth failed"}])]))
+    s = IexStream(
+        "K",
+        "S",
+        cache,
+        connect=lambda url, **kw: FakeWS([json.dumps([{"T": "error", "code": 402, "msg": "auth failed"}])]),
+    )
     with pytest.raises(StreamAuthError):
         asyncio.run(s.run(asyncio.Event()))

@@ -209,10 +209,7 @@ class MarketCalendar:
         from apex_worker.timeutil import parse_utc
 
         return cls(
-            [
-                Session(date.fromisoformat(d), parse_utc(o), parse_utc(c), bool(e))
-                for d, o, c, e in data["sessions"]
-            ]
+            [Session(date.fromisoformat(d), parse_utc(o), parse_utc(c), bool(e)) for d, o, c, e in data["sessions"]]
         )
 
 

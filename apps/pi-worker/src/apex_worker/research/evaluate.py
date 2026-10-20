@@ -61,9 +61,13 @@ def selection_summary(df: pd.DataFrame, cost_bps: float) -> dict:
         return {"n": 0}
     r = net_at_cost(df["return_gross"], cost_bps).to_numpy(float)
     weeks = pd.to_datetime(df["decision_date"]).dt.to_period("W").astype(str).to_numpy()
-    return {"n": int(len(df)), "mean_return_net": round(float(r.mean()), 6), "ci": M.block_bootstrap_mean(r, weeks),
-            "target_first_rate": round(float((df["outcome"] == "TARGET").mean()), 4),
-            "mean_r_multiple": round(float(df["r_multiple"].mean()), 4)}
+    return {
+        "n": len(df),
+        "mean_return_net": round(float(r.mean()), 6),
+        "ci": M.block_bootstrap_mean(r, weeks),
+        "target_first_rate": round(float((df["outcome"] == "TARGET").mean()), 4),
+        "mean_r_multiple": round(float(df["r_multiple"].mean()), 4),
+    }
 
 
 @dataclass
@@ -89,10 +93,17 @@ class StrategyReport:
         return asdict(self)
 
 
-def evaluate_strategy(events: pd.DataFrame, strategy_id: str, features: tuple[str, ...], data_source: str,
-                      baselines: dict[str, pd.DataFrame] | None = None, bench_excess: pd.Series | None = None,
-                      policy: PromotionPolicy = PromotionPolicy(), vcfg: ValidationConfig = ValidationConfig(),
-                      bias_warnings: list[str] | None = None) -> tuple[StrategyReport, WalkForwardResult]:
+def evaluate_strategy(
+    events: pd.DataFrame,
+    strategy_id: str,
+    features: tuple[str, ...],
+    data_source: str,
+    baselines: dict[str, pd.DataFrame] | None = None,
+    bench_excess: pd.Series | None = None,
+    policy: PromotionPolicy = PromotionPolicy(),
+    vcfg: ValidationConfig = ValidationConfig(),
+    bias_warnings: list[str] | None = None,
+) -> tuple[StrategyReport, WalkForwardResult]:
     ev = events[events["strategy_id"] == strategy_id].copy()
     wf = walk_forward(ev, features, vcfg)
     shuffled = walk_forward(ev, features, vcfg, shuffle_labels=True)
@@ -125,7 +136,10 @@ def evaluate_strategy(events: pd.DataFrame, strategy_id: str, features: tuple[st
         reasons.append(f"calibration error {gates['ece']} > {policy.max_ece}")
     if thr is None or sel_sum.get("n", 0) < policy.min_selected_trades:
         reasons.append("too few selected holdout trades")
-    elif gates["selected_mean_lower_p10"] is None or gates["selected_mean_lower_p10"] <= policy.min_lower_bound_mean_return:
+    elif (
+        gates["selected_mean_lower_p10"] is None
+        or gates["selected_mean_lower_p10"] <= policy.min_lower_bound_mean_return
+    ):
         reasons.append(f"selected trades' p10 mean net return <= 0 at {policy.eval_cost_bps:g} bps/side")
     if gates["shuffled_skill"] is not None and gates["shuffled_skill"] > policy.max_shuffled_skill:
         reasons.append("RED TEAM FAIL: shuffled labels still show skill (leakage suspected)")
@@ -137,7 +151,11 @@ def evaluate_strategy(events: pd.DataFrame, strategy_id: str, features: tuple[st
     for name, b in (baselines or {}).items():
         if b.empty:
             continue
-        bh = b[(b["decision_date"] >= wf.holdout_start) & b["filled"]] if wf.holdout_start is not pd.NaT else b[b["filled"]]
+        bh = (
+            b[(b["decision_date"] >= wf.holdout_start) & b["filled"]]
+            if wf.holdout_start is not pd.NaT
+            else b[b["filled"]]
+        )
         base[name] = selection_summary(bh, policy.eval_cost_bps)
     base["always_flat"] = {"n": 0, "mean_return_net": 0.0}
     if bench_excess is not None and not selected.empty:
@@ -146,26 +164,46 @@ def evaluate_strategy(events: pd.DataFrame, strategy_id: str, features: tuple[st
     regime_bd = {}
     if not hold.empty:
         for reg, g in hold.groupby("regime"):
-            regime_bd[str(reg)] = {"n": int(len(g)), "target_first_rate": round(float((g["outcome"] == "TARGET").mean()), 4),
-                                   "mean_return_net_25bps": round(float(net_at_cost(g["return_gross"], 25).mean()), 6)}
+            regime_bd[str(reg)] = {
+                "n": len(g),
+                "target_first_rate": round(float((g["outcome"] == "TARGET").mean()), 4),
+                "mean_return_net_25bps": round(float(net_at_cost(g["return_gross"], 25).mean()), 6),
+            }
     warn = list(bias_warnings or [])
     if data_source == "synthetic_fixture":
-        warn.insert(0, "SYNTHETIC FIXTURE DATA: results demonstrate the pipeline only and are NOT evidence of a real edge")
+        warn.insert(
+            0, "SYNTHETIC FIXTURE DATA: results demonstrate the pipeline only and are NOT evidence of a real edge"
+        )
         if status != "UNVALIDATED":
             status = "EXPERIMENTAL"
             reasons.append("synthetic data: capped at EXPERIMENTAL and never eligible for live use")
     report = StrategyReport(
-        strategy_id=strategy_id, data_source=data_source, confidence_status=status, status_reasons=reasons, gates=gates,
-        walk_forward={"folds": [asdict(f) for f in wf.folds], "purged_samples": wf.purged_count,
-                      "holdout_start": str(wf.holdout_start.date()) if wf.holdout_start is not pd.NaT else None},
-        holdout=hm, threshold=thr, selected_holdout=sel_sum, cost_sensitivity=cost_sens, baselines=base,
-        regime_breakdown=regime_bd, shuffled_control=shuffled.holdout_metrics, economics_all=M.economic_summary(ev),
+        strategy_id=strategy_id,
+        data_source=data_source,
+        confidence_status=status,
+        status_reasons=reasons,
+        gates=gates,
+        walk_forward={
+            "folds": [asdict(f) for f in wf.folds],
+            "purged_samples": wf.purged_count,
+            "holdout_start": str(wf.holdout_start.date()) if wf.holdout_start is not pd.NaT else None,
+        },
+        holdout=hm,
+        threshold=thr,
+        selected_holdout=sel_sum,
+        cost_sensitivity=cost_sens,
+        baselines=base,
+        regime_breakdown=regime_bd,
+        shuffled_control=shuffled.holdout_metrics,
+        economics_all=M.economic_summary(ev),
         bias_warnings=warn,
     )
     return report, wf
 
 
-def challenger_beats_champion(challenger: dict, champion: dict | None, policy: PromotionPolicy = PromotionPolicy()) -> tuple[bool, str]:
+def challenger_beats_champion(
+    challenger: dict, champion: dict | None, policy: PromotionPolicy = PromotionPolicy()
+) -> tuple[bool, str]:
     """Frozen comparison on the SAME most-recent holdout window. Higher backtest profit alone never promotes."""
     if challenger.get("confidence_status") == "UNVALIDATED":
         return False, "challenger failed validation gates"

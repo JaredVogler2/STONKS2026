@@ -16,7 +16,9 @@ from apex_worker.research.dataset import MODEL_FEATURES
 REDTEAM_STRATEGY = "redteam_planted_alpha"
 
 
-def planted_alpha_events(n: int = 3000, seed: int = 99, strength: float = 1.6, start: str = "2018-01-02") -> pd.DataFrame:
+def planted_alpha_events(
+    n: int = 3000, seed: int = 99, strength: float = 1.6, start: str = "2018-01-02"
+) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range(start, periods=n // 3)
     decision = np.sort(rng.choice(dates, size=n))

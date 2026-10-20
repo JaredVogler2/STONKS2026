@@ -143,8 +143,11 @@ class ModelStore:
         return self._active
 
     def _prune(self, keep: set[str], max_versions: int = 3) -> None:
-        dirs = sorted((p for p in self.versions.iterdir() if p.is_dir() and not p.name.startswith(".")),
-                      key=lambda p: p.stat().st_mtime, reverse=True)
+        dirs = sorted(
+            (p for p in self.versions.iterdir() if p.is_dir() and not p.name.startswith(".")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
         for p in dirs[max_versions:]:
             if p.name not in keep:
                 shutil.rmtree(p, ignore_errors=True)

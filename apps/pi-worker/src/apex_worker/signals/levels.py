@@ -63,8 +63,14 @@ def tick_round(price: float, down: bool = False) -> float:
     return float(d.quantize(q, rounding=ROUND_HALF_UP))
 
 
-def compute_levels(close: float, atr: float, invalidation_hint: float | None, resistance: float | None,
-                   cfg: LevelConfig = LevelConfig(), r_multiple: float | None = None) -> Levels | LevelRejection:
+def compute_levels(
+    close: float,
+    atr: float,
+    invalidation_hint: float | None,
+    resistance: float | None,
+    cfg: LevelConfig = LevelConfig(),
+    r_multiple: float | None = None,
+) -> Levels | LevelRejection:
     if not (close and atr) or any(math.isnan(x) for x in (close, atr)) or close <= 0 or atr <= 0:
         return LevelRejection("LEVELS_INPUT_MISSING", "close/ATR unavailable")
     above = min(cfg.entry_above_atr * atr, cfg.entry_above_cap_pct * close)
@@ -79,9 +85,12 @@ def compute_levels(close: float, atr: float, invalidation_hint: float | None, re
     k = r_multiple or cfg.target_r_multiple
     risk = mid - stop
     target = mid + k * risk
-    basis = [f"entry zone: close {close:.2f} -{cfg.entry_below_atr:g} ATR / +min({cfg.entry_above_atr:g} ATR, "
-             f"{cfg.entry_above_cap_pct:.0%})", f"stop: structure/ATR clamp [{cfg.stop_min_atr:g},{cfg.stop_max_atr:g}] ATR",
-             f"target: {k:g}R from zone midpoint"]
+    basis = [
+        f"entry zone: close {close:.2f} -{cfg.entry_below_atr:g} ATR / +min({cfg.entry_above_atr:g} ATR, "
+        f"{cfg.entry_above_cap_pct:.0%})",
+        f"stop: structure/ATR clamp [{cfg.stop_min_atr:g},{cfg.stop_max_atr:g}] ATR",
+        f"target: {k:g}R from zone midpoint",
+    ]
     secondary = None
     if resistance is not None and not math.isnan(resistance) and entry_max < resistance < target:
         capped = resistance - cfg.resistance_buffer_atr * atr

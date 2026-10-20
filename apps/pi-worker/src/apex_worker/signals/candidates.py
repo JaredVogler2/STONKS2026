@@ -52,8 +52,13 @@ class ScanStats:
     vetoes: Counter = field(default_factory=Counter)
 
     def to_dict(self) -> dict:
-        return {"universe_size": self.universe_size, "eligible": self.eligible, "scanned": self.scanned,
-                "triggered": self.triggered, "vetoes": dict(sorted(self.vetoes.items()))}
+        return {
+            "universe_size": self.universe_size,
+            "eligible": self.eligible,
+            "scanned": self.scanned,
+            "triggered": self.triggered,
+            "vetoes": dict(sorted(self.vetoes.items())),
+        }
 
 
 @dataclass
@@ -78,8 +83,9 @@ def _num(row, key) -> float | None:
     return None if math.isnan(v) else v
 
 
-def gate_row(row, meta, cfg: GateConfig, latest_bar_session: str | None, session: str,
-             earnings: str) -> tuple[str, list[str]]:
+def gate_row(
+    row, meta, cfg: GateConfig, latest_bar_session: str | None, session: str, earnings: str
+) -> tuple[str, list[str]]:
     """Returns (status, codes): VETO codes block, WATCH codes allow monitoring but never publication."""
     veto: list[str] = []
     watch: list[str] = []
@@ -130,8 +136,16 @@ def _fmt(v: float | None, unit: str = "", pct: bool = False) -> str:
     return f"{v * 100:+.1f}%" if pct else f"{v:.2f}{unit}"
 
 
-def build_evidence(row, groups: dict, penalties: dict, strategy: Strategy, earnings: str, regime_label: str,
-                   asof: str, catalysts: list[dict]) -> tuple[list[dict], list[dict]]:
+def build_evidence(
+    row,
+    groups: dict,
+    penalties: dict,
+    strategy: Strategy,
+    earnings: str,
+    regime_label: str,
+    asof: str,
+    catalysts: list[dict],
+) -> tuple[list[dict], list[dict]]:
     pos: list[dict] = []
     neg: list[dict] = []
 
@@ -145,54 +159,127 @@ def build_evidence(row, groups: dict, penalties: dict, strategy: Strategy, earni
 
     rs = _num(row, "rs_bench_20")
     if rs is not None:
-        add(pos if rs > 0 else neg, "RELATIVE_STRENGTH_20D", "sector",
-            f"20-session return vs benchmark {_fmt(rs, pct=True)} (log)", round(rs, 6), "log_return")
+        add(
+            pos if rs > 0 else neg,
+            "RELATIVE_STRENGTH_20D",
+            "sector",
+            f"20-session return vs benchmark {_fmt(rs, pct=True)} (log)",
+            round(rs, 6),
+            "log_return",
+        )
     sq = _num(row, "squeeze_prev")
     if sq is not None and sq <= 0.4:
-        add(pos, "VOLATILITY_COMPRESSION", "volatility",
-            f"Prior-session Bollinger width at the {sq * 100:.0f}th percentile of 120 sessions", round(sq, 4), "percentile")
+        add(
+            pos,
+            "VOLATILITY_COMPRESSION",
+            "volatility",
+            f"Prior-session Bollinger width at the {sq * 100:.0f}th percentile of 120 sessions",
+            round(sq, 4),
+            "percentile",
+        )
     rv = _num(row, "rel_volume_1")
     if rv is not None:
-        add(pos if rv >= 1.3 else neg, "RELATIVE_VOLUME", "volume",
+        add(
+            pos if rv >= 1.3 else neg,
+            "RELATIVE_VOLUME",
+            "volume",
             f"Volume {rv:.2f}x the prior 20-session average (same feed; IEX volume is not total market volume)",
-            round(rv, 4), "ratio")
+            round(rv, 4),
+            "ratio",
+        )
     tr = _num(row, "trend_slope_50")
     if tr is not None:
-        add(pos if tr > 0 else neg, "TREND_SLOPE_50D", "price",
+        add(
+            pos if tr > 0 else neg,
+            "TREND_SLOPE_50D",
+            "price",
             f"50-session trend slope {tr:+.3f} ATR-normalized units (momentum measures counted once, not as independent votes)",
-            round(tr, 6), "atr_units")
+            round(tr, 6),
+            "atr_units",
+        )
     p_label = regime_label or "unknown"
-    add(pos if p_label in ("trending_up", "rebound") else neg, f"REGIME_{p_label.upper()}", "regime",
-        f"Market regime estimate: {p_label.replace('_', ' ')} (rule-based probabilities, not a forecast)")
+    add(
+        pos if p_label in ("trending_up", "rebound") else neg,
+        f"REGIME_{p_label.upper()}",
+        "regime",
+        f"Market regime estimate: {p_label.replace('_', ' ')} (rule-based probabilities, not a forecast)",
+    )
     for c in catalysts[:2]:
         lst = pos if c.get("direction") == "potentially_positive" else neg
-        add(lst, f"CATALYST_{c['catalyst_type'].upper()}"[:64], "catalyst",
-            f"{c['headline'][:150]} (available {c['available_at']})", None, None, c.get("canonical_url"))
+        add(
+            lst,
+            f"CATALYST_{c['catalyst_type'].upper()}"[:64],
+            "catalyst",
+            f"{c['headline'][:150]} (available {c['available_at']})",
+            None,
+            None,
+            c.get("canonical_url"),
+        )
     if earnings == "UNKNOWN":
-        add(neg, "EARNINGS_DATE_UNKNOWN", "event_risk",
-            "No verified earnings date: earnings inside the holding window cannot be ruled out")
+        add(
+            neg,
+            "EARNINGS_DATE_UNKNOWN",
+            "event_risk",
+            "No verified earnings date: earnings inside the holding window cannot be ruled out",
+        )
     elif earnings == "WITHIN_HORIZON":
         add(neg, "EARNINGS_WITHIN_HORIZON", "event_risk", "Scheduled earnings fall inside the holding window: gap risk")
     for code, pts in penalties.items():
         if code != "EARNINGS_DATE_UNKNOWN":
-            add(neg, code, "liquidity" if code == "THIN_LIQUIDITY" else "price", f"Penalty {pts:.1f} points: {code.replace('_', ' ').lower()}",
-                pts, "quality_points")
+            add(
+                neg,
+                code,
+                "liquidity" if code == "THIN_LIQUIDITY" else "price",
+                f"Penalty {pts:.1f} points: {code.replace('_', ' ').lower()}",
+                pts,
+                "quality_points",
+            )
     if not neg:
         add(neg, "STRATEGY_FAILURE_MODE", "model", f"Known failure mode: {strategy.spec.failure_modes[0]}")
     return pos[:16], neg[:16]
 
 
 class CandidateEngine:
-    def __init__(self, strategies: list[Strategy] | None = None, gates: GateConfig | None = None,
-                 calendar: MarketCalendar | None = None, is_demo: bool = True):
+    def __init__(
+        self,
+        strategies: list[Strategy] | None = None,
+        gates: GateConfig | None = None,
+        calendar: MarketCalendar | None = None,
+        is_demo: bool = True,
+    ):
         self.strategies = strategies if strategies is not None else enabled_strategies()
         self.gates = gates or GateConfig()
         self.cal = calendar or default_calendar()
         self.is_demo = is_demo
+        self._ctx_cache: dict[tuple, pd.DataFrame] = {}
+        self._trig_cache: dict[tuple, pd.DataFrame] = {}
 
-    def scan(self, panel: FeaturePanel, session: pd.Timestamp, catalysts: Iterable[dict] = (),
-             earnings_status: Callable[[str, str, int], str] | None = None, created_at: datetime | None = None
-             ) -> ScanResult:
+    def _context(self, panel: FeaturePanel, symbol: str, cats: list[dict]) -> pd.DataFrame:
+        sym_cats = tuple(sorted(c["id"] for c in cats if c.get("symbol") == symbol))
+        key = (panel.token, symbol, sym_cats)
+        if self._ctx_cache and next(iter(self._ctx_cache))[0] != panel.token:
+            self._ctx_cache.clear()  # a new panel: never serve frames built from older data
+            self._trig_cache.clear()
+        if key not in self._ctx_cache:
+            self._ctx_cache[key] = context_frame(panel, symbol, cats, self.cal)
+        return self._ctx_cache[key]
+
+    def _triggers(self, panel: FeaturePanel, symbol: str, strat: Strategy, ctx: pd.DataFrame) -> pd.DataFrame:
+        # triggers are causal (row t reads only rows <= t), so one full-frame evaluation serves every session
+        # ctx objects stay referenced by _ctx_cache for this panel token, so id(ctx) cannot be recycled here
+        key = (panel.token, symbol, strat.strategy_id, id(ctx))
+        if key not in self._trig_cache:
+            self._trig_cache[key] = strat.trigger_frame(ctx)
+        return self._trig_cache[key]
+
+    def scan(
+        self,
+        panel: FeaturePanel,
+        session: pd.Timestamp,
+        catalysts: Iterable[dict] = (),
+        earnings_status: Callable[[str, str, int], str] | None = None,
+        created_at: datetime | None = None,
+    ) -> ScanResult:
         session = pd.Timestamp(session)
         sday = session.date().isoformat()
         asof = decision_instant(session, self.cal)
@@ -203,7 +290,10 @@ class CandidateEngine:
         reg_row = panel.regime.loc[session] if session in panel.regime.index else None
         regime = {"label": "unknown", "probabilities": {}}
         if reg_row is not None and isinstance(reg_row.get("label"), str):
-            regime = {"label": reg_row["label"], "probabilities": {s: round(float(reg_row[s]), 4) for s in REGIME_STATES}}
+            regime = {
+                "label": reg_row["label"],
+                "probabilities": {s: round(float(reg_row[s]), 4) for s in REGIME_STATES},
+            }
         out: list[dict] = []
         for symbol in sorted(panel.features):
             meta = panel.meta.get(symbol)
@@ -212,7 +302,7 @@ class CandidateEngine:
                 if meta is not None and meta.asset_kind != "benchmark":
                     stats.vetoes["STALE_OR_MISSING_BAR"] += 1
                 continue
-            ctx = context_frame(panel, symbol, cats, self.cal)
+            ctx = self._context(panel, symbol, cats)
             row = ctx.loc[session].to_dict()
             earnings = earnings_status(symbol, sday, self.gates.horizon_sessions) if earnings_status else "UNKNOWN"
             latest = f.index[f.index <= session][-1].date().isoformat()
@@ -223,12 +313,15 @@ class CandidateEngine:
                 continue
             stats.eligible += 1
             stats.scanned += 1
-            sym_cats = sorted([c for c in cats if c.get("symbol") == symbol and c["available_at"] <= asof_iso],
-                              key=lambda c: c["available_at"], reverse=True)
+            sym_cats = sorted(
+                [c for c in cats if c.get("symbol") == symbol and c["available_at"] <= asof_iso],
+                key=lambda c: c["available_at"],
+                reverse=True,
+            )
             for strat in self.strategies:
                 if strat.spec.requires_catalysts and not sym_cats:
                     continue
-                trig = strat.trigger_frame(ctx.loc[:session].iloc[-260:])
+                trig = self._triggers(panel, symbol, strat, ctx)
                 if session not in trig.index or not bool(trig.loc[session, "trigger"]):
                     continue
                 stats.triggered += 1
@@ -243,9 +336,17 @@ class CandidateEngine:
                     reasons.append("INSUFFICIENT_EVIDENCE_COVERAGE")
                     cand_status = "WATCH"
                 reasons += [f"PENALTY_{k}" for k in q.penalties]
-                pos, neg = build_evidence(row, q.groups, q.penalties, strat, earnings, regime["label"], asof_iso, sym_cats)
-                values = {k: (None if row.get(k) is None or (isinstance(row.get(k), float) and math.isnan(row[k]))
-                              else round(float(row[k]), 8)) for k in FEATURE_CATALOG}
+                pos, neg = build_evidence(
+                    row, q.groups, q.penalties, strat, earnings, regime["label"], asof_iso, sym_cats
+                )
+                values = {
+                    k: (
+                        None
+                        if row.get(k) is None or (isinstance(row.get(k), float) and math.isnan(row[k]))
+                        else round(float(row[k]), 8)
+                    )
+                    for k in FEATURE_CATALOG
+                }
                 cand = {
                     "id": candidate_id(symbol, strat.strategy_id, sday),
                     "symbol": symbol,
@@ -259,17 +360,36 @@ class CandidateEngine:
                     "evidence": {"positive": pos, "negative": neg},
                     "group_scores": q.groups,
                     "regime": regime["label"],
-                    "feature_snapshot_hash": integrity_hash(symbol, asof_iso, values, panel.bar_fingerprints.get(symbol, "")),
+                    "feature_snapshot_hash": integrity_hash(
+                        symbol, asof_iso, values, panel.bar_fingerprints.get(symbol, "")
+                    ),
                     "is_demo": self.is_demo,
                 }
                 validate("SignalCandidate", cand)
                 cand["_internal"] = {
-                    "features": values, "setup_score": setup, "coverage": q.coverage, "penalties": q.penalties,
-                    "pivot": _num(trig.loc[session], "pivot"), "invalidation_hint": _num(trig.loc[session], "invalidation_hint"),
-                    "sector": meta.sector if meta else None, "earnings_status": earnings,
+                    "features": values,
+                    "setup_score": setup,
+                    "coverage": q.coverage,
+                    "penalties": q.penalties,
+                    "pivot": _num(trig.loc[session], "pivot"),
+                    "invalidation_hint": _num(trig.loc[session], "invalidation_hint"),
+                    "sector": meta.sector if meta else None,
+                    "earnings_status": earnings,
                     "tradability_status": meta.tradability_status if meta else "unknown",
-                    "quality_version": QUALITY_VERSION, "regime_probabilities": regime["probabilities"],
-                    "catalysts": sym_cats[:4], "name": meta.name if meta else None,
+                    "quality_version": QUALITY_VERSION,
+                    "regime_probabilities": regime["probabilities"],
+                    "catalysts": sym_cats[:4],
+                    "name": meta.name if meta else None,
+                    "resistance": _num(
+                        {
+                            "r": ctx["close"].loc[:session].iloc[-121:-1].max()
+                            if len(ctx.loc[:session]) > 60
+                            else float("nan")
+                        },
+                        "r",
+                    ),
+                    "close": _num(row, "close"),
+                    "atr": _num(row, "atr_14"),
                 }
                 out.append(cand)
         out.sort(key=lambda c: (-(c["quality_score"] or -1), c["symbol"], c["strategy_id"]))

@@ -7,6 +7,7 @@ only influence the NEXT session's decision.
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Iterable
 from datetime import datetime, timedelta
 
@@ -24,22 +25,35 @@ NEGATIVE = "potentially_negative"
 
 
 def decision_instant(session_day, cal: MarketCalendar | None = None) -> datetime:
-    cal = cal or default_calendar()
     day = session_day.date() if hasattr(session_day, "date") else session_day
+    if cal is None:
+        return _default_decision(day)
     return cal.session(day).close_utc + DECISION_LAG
 
 
-def catalyst_daily(catalysts: Iterable[dict], index: pd.DatetimeIndex, cal: MarketCalendar | None = None) -> pd.DataFrame:
+@functools.lru_cache(maxsize=8192)
+def _default_decision(day) -> datetime:
+    return default_calendar().session(day).close_utc + DECISION_LAG
+
+
+def catalyst_daily(
+    catalysts: Iterable[dict], index: pd.DatetimeIndex, cal: MarketCalendar | None = None
+) -> pd.DataFrame:
     """Per-session catalyst summaries using only items available at each session's decision instant."""
-    cal = cal or default_calendar()
-    cols = ["cat_count_5d", "cat_positive_recent_2d", "cat_positive_recent_5d", "cat_negative_recent_5d",
-            "cat_impact_max_5d"]
+    cols = [
+        "cat_count_5d",
+        "cat_positive_recent_2d",
+        "cat_positive_recent_5d",
+        "cat_negative_recent_5d",
+        "cat_impact_max_5d",
+    ]
     out = pd.DataFrame(0.0, index=index, columns=cols)
     out["cat_impact_max_5d"] = np.nan
     if len(index) == 0:
         return out
-    decisions = np.array([np.datetime64(decision_instant(d, cal).replace(tzinfo=None), "us") for d in index],
-                         dtype="datetime64[us]")
+    decisions = np.array(
+        [np.datetime64(decision_instant(d, cal).replace(tzinfo=None), "us") for d in index], dtype="datetime64[us]"
+    )
     for cat in catalysts:
         avail = np.datetime64(parse_utc(cat["available_at"]).replace(tzinfo=None), "us")
         first = int(np.searchsorted(decisions, avail, side="left"))  # first session whose decision sees it
@@ -61,8 +75,10 @@ def catalyst_daily(catalysts: Iterable[dict], index: pd.DatetimeIndex, cal: Mark
     return out
 
 
-def context_frame(panel: FeaturePanel, symbol: str, catalysts: Iterable[dict] = (),
-                  cal: MarketCalendar | None = None) -> pd.DataFrame:
+def context_frame(
+    panel: FeaturePanel, symbol: str, catalysts: Iterable[dict] = (), cal: MarketCalendar | None = None
+) -> pd.DataFrame:
+    cal = None if cal is default_calendar() else cal
     f = panel.features[symbol].astype(float).copy()
     reg = panel.regime.reindex(f.index)
     for s in REGIME_STATES:

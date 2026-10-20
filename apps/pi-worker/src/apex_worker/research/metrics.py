@@ -24,8 +24,15 @@ def reliability(p: np.ndarray, y: np.ndarray, bins: int = 10) -> list[dict]:
         m = (p >= edges[i]) & ((p < edges[i + 1]) if i < bins - 1 else (p <= 1))
         if m.sum() == 0:
             continue
-        out.append({"bin_lo": round(float(edges[i]), 2), "bin_hi": round(float(edges[i + 1]), 2), "n": int(m.sum()),
-                    "mean_predicted": round(float(p[m].mean()), 4), "observed_rate": round(float(y[m].mean()), 4)})
+        out.append(
+            {
+                "bin_lo": round(float(edges[i]), 2),
+                "bin_hi": round(float(edges[i + 1]), 2),
+                "n": int(m.sum()),
+                "mean_predicted": round(float(p[m].mean()), 4),
+                "observed_rate": round(float(y[m].mean()), 4),
+            }
+        )
     return out
 
 
@@ -40,8 +47,13 @@ def brier_skill(p: np.ndarray, y: np.ndarray, base_rate: float) -> float:
     return 1 - brier(p, y) / ref if ref > 0 else float("nan")
 
 
-def block_bootstrap_mean(values: np.ndarray, groups: np.ndarray, n_boot: int = 2000, seed: int = 11,
-                         qs: tuple[float, ...] = (0.05, 0.1, 0.5, 0.9, 0.95)) -> dict[str, float]:
+def block_bootstrap_mean(
+    values: np.ndarray,
+    groups: np.ndarray,
+    n_boot: int = 2000,
+    seed: int = 11,
+    qs: tuple[float, ...] = (0.05, 0.1, 0.5, 0.9, 0.95),
+) -> dict[str, float]:
     """Bootstrap the mean resampling whole groups (e.g. decision weeks) to respect clustering."""
     if len(values) == 0:
         return {f"p{int(q * 100)}": float("nan") for q in qs}
@@ -85,7 +97,8 @@ def economic_summary(events: pd.DataFrame) -> dict:
     r = f["return_net"].to_numpy(float) if len(f) else np.array([])
     rm = f["r_multiple"].dropna().to_numpy(float) if len(f) else np.array([])
     out = {
-        "candidates": int(len(events)), "entries": int(len(f)),
+        "candidates": len(events),
+        "entries": len(f),
         "fill_rate": round(float(len(f) / len(events)), 4) if len(events) else None,
         "target_first_rate": round(float((f["outcome"] == "TARGET").mean()), 4) if len(f) else None,
         "stop_first_rate": round(float((f["outcome"] == "STOP").mean()), 4) if len(f) else None,

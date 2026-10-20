@@ -1,0 +1,21 @@
+{
+  "_fixture_note": "FICTIONAL plain FRED pull (no vintage request): every row carries today's realtime window, i.e. REVISED values only. Must not be used for earlier decisions.",
+  "realtime_start": "2026-10-20",
+  "realtime_end": "2026-10-20",
+  "observation_start": "2026-05-01",
+  "observation_end": "2026-08-01",
+  "units": "lin",
+  "output_type": 1,
+  "file_type": "json",
+  "order_by": "observation_date",
+  "sort_order": "asc",
+  "count": 4,
+  "offset": 0,
+  "limit": 100000,
+  "observations": [
+    {"realtime_start": "2026-10-20", "realtime_end": "2026-10-20", "date": "2026-05-01", "value": "318.6"},
+    {"realtime_start": "2026-10-20", "realtime_end": "2026-10-20", "date": "2026-06-01", "value": "322.0"},
+    {"realtime_start": "2026-10-20", "realtime_end": "2026-10-20", "date": "2026-07-01", "value": "323.4"},
+    {"realtime_start": "2026-10-20", "realtime_end": "2026-10-20", "date": "2026-08-01", "value": "324.9"}
+  ]
+}

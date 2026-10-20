@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!-- FICTIONAL Form 4: annual director RSU grant (code A, zero price). Not an open-market purchase. -->
+<ownershipDocument>
+    <schemaVersion>X0508</schemaVersion>
+    <documentType>4</documentType>
+    <periodOfReport>2026-06-01</periodOfReport>
+    <issuer>
+        <issuerCik>0009990001</issuerCik>
+        <issuerName>Demo Semiconductor One Inc</issuerName>
+        <issuerTradingSymbol>DMSEMI1</issuerTradingSymbol>
+    </issuer>
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0009990103</rptOwnerCik>
+            <rptOwnerName>Placeholder Morgan T</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerRelationship>
+            <isDirector>true</isDirector>
+            <isOfficer>false</isOfficer>
+            <isTenPercentOwner>false</isTenPercentOwner>
+            <isOther>false</isOther>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle><value>Common Stock</value></securityTitle>
+            <transactionDate><value>2026-06-01</value></transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>A</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+                <footnoteId id="F1"/>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares><value>4000</value></transactionShares>
+                <transactionPricePerShare><value>0</value></transactionPricePerShare>
+                <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction><value>22500</value></sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership><value>D</value></directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+    <footnotes>
+        <footnote id="F1">Fictional fixture: restricted stock units granted under the issuer's non-employee director compensation program; vest in full on the first anniversary.</footnote>
+    </footnotes>
+    <ownerSignature>
+        <signatureName>/s/ Placeholder Morgan T (fictional)</signatureName>
+        <signatureDate>2026-06-02</signatureDate>
+    </ownerSignature>
+</ownershipDocument>

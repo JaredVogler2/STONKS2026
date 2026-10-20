@@ -25,7 +25,9 @@ def _softmax(z: np.ndarray) -> np.ndarray:
     return e / e.sum(axis=1, keepdims=True)
 
 
-def fit_multinomial(x: np.ndarray, y: np.ndarray, l2: float = 1.0, iters: int = 400, lr: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
+def fit_multinomial(
+    x: np.ndarray, y: np.ndarray, l2: float = 1.0, iters: int = 400, lr: float = 0.5
+) -> tuple[np.ndarray, np.ndarray]:
     """Full-batch gradient descent with backtracking; returns (W [d x k], b [k])."""
     n, d = x.shape
     k = len(CLASSES)
@@ -36,7 +38,7 @@ def fit_multinomial(x: np.ndarray, y: np.ndarray, l2: float = 1.0, iters: int = 
 
     def loss(w_, b_):
         p = _softmax(x @ w_ + b_)
-        return -np.mean(np.log(np.clip((p * onehot).sum(axis=1), 1e-12, 1))) + 0.5 * l2 / n * float((w_ ** 2).sum())
+        return -np.mean(np.log(np.clip((p * onehot).sum(axis=1), 1e-12, 1))) + 0.5 * l2 / n * float((w_**2).sum())
 
     cur = loss(w, b)
     step = lr
@@ -91,7 +93,9 @@ class CompetingModel:
     metadata: dict
 
     def _matrix(self, rows: Sequence[Mapping[str, float | None]]) -> np.ndarray:
-        x = np.array([[np.nan if r.get(f) is None else float(r[f]) for f in self.feature_names] for r in rows], dtype=float)
+        x = np.array(
+            [[np.nan if r.get(f) is None else float(r[f]) for f in self.feature_names] for r in rows], dtype=float
+        )
         mu = np.array(self.means)
         x = np.where(np.isnan(x), mu, x)  # missing -> training mean (neutral), never 0
         return (x - mu) / np.array(self.stds)
@@ -113,14 +117,20 @@ class CompetingModel:
         return np.column_stack([pt, rest])
 
     def to_json(self) -> str:
-        return json.dumps({
-            "kind": MODEL_KIND, "classes": list(CLASSES), "feature_names": self.feature_names,
-            "standardize": {"means": [round(v, 10) for v in self.means], "stds": [round(v, 10) for v in self.stds]},
-            "weights": [[round(v, 10) for v in row] for row in self.weights],
-            "intercepts": [round(v, 10) for v in self.intercepts],
-            "isotonic_target": {"x": self.iso_x, "y": self.iso_y},
-            "metadata": self.metadata,
-        }, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            {
+                "kind": MODEL_KIND,
+                "classes": list(CLASSES),
+                "feature_names": self.feature_names,
+                "standardize": {"means": [round(v, 10) for v in self.means], "stds": [round(v, 10) for v in self.stds]},
+                "weights": [[round(v, 10) for v in row] for row in self.weights],
+                "intercepts": [round(v, 10) for v in self.intercepts],
+                "isotonic_target": {"x": self.iso_x, "y": self.iso_y},
+                "metadata": self.metadata,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @classmethod
     def from_json(cls, text: str, *, max_features: int = 64) -> CompetingModel:
@@ -137,13 +147,27 @@ class CompetingModel:
         iso = data.get("isotonic_target", {"x": [], "y": []})
         if iso["x"] != sorted(iso["x"]) or iso["y"] != sorted(iso["y"]):
             raise ValueError("isotonic calibrator must be monotone")
-        return cls(names, data["standardize"]["means"], stds, w, data["intercepts"], iso["x"], iso["y"],
-                   data.get("metadata", {}))
+        return cls(
+            names,
+            data["standardize"]["means"],
+            stds,
+            w,
+            data["intercepts"],
+            iso["x"],
+            iso["y"],
+            data.get("metadata", {}),
+        )
 
 
-def train(rows: Sequence[Mapping[str, float | None]], labels: Sequence[str], feature_names: Sequence[str],
-          calib_rows: Sequence[Mapping[str, float | None]] | None = None, calib_labels: Sequence[str] | None = None,
-          l2: float = 4.0, metadata: dict | None = None) -> CompetingModel:
+def train(
+    rows: Sequence[Mapping[str, float | None]],
+    labels: Sequence[str],
+    feature_names: Sequence[str],
+    calib_rows: Sequence[Mapping[str, float | None]] | None = None,
+    calib_labels: Sequence[str] | None = None,
+    l2: float = 4.0,
+    metadata: dict | None = None,
+) -> CompetingModel:
     names = list(feature_names)
     x = np.array([[np.nan if r.get(f) is None else float(r[f]) for f in names] for r in rows], dtype=float)
     with np.errstate(all="ignore"):

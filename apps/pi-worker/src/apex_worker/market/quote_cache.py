@@ -37,11 +37,20 @@ class CachedQuote:
 
     def to_contract(self, now: datetime, is_demo: bool) -> dict:
         obs = {
-            "symbol": self.symbol, "kind": self.kind, "price": f"{self.price:.4f}".rstrip("0").rstrip("."),
-            "provenance": {"provider": self.provider, "feed": self.feed, "latency_class": self.latency_class,
-                           "ts_exchange": iso_utc(self.ts_exchange), "ts_received": iso_utc(self.ts_received),
-                           "delayed_by_seconds": self.delayed_by_seconds, "is_demo": is_demo},
-            "validation_level": self.validation.level, "quality_flags": list(self.validation.flags),
+            "symbol": self.symbol,
+            "kind": self.kind,
+            "price": f"{self.price:.4f}".rstrip("0").rstrip("."),
+            "provenance": {
+                "provider": self.provider,
+                "feed": self.feed,
+                "latency_class": self.latency_class,
+                "ts_exchange": iso_utc(self.ts_exchange),
+                "ts_received": iso_utc(self.ts_received),
+                "delayed_by_seconds": self.delayed_by_seconds,
+                "is_demo": is_demo,
+            },
+            "validation_level": self.validation.level,
+            "quality_flags": list(self.validation.flags),
             "staleness_seconds": self.age_seconds(now),
         }
         if self.bid is not None:
@@ -64,23 +73,60 @@ class QuoteCache:
     def subscribe(self, fn: Callable[[CachedQuote], None]) -> None:
         self._listeners.append(fn)
 
-    def ingest(self, *, symbol: str, price: float | None, bid: float | None, ask: float | None, provider: str, feed: str,
-               latency_class: str, ts_exchange: datetime | None, ts_received: datetime, now: datetime,
-               delayed_by_seconds: int = 0, volume: int | None = None, kind: str = "trade",
-               consolidated_reference: float | None = None, halted: bool = False) -> CachedQuote | None:
+    def ingest(
+        self,
+        *,
+        symbol: str,
+        price: float | None,
+        bid: float | None,
+        ask: float | None,
+        provider: str,
+        feed: str,
+        latency_class: str,
+        ts_exchange: datetime | None,
+        ts_received: datetime,
+        now: datetime,
+        delayed_by_seconds: int = 0,
+        volume: int | None = None,
+        kind: str = "trade",
+        consolidated_reference: float | None = None,
+        halted: bool = False,
+    ) -> CachedQuote | None:
         with self._lock:
             last = self._quotes.get(symbol)
-            res = validate_price(price=price, bid=bid, ask=ask, ts_exchange=ts_exchange, ts_received=ts_received, now=now,
-                                 last_accepted_price=last.price if last else None,
-                                 last_accepted_ts=last.ts_exchange if last else None,
-                                 reference_price=self.reference_prices.get(symbol),
-                                 consolidated_reference=consolidated_reference, halted=halted, volume=volume)
+            res = validate_price(
+                price=price,
+                bid=bid,
+                ask=ask,
+                ts_exchange=ts_exchange,
+                ts_received=ts_received,
+                now=now,
+                last_accepted_price=last.price if last else None,
+                last_accepted_ts=last.ts_exchange if last else None,
+                reference_price=self.reference_prices.get(symbol),
+                consolidated_reference=consolidated_reference,
+                halted=halted,
+                volume=volume,
+            )
             if res.quarantined or res.level == 0:
                 self._quarantine.append((symbol, res.flags))
                 self._quarantine = self._quarantine[-500:]
                 return None
-            q = CachedQuote(symbol, float(price), bid, ask, provider, feed, latency_class, ts_exchange, ts_received,  # type: ignore[arg-type]
-                            delayed_by_seconds, res, volume, kind)
+            q = CachedQuote(
+                symbol,
+                float(price),
+                bid,
+                ask,
+                provider,
+                feed,
+                latency_class,
+                ts_exchange,
+                ts_received,  # type: ignore[arg-type]
+                delayed_by_seconds,
+                res,
+                volume,
+                kind,
+            )
             self._quotes[symbol] = q
         for fn in self._listeners:
             fn(q)

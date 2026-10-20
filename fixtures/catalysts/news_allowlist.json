@@ -1,0 +1,20 @@
+{
+  "schema": "apex.news_allowlist/1",
+  "note": "FICTIONAL feeds on the reserved .example TLD. Before allowlisting a real feed, review its license/terms and record them here; APEX stores headline + link only.",
+  "feeds": [
+    {
+      "feed_id": "demo-wire-aggregator",
+      "publisher": "Demo Wire Aggregator",
+      "url": "https://feeds.demo-wire.example/markets.rss",
+      "license_note": "Fictional fixture. Headline + link metadata only; no article text stored or republished.",
+      "source_grade": "C_reputable_wire"
+    },
+    {
+      "feed_id": "demo-regulator-newsroom",
+      "publisher": "Demo Regulatory Newsroom",
+      "url": "https://newsroom.demo-regulator.example/atom.xml",
+      "license_note": "Fictional fixture modelled on a public-domain government press-release feed.",
+      "source_grade": "B_official_release"
+    }
+  ]
+}

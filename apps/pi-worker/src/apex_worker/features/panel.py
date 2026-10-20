@@ -6,6 +6,7 @@ Live scanning on the Pi uses a bounded lookback (default 320 sessions) so memory
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -15,6 +16,7 @@ from apex_worker.features.compute import compute_features, cross_sectional_ranks
 from apex_worker.features.regime import breadth_series, regime_frame
 
 LIVE_LOOKBACK_SESSIONS = 320
+_TOKENS = itertools.count(1)
 
 
 @dataclass
@@ -40,6 +42,7 @@ class FeaturePanel:
     benchmark: str
     sector_etfs: dict[str, str]
     bar_fingerprints: dict[str, str] = field(default_factory=dict)
+    token: int = field(default_factory=lambda: next(_TOKENS))  # unique per build (never reuse id())
 
     @property
     def sessions(self) -> pd.DatetimeIndex:
@@ -52,8 +55,13 @@ class FeaturePanel:
         return f.loc[session]
 
 
-def build_panel(bars: dict[str, pd.DataFrame], meta: dict[str, AssetMeta], benchmark: str,
-                sector_etfs: dict[str, str], lookback: int | None = None) -> FeaturePanel:
+def build_panel(
+    bars: dict[str, pd.DataFrame],
+    meta: dict[str, AssetMeta],
+    benchmark: str,
+    sector_etfs: dict[str, str],
+    lookback: int | None = None,
+) -> FeaturePanel:
     if benchmark not in bars:
         raise KeyError(f"benchmark {benchmark} missing from bars")
     if lookback:
@@ -69,23 +77,21 @@ def build_panel(bars: dict[str, pd.DataFrame], meta: dict[str, AssetMeta], bench
 
     stocks = {s: f for s, f in feats.items() if meta.get(s) and meta[s].asset_kind == "stock"}
     ranks = cross_sectional_ranks(stocks)
-    for s, r in ranks.items():
-        for col in r.columns:
-            feats[s][col] = r[col].astype("float32")
 
     # sector context: each sector ETF's 20-session return rank among sectors, now and 20 sessions ago
     sector_ret = pd.DataFrame({sec: feats[etf]["ret_20"] for sec, etf in sector_etfs.items() if etf in feats})
     sector_rank = sector_ret.rank(axis=1, pct=True)
     sector_frame = pd.concat({"rank": sector_rank, "rank_change_20": sector_rank - sector_rank.shift(20)}, axis=1)
-    for s, f in feats.items():
+    for s, f in list(feats.items()):
         m = meta.get(s)
+        extra = {c: ranks[s][c] for c in ranks[s].columns} if s in ranks else {}
         if m and m.sector in sector_rank.columns:
-            f["sector_rank_20"] = sector_rank[m.sector].reindex(f.index).astype("float32")
-            f["sector_rank_change_20"] = (sector_rank[m.sector] - sector_rank[m.sector].shift(20)).reindex(f.index) \
-                .astype("float32")
+            extra["sector_rank_20"] = sector_rank[m.sector].reindex(f.index)
+            extra["sector_rank_change_20"] = (sector_rank[m.sector] - sector_rank[m.sector].shift(20)).reindex(f.index)
         else:
-            f["sector_rank_20"] = np.float32(np.nan)
-            f["sector_rank_change_20"] = np.float32(np.nan)
+            extra["sector_rank_20"] = pd.Series(np.nan, index=f.index)
+            extra["sector_rank_change_20"] = pd.Series(np.nan, index=f.index)
+        feats[s] = pd.concat([f, pd.DataFrame(extra, index=f.index).astype("float32")], axis=1)
 
     breadth = breadth_series(stocks)
     regime = regime_frame(feats[benchmark].astype(float), bench_bars, breadth)
@@ -98,10 +104,19 @@ def panel_from_synthetic(market, symbols: list[str] | None = None, lookback: int
     syms = symbols or sorted(market.bars)
     bars = {s: market.adjusted(s) for s in syms if s in market.bars}
     meta = {
-        s: AssetMeta(symbol=s, sector=spec.sector if spec.sector in SECTORS else None, asset_kind=spec.asset_kind,
-                     exchange=spec.exchange, instrument=spec.instrument, name=spec.name,
-                     tradability_status="likely_eligible", leveraged=spec.leveraged, tags=spec.tags)
-        for s, spec in market.assets.items() if s in bars
+        s: AssetMeta(
+            symbol=s,
+            sector=spec.sector if spec.sector in SECTORS else None,
+            asset_kind=spec.asset_kind,
+            exchange=spec.exchange,
+            instrument=spec.instrument,
+            name=spec.name,
+            tradability_status="likely_eligible",
+            leveraged=spec.leveraged,
+            tags=spec.tags,
+        )
+        for s, spec in market.assets.items()
+        if s in bars
     }
     sector_etfs = {sec: etf for sec, (etf, _) in SECTORS.items()}
     return build_panel(bars, meta, "DMSPY", sector_etfs, lookback=lookback)

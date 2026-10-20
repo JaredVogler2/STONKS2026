@@ -42,14 +42,14 @@ build-backend = "hatchling.build"
 packages = ["src/apex_worker"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py311"
 src = ["src", "tests"]
 extend-exclude = ["src/apex_worker/contracts/models.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "DTZ", "RUF", "SIM", "PL"]
-ignore = ["PLR0913", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "S101", "RUF001", "RUF002", "RUF003"]
+ignore = ["PLR0913", "PLR2004", "PLR0911", "PLR0912", "PLR0915", "PLR0917", "PLC0415", "SIM108", "S101", "RUF001", "RUF002", "RUF003"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "PLR", "DTZ001"]
@@ -62,3 +62,17 @@ markers = [
     "postgres: requires a local PostgreSQL server binary",
 ]
 asyncio_mode = "auto"
+
+[tool.ruff.lint.flake8-bugbear]
+# frozen dataclass configs: immutable, safe as defaults
+extend-immutable-calls = [
+    "apex_worker.signals.candidates.GateConfig",
+    "apex_worker.signals.levels.LevelConfig",
+    "apex_worker.research.execution.ExecConfig",
+    "apex_worker.research.evaluate.PromotionPolicy",
+    "apex_worker.research.validation.ValidationConfig",
+    "apex_worker.market.universe.UniverseFilters",
+]
+
+[tool.ruff.lint.pycodestyle]
+max-line-length = 140  # formatter targets 120; long string literals may run to 140

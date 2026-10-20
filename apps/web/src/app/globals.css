@@ -1,0 +1,137 @@
+@import "tailwindcss";
+
+/* APEX design tokens. Dark ink is the default; light is opt-in (cookie apex_theme=light). Colour is never the only
+ * carrier of meaning: every status also has a text label and, where it matters, a shape. */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0d11;
+  --surface: #10151b;
+  --surface-2: #151b23;
+  --surface-3: #1b222c;
+  --line: #222a34;
+  --line-strong: #2e3844;
+  --text: #e4eaf1;
+  --muted: #8d99a8;
+  --faint: #5f6b7a;
+  --pos: #3fae86;
+  --neg: #dd7d6c;
+  --warn: #d4a64e;
+  --info: #6ea6d9;
+  --demo: #b494e6;
+  --focus: #8db8f2;
+  --grid: #1a212a;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --surface-3: #e7eaef;
+  --line: #dce1e7;
+  --line-strong: #c6cdd6;
+  --text: #111821;
+  --muted: #536173;
+  --faint: #7d8896;
+  --pos: #1d7f5b;
+  --neg: #b9503d;
+  --warn: #946414;
+  --info: #2c67a3;
+  --demo: #6f46ab;
+  --focus: #2c67a3;
+  --grid: #e8ebef;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+  --color-info: var(--info);
+  --color-demo: var(--demo);
+  --color-focus: var(--focus);
+  --color-grid: var(--grid);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* privacy-safe screenshot mode: personal values are masked, layout is kept */
+:root[data-privacy="on"] .sensitive {
+  filter: blur(6px);
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  :root {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #ffffff;
+    --text: #000000;
+    --muted: #333333;
+    --line: #bbbbbb;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface-3) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

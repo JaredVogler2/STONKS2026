@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- FICTIONAL RSS 2.0 aggregator feed. All outlets, issuers and headlines are invented for tests. -->
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Demo Wire Aggregator - Markets (fictional)</title>
+    <link>https://feeds.demo-wire.example/</link>
+    <description>Fictional fixture feed: headline and link metadata only.</description>
+    <language>en-us</language>
+    <item>
+      <title>Demo Semiconductor One Raises Full-Year Revenue Guidance on Data Center Demand</title>
+      <link>https://alpha-wire.example/markets/2026/10/14/demo-semiconductor-one-raises-guidance?utm_source=rss&amp;utm_medium=feed&amp;utm_campaign=markets</link>
+      <guid isPermaLink="false">alpha-wire-20261014-001</guid>
+      <pubDate>Wed, 14 Oct 2026 20:15:00 GMT</pubDate>
+      <source url="https://alpha-wire.example/rss">Alpha Wire</source>
+      <description>&lt;p&gt;Fictional summary text that APEX must NOT store.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Demo Semiconductor One raises full-year revenue guidance on data center demand - Beta Business News</title>
+      <link>https://beta-business.example/news/demo-semiconductor-one-guidance-raise</link>
+      <guid>https://beta-business.example/news/demo-semiconductor-one-guidance-raise</guid>
+      <pubDate>Wed, 14 Oct 2026 16:40:00 -0400</pubDate>
+      <source url="https://beta-business.example/feed">Beta Business News</source>
+    </item>
+    <item>
+      <title>UPDATE 1-Demo Semiconductor One raises full-year revenue guidance on data-center demand</title>
+      <link>https://gamma-markets.example/article/123456</link>
+      <guid isPermaLink="false">gamma-123456</guid>
+      <pubDate>Wed, 14 Oct 2026 21:05:00 GMT</pubDate>
+      <source url="https://gamma-markets.example/rss">Gamma Markets</source>
+    </item>
+    <item>
+      <title>Demo Semiconductor One raises full year revenue guidance on data center demand ($DMSEMI1)</title>
+      <link>https://delta-finance-daily.example/stocks/dmsemi1/guidance?fbclid=abc123</link>
+      <guid isPermaLink="false">delta-77821</guid>
+      <pubDate>Wed, 14 Oct 2026 22:30:00 GMT</pubDate>
+      <source url="https://delta-finance-daily.example/rss">Delta Finance Daily</source>
+    </item>
+    <item>
+      <title><![CDATA[Demo Semiconductor One Raises Full-Year Revenue Guidance On Data Center Demand]]></title>
+      <link>https://alpha-wire.example/markets/2026/10/14/demo-semiconductor-one-raises-guidance?utm_source=partner&amp;utm_medium=syndication</link>
+      <guid isPermaLink="false">epsilon-syndicated-0042</guid>
+      <pubDate>Thu, 15 Oct 2026 03:40:00 GMT</pubDate>
+      <source url="https://epsilon-street.example/rss">Epsilon Street Journal</source>
+    </item>
+    <item>
+      <title>Beacon Expands Regional Hub Network as Holiday Volumes Climb</title>
+      <link>https://alpha-wire.example/logistics/2026/10/15/beacon-hubs</link>
+      <guid isPermaLink="false">alpha-wire-20261015-007</guid>
+      <pubDate>Thu, 15 Oct 2026 13:00:00 GMT</pubDate>
+      <source url="https://alpha-wire.example/rss">Alpha Wire</source>
+    </item>
+    <item>
+      <title>Beacon Logistics (NYSE: DMLOG3) Wins $250 Million Federal Freight Contract</title>
+      <link>https://gamma-markets.example/article/123499</link>
+      <guid isPermaLink="false">gamma-123499</guid>
+      <pubDate>Thu, 15 Oct 2026 14:00:00 GMT</pubDate>
+      <source url="https://gamma-markets.example/rss">Gamma Markets</source>
+    </item>
+    <item>
+      <title>Demo Bank Two Announces $500 Million Share Repurchase Program</title>
+      <link>https://beta-business.example/news/demo-bank-two-buyback</link>
+      <guid>https://beta-business.example/news/demo-bank-two-buyback</guid>
+      <pubDate>Thu, 15 Oct 2026 12:30:00 GMT</pubDate>
+      <source url="https://beta-business.example/feed">Beta Business News</source>
+    </item>
+    <item>
+      <title>Demo Bio Four Prices $150 Million Public Offering of Common Stock</title>
+      <link>https://delta-finance-daily.example/stocks/dmbio4/offering</link>
+      <guid isPermaLink="false">delta-77830</guid>
+      <pubDate>Thu, 15 Oct 2026 01:10:00 GMT</pubDate>
+      <source url="https://delta-finance-daily.example/rss">Delta Finance Daily</source>
+    </item>
+    <item>
+      <title>&lt;b&gt;Demo Bank Two&lt;/b&gt; CFO to Step Down</title>
+      <link>https://alpha-wire.example/banking/2026/10/15/demo-bank-two-cfo</link>
+      <guid isPermaLink="false">alpha-wire-20261015-011</guid>
+      <pubDate>Thu, 15 Oct 2026 15:20:00 GMT</pubDate>
+      <source url="https://alpha-wire.example/rss">Alpha Wire</source>
+    </item>
+    <item>
+      <title>Demo Bio Four Shares Halted Pending News</title>
+      <link>http://insecure.example/dmbio4-halt</link>
+      <guid isPermaLink="false">insecure-1</guid>
+      <pubDate>Thu, 15 Oct 2026 15:45:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Demo Bank Two Faces Regulator Probe Over Fees</title>
+      <link>https://10.0.0.5/internal/dmbank2</link>
+      <guid isPermaLink="false">private-ip-1</guid>
+      <pubDate>Thu, 15 Oct 2026 16:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Demo Semiconductor One Names New Chief Operating Officer</title>
+      <link>https://beta-business.example/news/dmsemi1-coo</link>
+      <guid>https://beta-business.example/news/dmsemi1-coo</guid>
+      <source url="https://beta-business.example/feed">Beta Business News</source>
+    </item>
+    <item>
+      <title>Demo Rx Therapeutics ($DMRX) Receives FDA Approval for DRX-7</title>
+      <link>https://gamma-markets.example/article/123402</link>
+      <guid isPermaLink="false">gamma-123402</guid>
+      <pubDate>Mon, 05 Oct 2026 11:30:00 GMT</pubDate>
+      <source url="https://gamma-markets.example/rss">Gamma Markets</source>
+    </item>
+  </channel>
+</rss>

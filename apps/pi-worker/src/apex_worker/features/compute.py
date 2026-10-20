@@ -72,7 +72,10 @@ FEATURE_CATALOG: dict[str, tuple[str, str]] = {
     "pivot_high_20": ("structure", "highest high of the 20 sessions BEFORE today"),
     "dist_pivot_atr": ("structure", "(close - pivot_high_20) / ATR14"),
     "breakout_today": ("structure", "1 if close > pivot_high_20"),
-    "failed_breakouts_60": ("structure", "breakouts in the last 60 sessions that closed back below pivot within 3 sessions"),
+    "failed_breakouts_60": (
+        "structure",
+        "breakouts in the last 60 sessions that closed back below pivot within 3 sessions",
+    ),
     "bars_available": ("data_quality", "number of daily bars available up to today"),
 }
 
@@ -82,52 +85,59 @@ def _wilder(series: pd.Series, n: int) -> pd.Series:
 
 
 def _rolling_slope(y: pd.Series, n: int) -> pd.Series:
+    """OLS slope of y on 0..n-1 over trailing windows, vectorized with convolutions (NaN if window incomplete)."""
+    v = y.to_numpy(dtype=float)
+    out = np.full(len(v), np.nan)
+    if len(v) < n:
+        return pd.Series(out, index=y.index)
     x = np.arange(n, dtype=float)
-    x = x - x.mean()
-    denom = float((x * x).sum())
-
-    def slope(window: np.ndarray) -> float:
-        return float(np.dot(x, window - window.mean()) / denom)
-
-    return y.rolling(n, min_periods=n).apply(slope, raw=True)
+    xc = x - x.mean()
+    denom = float((xc * xc).sum())
+    # sum_k xc_k * y_{t-n+1+k}: convolution with the reversed centred x weights
+    num = np.convolve(v, xc[::-1], mode="valid")
+    out[n - 1 :] = num / denom
+    return pd.Series(out, index=y.index)
 
 
 def _rolling_percentile_last(s: pd.Series, n: int) -> pd.Series:
-    def pct(window: np.ndarray) -> float:
-        last = window[-1]
-        if np.isnan(last):
-            return np.nan
-        valid = window[~np.isnan(window)]
-        return float((valid <= last).sum() - 1) / max(1, len(valid) - 1)
+    """(count of valid window values <= last - 1) / (valid count - 1), trailing window, min half-window."""
+    minp = max(20, n // 2)
+    r = s.rolling(n, min_periods=minp)
+    rank_max = r.rank(method="max", pct=False)
+    cnt = r.count()
+    out = (rank_max - 1) / (cnt - 1).where(cnt > 1)
+    return out.where(s.notna())
 
-    return s.rolling(n, min_periods=max(20, n // 2)).apply(pct, raw=True)
+
+def _sliding(v: np.ndarray, n: int) -> np.ndarray:
+    pad = np.concatenate([np.full(n - 1, np.nan), v])
+    return np.lib.stride_tricks.sliding_window_view(pad, n)
 
 
 def _days_since_max(s: pd.Series, n: int) -> pd.Series:
-    def since(window: np.ndarray) -> float:
-        return float(len(window) - 1 - int(np.nanargmax(window)))
-
-    return s.rolling(n, min_periods=n).apply(since, raw=True)
+    v = s.to_numpy(dtype=float)
+    w = _sliding(v, n)
+    full = ~np.isnan(w).any(axis=1)
+    idx = np.argmax(np.where(np.isnan(w), -np.inf, w), axis=1)
+    out = np.where(full, (n - 1 - idx).astype(float), np.nan)
+    return pd.Series(out, index=s.index)
 
 
 def _base_length(close: np.ndarray, atr: np.ndarray, max_len: int = 60) -> np.ndarray:
-    """Sessions ending at t during which closes stayed inside a band 1.5 x ATR(t) wide. Causal by construction."""
-    out = np.full(len(close), np.nan)
-    for t in range(len(close)):
-        if np.isnan(atr[t]):
-            continue
-        band = 1.5 * atr[t]
-        hi = lo = close[t]
-        length = 1
-        for k in range(t - 1, max(-1, t - max_len), -1):
-            c = close[k]
-            hi2, lo2 = max(hi, c), min(lo, c)
-            if hi2 - lo2 > band:
-                break
-            hi, lo = hi2, lo2
-            length += 1
-        out[t] = length
-    return out
+    """Sessions ending at t during which closes stayed inside a band 1.5 x ATR(t) wide. Causal by construction.
+
+    Window range is non-decreasing in length, so the base length is the count of lengths whose range fits.
+    """
+    w = _sliding(close.astype(float), max_len)[:, ::-1]  # column k = close[t-k]
+    hi = np.fmax.accumulate(w, axis=1)
+    lo = np.fmin.accumulate(w, axis=1)
+    rng = hi - lo
+    valid = ~np.isnan(w)
+    # a NaN (before history start) ends the base: lengths after the first NaN do not count
+    contiguous = np.cumprod(valid, axis=1).astype(bool)
+    fits = (rng <= (1.5 * atr)[:, None]) & contiguous
+    lengths = np.cumprod(fits, axis=1).sum(axis=1).astype(float)
+    return np.where(np.isnan(atr), np.nan, lengths)
 
 
 def _failed_breakouts(close: np.ndarray, pivot: np.ndarray, window: int = 60, confirm: int = 3) -> np.ndarray:
@@ -138,18 +148,17 @@ def _failed_breakouts(close: np.ndarray, pivot: np.ndarray, window: int = 60, co
     """
     n = len(close)
     failed = np.zeros(n, dtype=bool)
-    for b in range(n):
-        if np.isnan(pivot[b]) or close[b] <= pivot[b]:
-            continue
+    brk = np.flatnonzero(~np.isnan(pivot) & (close > np.nan_to_num(pivot, nan=np.inf)))
+    for b in brk:
         end = b + confirm
-        if end < n and np.any(close[b + 1:end + 1] < pivot[b]):
+        if end < n and np.any(close[b + 1 : end + 1] < pivot[b]):
             failed[end] = True  # recorded on the day the failure became knowable
-    counts = pd.Series(failed.astype(float)).rolling(window, min_periods=1).sum().to_numpy()
-    return counts
+    return pd.Series(failed.astype(float)).rolling(window, min_periods=1).sum().to_numpy()
 
 
-def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
-                     sector: pd.DataFrame | None = None) -> pd.DataFrame:
+def compute_features(
+    bars: pd.DataFrame, bench: pd.DataFrame | None = None, sector: pd.DataFrame | None = None
+) -> pd.DataFrame:
     """bars/bench/sector: split-adjusted daily OHLCV indexed by session date (ascending)."""
     if bars.empty:
         return pd.DataFrame(columns=list(FEATURE_CATALOG))
@@ -158,7 +167,7 @@ def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
     v = df["volume"].astype(float)
     logc = np.log(c)
     r1 = logc.diff()
-    out = pd.DataFrame(index=df.index)
+    out: dict[str, pd.Series] = {}
     out["close"] = c
     for n in (5, 10, 20, 60, 120):
         out[f"ret_{n}"] = logc - logc.shift(n)
@@ -172,7 +181,7 @@ def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
     out["rs_bench_20"] = rel(bench, 20)
     out["rs_bench_60"] = rel(bench, 60)
     out["rs_sector_20"] = rel(sector, 20)
-    rets = out[["ret_5", "ret_10", "ret_20", "ret_60"]]
+    rets = pd.DataFrame({k: out[k] for k in ("ret_5", "ret_10", "ret_20", "ret_60")})
     out["mtf_consistency"] = (rets > 0).sum(axis=1).where(rets.notna().all(axis=1)) / 4.0
 
     prev_c = c.shift(1)
@@ -197,7 +206,7 @@ def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
     out["efficiency_ratio_20"] = (change / path).where(path > 0)
     out["autocorr_60"] = r1.rolling(60, min_periods=60).corr(r1.shift(1))
 
-    rng = (h - low)
+    rng = h - low
     clv = ((c - low) - (h - c)) / rng.where(rng > 0)
     out["clv_1"] = clv
     out["clv_5"] = clv.rolling(5, min_periods=5).mean()
@@ -211,9 +220,9 @@ def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
     for n in (5, 10, 20):
         out[f"rv_{n}"] = r1.rolling(n, min_periods=n).std() * ann
     hl = np.log(h / low)
-    out["parkinson_20"] = np.sqrt((hl ** 2).rolling(20, min_periods=20).mean() / (4 * math.log(2))) * ann
+    out["parkinson_20"] = np.sqrt((hl**2).rolling(20, min_periods=20).mean() / (4 * math.log(2))) * ann
     co = np.log(c / o)
-    gk = 0.5 * hl ** 2 - (2 * math.log(2) - 1) * co ** 2
+    gk = 0.5 * hl**2 - (2 * math.log(2) - 1) * co**2
     out["garman_klass_20"] = np.sqrt(gk.rolling(20, min_periods=20).mean().clip(lower=0)) * ann
     out["vol_expansion"] = out["rv_5"] / out["rv_20"].where(out["rv_20"] > 0)
     bb_width = (4 * c.rolling(20, min_periods=20).std()) / sma20
@@ -234,47 +243,56 @@ def compute_features(bars: pd.DataFrame, bench: pd.DataFrame | None = None,
     out["up_down_vol_ratio_20"] = up_vol / dn_vol.where(dn_vol > 0)
     out["amihud_20"] = (r1.abs() / dv.where(dv > 0)).rolling(20, min_periods=20).mean() * 1e9
 
-    base_len = _base_length(c.to_numpy(), atr.to_numpy())
-    out["base_length"] = base_len
-    closes = c.to_numpy()
-    depth = np.full(len(closes), np.nan)
-    for t, n in enumerate(base_len):
-        if not np.isnan(n):
-            w = closes[t - int(n) + 1:t + 1]
-            depth[t] = (w.max() - w.min()) / w.max()
-    out["base_depth_pct"] = depth
+    closes = c.to_numpy(dtype=float)
+    base_len = _base_length(closes, atr.to_numpy(dtype=float))
+    out["base_length"] = pd.Series(base_len, index=df.index)
+    w = _sliding(closes, 60)[:, ::-1]
+    hi = np.fmax.accumulate(w, axis=1)
+    lo = np.fmin.accumulate(w, axis=1)
+    k = np.clip(np.nan_to_num(base_len, nan=1).astype(int) - 1, 0, 59)
+    rows = np.arange(len(closes))
+    depth = (hi[rows, k] - lo[rows, k]) / hi[rows, k]
+    out["base_depth_pct"] = pd.Series(np.where(np.isnan(base_len), np.nan, depth), index=df.index)
     pivot = h.shift(1).rolling(20, min_periods=20).max()
     out["pivot_high_20"] = pivot
     out["dist_pivot_atr"] = (c - pivot) / atr
     out["breakout_today"] = (c > pivot).astype(float).where(pivot.notna())
-    out["failed_breakouts_60"] = _failed_breakouts(closes, pivot.to_numpy())
-    out["failed_breakouts_60"] = out["failed_breakouts_60"].where(pivot.notna())
-    out["bars_available"] = np.arange(1, len(df) + 1, dtype=float)
-    return out[list(FEATURE_CATALOG)].replace([np.inf, -np.inf], np.nan)
+    out["failed_breakouts_60"] = pd.Series(
+        _failed_breakouts(closes, pivot.to_numpy(dtype=float)), index=df.index
+    ).where(pivot.notna())
+    out["bars_available"] = pd.Series(np.arange(1, len(df) + 1, dtype=float), index=df.index)
+    frame = pd.DataFrame({k: out[k] for k in FEATURE_CATALOG}, index=df.index)
+    return frame.replace([np.inf, -np.inf], np.nan)
 
 
-def cross_sectional_ranks(panel: dict[str, pd.DataFrame], columns: tuple[str, ...] = ("ret_20", "ret_60", "rs_bench_20")
-                          ) -> dict[str, pd.DataFrame]:
+def cross_sectional_ranks(
+    panel: dict[str, pd.DataFrame], columns: tuple[str, ...] = ("ret_20", "ret_60", "rs_bench_20")
+) -> dict[str, pd.DataFrame]:
     """Per-date percentile rank across symbols (uses only same-date values, so it is causal)."""
     out: dict[str, pd.DataFrame] = {s: pd.DataFrame(index=f.index) for s, f in panel.items()}
     for col in columns:
         wide = pd.DataFrame({s: f[col] for s, f in panel.items() if col in f})
         ranks = wide.rank(axis=1, pct=True)
-        for s in out:
+        for s, frame in out.items():
             if s in ranks:
-                out[s][f"xs_rank_{col}"] = ranks[s].reindex(out[s].index)
+                frame[f"xs_rank_{col}"] = ranks[s].reindex(frame.index)
     return out
 
 
 def snapshot_row(features: pd.DataFrame, session) -> dict[str, float | None]:
     row = features.loc[session]
-    return {k: (None if (v is None or (isinstance(v, float) and math.isnan(v))) else round(float(v), 8))
-            for k, v in row.items()}
+    return {
+        k: (None if (v is None or (isinstance(v, float) and math.isnan(v))) else round(float(v), 8))
+        for k, v in row.items()
+    }
 
 
 def integrity_hash(symbol: str, asof_iso: str, values: dict[str, float | None], input_fingerprint: str) -> str:
-    payload = json.dumps({"symbol": symbol, "asof": asof_iso, "v": FEATURE_VERSION, "features": values,
-                          "inputs": input_fingerprint}, sort_keys=True, separators=(",", ":"))
+    payload = json.dumps(
+        {"symbol": symbol, "asof": asof_iso, "v": FEATURE_VERSION, "features": values, "inputs": input_fingerprint},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 

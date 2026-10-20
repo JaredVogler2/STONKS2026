@@ -44,10 +44,19 @@ def _ts(value: str) -> datetime:
 
 
 class IexStream:
-    def __init__(self, key_id: str, secret_key: str, cache: QuoteCache, *, connect: Callable | None = None,
-                 now: Callable[[], datetime] = lambda: datetime.now(UTC), url: str = IEX_URL,
-                 max_symbols: int = BASIC_SYMBOL_LIMIT, backfill: Callable[[list[str]], Awaitable[None]] | None = None,
-                 sleep=asyncio.sleep):
+    def __init__(
+        self,
+        key_id: str,
+        secret_key: str,
+        cache: QuoteCache,
+        *,
+        connect: Callable | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
+        url: str = IEX_URL,
+        max_symbols: int = BASIC_SYMBOL_LIMIT,
+        backfill: Callable[[list[str]], Awaitable[None]] | None = None,
+        sleep=asyncio.sleep,
+    ):
         self._auth = {"action": "auth", "key": key_id, "secret": secret_key}
         self.cache = cache
         self._connect = connect
@@ -98,16 +107,38 @@ class IexStream:
             elif t == "subscription":
                 self.health.subscribed = sorted(set(m.get("trades", [])) | set(m.get("quotes", [])))
             elif t == "t":
-                got = self.cache.ingest(symbol=m["S"], price=m.get("p"), bid=None, ask=None, provider="alpaca", feed="iex",
-                                        latency_class="live", ts_exchange=_ts(m["t"]), ts_received=now, now=now,
-                                        volume=m.get("s"), kind="trade")
+                got = self.cache.ingest(
+                    symbol=m["S"],
+                    price=m.get("p"),
+                    bid=None,
+                    ask=None,
+                    provider="alpaca",
+                    feed="iex",
+                    latency_class="live",
+                    ts_exchange=_ts(m["t"]),
+                    ts_received=now,
+                    now=now,
+                    volume=m.get("s"),
+                    kind="trade",
+                )
                 if got is None:
                     self.health.quarantined += 1
             elif t == "q":
                 bid, ask = m.get("bp"), m.get("ap")
                 mid = (bid + ask) / 2 if bid and ask else None
-                got = self.cache.ingest(symbol=m["S"], price=mid, bid=bid, ask=ask, provider="alpaca", feed="iex",
-                                        latency_class="live", ts_exchange=_ts(m["t"]), ts_received=now, now=now, kind="quote")
+                got = self.cache.ingest(
+                    symbol=m["S"],
+                    price=mid,
+                    bid=bid,
+                    ask=ask,
+                    provider="alpaca",
+                    feed="iex",
+                    latency_class="live",
+                    ts_exchange=_ts(m["t"]),
+                    ts_received=now,
+                    now=now,
+                    kind="quote",
+                )
                 if got is None:
                     self.health.quarantined += 1
 
@@ -137,7 +168,7 @@ class IexStream:
             except StreamAuthError:
                 self.health.connected = False
                 raise
-            except Exception as exc:  # noqa: BLE001 - network faults of any type trigger reconnect
+            except Exception as exc:
                 self.health.last_error = f"disconnected: {type(exc).__name__}"
             self.health.connected = False
             self.health.authenticated = False

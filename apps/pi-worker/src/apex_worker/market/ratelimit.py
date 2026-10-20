@@ -95,10 +95,17 @@ class QuotaTracker:
     def record(self, day: str, n: int = 1, priority: Priority = Priority.NORMAL) -> None:
         self.roll(day)
         if not self.allow(priority):
-            raise BudgetExceeded(f"{self.provider} budget {self.level()} ({self.used}/{self.daily_limit}); "
-                                 f"{priority.name} work paused")
+            raise BudgetExceeded(
+                f"{self.provider} budget {self.level()} ({self.used}/{self.daily_limit}); {priority.name} work paused"
+            )
         self.used += n
 
     def snapshot(self) -> dict:
-        return {"provider": self.provider, "day": self.day, "used": self.used, "limit": self.daily_limit,
-                "fraction": round(self.fraction, 4), "level": self.level()}
+        return {
+            "provider": self.provider,
+            "day": self.day,
+            "used": self.used,
+            "limit": self.daily_limit,
+            "fraction": round(self.fraction, 4),
+            "level": self.level(),
+        }

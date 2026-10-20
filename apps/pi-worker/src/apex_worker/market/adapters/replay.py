@@ -58,8 +58,13 @@ def intraday_path(symbol: str, day: date, o: float, h: float, low: float, c: flo
 class ReplayAdapter:
     provider = "replay"
 
-    def __init__(self, market: SyntheticMarket, clock: ReplayClock, calendar: MarketCalendar | None = None,
-                 faults: Faults | None = None):
+    def __init__(
+        self,
+        market: SyntheticMarket,
+        clock: ReplayClock,
+        calendar: MarketCalendar | None = None,
+        faults: Faults | None = None,
+    ):
         self.market = market
         self.clock = clock
         self.cal = calendar or default_calendar()
@@ -85,18 +90,29 @@ class ReplayAdapter:
         for s, spec in sorted(self.market.assets.items()):
             listed = spec.listed_from is None or spec.listed_from <= self.clock.now().date()
             delisted = spec.delisted_on is not None and spec.delisted_on <= self.clock.now().date()
-            out.append(AssetInfo(s, spec.name, spec.exchange, "us_equity",
-                                 "etf" if spec.asset_kind in ("etf", "benchmark") else spec.instrument,
-                                 tradable=listed and not delisted and spec.exchange != "OTC", fractionable=True,
-                                 status="inactive" if (delisted or not listed) else "active", attributes=spec.tags,
-                                 sector=spec.sector, leveraged=spec.leveraged))
+            out.append(
+                AssetInfo(
+                    s,
+                    spec.name,
+                    spec.exchange,
+                    "us_equity",
+                    "etf" if spec.asset_kind in ("etf", "benchmark") else spec.instrument,
+                    tradable=listed and not delisted and spec.exchange != "OTC",
+                    fractionable=True,
+                    status="inactive" if (delisted or not listed) else "active",
+                    attributes=spec.tags,
+                    sector=spec.sector,
+                    leveraged=spec.leveraged,
+                )
+            )
         return out
 
     def _completed_session(self) -> pd.Timestamp:
         return pd.Timestamp(self.cal.latest_completed_session(self.clock.now()))
 
-    async def get_daily_bars(self, symbols: list[str], start: date, end: date, adjustment: str = "split",
-                             feed: str = "demo") -> dict[str, pd.DataFrame]:
+    async def get_daily_bars(
+        self, symbols: list[str], start: date, end: date, adjustment: str = "split", feed: str = "demo"
+    ) -> dict[str, pd.DataFrame]:
         self._gate()
         cutoff = min(pd.Timestamp(end), self._completed_session())
         out = {}
@@ -104,11 +120,12 @@ class ReplayAdapter:
             if s not in self.market.bars:
                 continue
             df = self.market.adjusted(s) if adjustment in ("split", "all") else self.market.bars[s]
-            out[s] = df.loc[pd.Timestamp(start):cutoff].copy()
+            out[s] = df.loc[pd.Timestamp(start) : cutoff].copy()
         return out
 
-    async def get_intraday_bars(self, symbols: list[str], start: datetime, end: datetime, timeframe: str = "15Min",
-                                feed: str = "demo") -> dict[str, pd.DataFrame]:
+    async def get_intraday_bars(
+        self, symbols: list[str], start: datetime, end: datetime, timeframe: str = "15Min", feed: str = "demo"
+    ) -> dict[str, pd.DataFrame]:
         self._gate()
         now = self.clock.now()
         end = min(end, now)
@@ -133,9 +150,17 @@ class ReplayAdapter:
                     bend = bstart + timedelta(minutes=minutes)
                     if bend > end or bstart < start:
                         continue
-                    seg = path[k:k + 2]
-                    rows.append({"start_at": bstart, "open": seg[0], "high": seg.max(), "low": seg.min(), "close": seg[-1],
-                                 "volume": int(vols[k])})
+                    seg = path[k : k + 2]
+                    rows.append(
+                        {
+                            "start_at": bstart,
+                            "open": seg[0],
+                            "high": seg.max(),
+                            "low": seg.min(),
+                            "close": seg[-1],
+                            "volume": int(vols[k]),
+                        }
+                    )
             out[s] = pd.DataFrame(rows).set_index("start_at") if rows else pd.DataFrame()
         return out
 
@@ -159,7 +184,7 @@ class ReplayAdapter:
                 px, ts = float(path[k]), info.session.open_utc + timedelta(minutes=k)
             else:
                 last_day = self.cal.latest_completed_session(now)
-                hist = df.loc[:pd.Timestamp(last_day)]
+                hist = df.loc[: pd.Timestamp(last_day)]
                 if hist.empty:
                     continue
                 px = float(hist["close"].iloc[-1])
@@ -171,10 +196,19 @@ class ReplayAdapter:
 
     async def get_corporate_actions(self, symbols: list[str], start: date, end: date) -> list[dict] | None:
         self._gate()
-        return [a for a in self.market.corporate_actions if a["symbol"] in symbols
-                and start.isoformat() <= a["effective_date"] <= end.isoformat()]
+        return [
+            a
+            for a in self.market.corporate_actions
+            if a["symbol"] in symbols and start.isoformat() <= a["effective_date"] <= end.isoformat()
+        ]
 
     def health(self) -> ProviderHealth:
         status = "DOWN" if self.faults.unavailable else ("DEGRADED" if self.faults.rate_limit_next else "OK")
-        return ProviderHealth("replay", status, "demo", self._last_ok, self._last_error,
-                              detail="DEMO replay of synthetic fixture data - not market data")
+        return ProviderHealth(
+            "replay",
+            status,
+            "demo",
+            self._last_ok,
+            self._last_error,
+            detail="DEMO replay of synthetic fixture data - not market data",
+        )

@@ -19,8 +19,16 @@ def _bars(closes, vol=1e6, spread=0.01):
     idx = pd.date_range("2024-01-02", periods=len(closes), freq="B")
     c = np.asarray(closes, dtype=float)
     o = np.concatenate([[c[0]], c[:-1]])
-    return pd.DataFrame({"open": o, "high": np.maximum(o, c) * (1 + spread), "low": np.minimum(o, c) * (1 - spread),
-                         "close": c, "volume": np.full(len(c), vol)}, index=idx)
+    return pd.DataFrame(
+        {
+            "open": o,
+            "high": np.maximum(o, c) * (1 + spread),
+            "low": np.minimum(o, c) * (1 - spread),
+            "close": c,
+            "volume": np.full(len(c), vol),
+        },
+        index=idx,
+    )
 
 
 def test_no_future_leakage_by_truncation(market):
@@ -89,7 +97,11 @@ def test_synthetic_shapes_are_finite(kind):
 
 
 @settings(max_examples=40, deadline=None)
-@given(st.lists(st.floats(min_value=1.0, max_value=5000.0, allow_nan=False, allow_infinity=False), min_size=25, max_size=90))
+@given(
+    st.lists(
+        st.floats(min_value=1.0, max_value=5000.0, allow_nan=False, allow_infinity=False), min_size=25, max_size=90
+    )
+)
 def test_property_any_positive_series_never_inf(closes):
     f = compute_features(_bars(closes))
     assert not np.isinf(f.to_numpy(dtype=float)).any()

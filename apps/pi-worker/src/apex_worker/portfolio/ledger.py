@@ -172,8 +172,9 @@ def _places(value: Decimal) -> int:
     return max(0, -exponent) if isinstance(exponent, int) else 0
 
 
-def parse_decimal(raw: str | int | Decimal, field_name: str, *, max_dp: int, max_value: Decimal,
-                  allow_zero: bool = False) -> Decimal:
+def parse_decimal(
+    raw: str | int | Decimal, field_name: str, *, max_dp: int, max_value: Decimal, allow_zero: bool = False
+) -> Decimal:
     if isinstance(raw, float):
         raise LedgerError("INVALID_NUMBER", f"{field_name} must be an exact decimal string, not a float")
     try:
@@ -191,8 +192,9 @@ def parse_decimal(raw: str | int | Decimal, field_name: str, *, max_dp: int, max
     return value
 
 
-def parse_fill(price: str | Decimal, quantity: str | Decimal, fees: str | Decimal, fill_at: datetime,
-               now: datetime) -> Fill:
+def parse_fill(
+    price: str | Decimal, quantity: str | Decimal, fees: str | Decimal, fill_at: datetime, now: datetime
+) -> Fill:
     if fill_at.tzinfo is None:
         raise LedgerError("INVALID_TIME", "fill time must be timezone-aware")
     fill_at = fill_at.astimezone(UTC)
@@ -222,7 +224,7 @@ def _effective_fills(events: list[LedgerEvent]) -> tuple[list[tuple[LedgerEvent,
     out = []
     for e in events:
         if e.event_type in FILL_EVENTS:
-            fill = replaced[e.event_id] if e.event_id in replaced else e.fill
+            fill = replaced.get(e.event_id, e.fill)
             if fill is not None:
                 out.append((e, fill))
     out.sort(key=lambda pair: (pair[1].fill_at, pair[0].seq))
@@ -262,8 +264,9 @@ def replay(events: list[LedgerEvent]) -> LedgerState:
     """Derive the position projection. Raises LedgerError if any invariant is violated."""
     events = sorted(events, key=lambda e: e.seq)
     _validate_structure(events)
-    cancel_targets = [e.correction.target_event_id for e in events
-                      if e.event_type is EventType.CANCEL_CORRECTION and e.correction]
+    cancel_targets = [
+        e.correction.target_event_id for e in events if e.event_type is EventType.CANCEL_CORRECTION and e.correction
+    ]
     if len(cancel_targets) != len(set(cancel_targets)):
         raise LedgerError("ALREADY_CANCELLED", "that correction was already cancelled")
     effective, _cancelled = _effective_fills(events)
@@ -304,8 +307,9 @@ def replay(events: list[LedgerEvent]) -> LedgerState:
                 lot.quantity_remaining -= take
                 remaining -= take
                 st.allocations.append(
-                    SellAllocation(ev.event_id, lot.lot_id, take, fill.price,
-                                   take * fill.price - fill.fees * take / qty - lot_cost)
+                    SellAllocation(
+                        ev.event_id, lot.lot_id, take, fill.price, take * fill.price - fill.fees * take / qty - lot_cost
+                    )
                 )
             st.total_quantity -= qty
             st.cost_remaining -= cost
@@ -339,7 +343,8 @@ def apply(existing: list[LedgerEvent], new: LedgerEvent) -> LedgerState:
     if et is EventType.OPEN and state not in {None, PositionState.WATCHING}:
         raise LedgerError("ALREADY_OPEN", "this position already has an entry; use ADD, or record a new position")
     if et in {EventType.ADD, EventType.PARTIAL_EXIT, EventType.CLOSE} and state not in {
-        PositionState.OPEN, PositionState.PARTIALLY_CLOSED,
+        PositionState.OPEN,
+        PositionState.PARTIALLY_CLOSED,
     }:
         raise LedgerError("NOT_OPEN", "position is not open")
     if et is EventType.UNWATCH and state is not PositionState.WATCHING:

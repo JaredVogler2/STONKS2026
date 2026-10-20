@@ -34,14 +34,16 @@ REGIME_PARAMS = {
     "rebound": (0.0012, 0.0145),
     "shock": (-0.0060, 0.0330),
 }
-REGIME_TRANSITIONS = np.array([
-    # bull   chop   riskoff rebound shock
-    [0.975, 0.018, 0.005, 0.000, 0.002],
-    [0.025, 0.955, 0.016, 0.000, 0.004],
-    [0.000, 0.020, 0.950, 0.024, 0.006],
-    [0.035, 0.010, 0.005, 0.950, 0.000],
-    [0.000, 0.000, 0.150, 0.250, 0.600],
-])
+REGIME_TRANSITIONS = np.array(
+    [
+        # bull   chop   riskoff rebound shock
+        [0.975, 0.018, 0.005, 0.000, 0.002],
+        [0.025, 0.955, 0.016, 0.000, 0.004],
+        [0.000, 0.020, 0.950, 0.024, 0.006],
+        [0.035, 0.010, 0.005, 0.950, 0.000],
+        [0.000, 0.000, 0.150, 0.250, 0.600],
+    ]
+)
 
 SECTORS = {
     "technology": ("DMXLK", ["SEMI", "SEMI", "SEMI", "SEMI", "SOFT", "SOFT", "SOFT", "SOFT"]),
@@ -57,9 +59,17 @@ SECTORS = {
     "communication_services": ("DMXLC", ["MEDIA"] * 8),
 }
 SECTOR_BETA = {
-    "technology": 1.25, "financials": 1.05, "energy": 0.95, "health_care": 0.8, "industrials": 1.0,
-    "consumer_discretionary": 1.15, "consumer_staples": 0.6, "utilities": 0.5, "materials": 1.0,
-    "real_estate": 0.85, "communication_services": 1.05,
+    "technology": 1.25,
+    "financials": 1.05,
+    "energy": 0.95,
+    "health_care": 0.8,
+    "industrials": 1.0,
+    "consumer_discretionary": 1.15,
+    "consumer_staples": 0.6,
+    "utilities": 0.5,
+    "materials": 1.0,
+    "real_estate": 0.85,
+    "communication_services": 1.05,
 }
 
 
@@ -135,16 +145,58 @@ def _symbol_seed(seed: int, symbol: str) -> int:
 def universe_specs(stocks_per_sector: int = 8) -> list[AssetSpec]:
     """Default (8 per sector) is the DEMO universe; research presets add more names without changing existing ones."""
     specs: list[AssetSpec] = [
-        AssetSpec("DMSPY", "Demo Broad Market Index ETF", "benchmark", "benchmark", "ARCA", 320.0, 7.5e7, 1.0, 0.0,
-                  instrument="etf"),
-        AssetSpec("DMQQQ", "Demo Growth 100 Index ETF", "benchmark", "benchmark", "NASDAQ", 260.0, 4.5e7, 1.15, 0.0,
-                  instrument="etf"),
-        AssetSpec("DMIWM", "Demo Small Cap Index ETF", "benchmark", "benchmark", "ARCA", 150.0, 3.0e7, 1.2, 0.0,
-                  instrument="etf"),
+        AssetSpec(
+            "DMSPY",
+            "Demo Broad Market Index ETF",
+            "benchmark",
+            "benchmark",
+            "ARCA",
+            320.0,
+            7.5e7,
+            1.0,
+            0.0,
+            instrument="etf",
+        ),
+        AssetSpec(
+            "DMQQQ",
+            "Demo Growth 100 Index ETF",
+            "benchmark",
+            "benchmark",
+            "NASDAQ",
+            260.0,
+            4.5e7,
+            1.15,
+            0.0,
+            instrument="etf",
+        ),
+        AssetSpec(
+            "DMIWM",
+            "Demo Small Cap Index ETF",
+            "benchmark",
+            "benchmark",
+            "ARCA",
+            150.0,
+            3.0e7,
+            1.2,
+            0.0,
+            instrument="etf",
+        ),
     ]
     for sector, (etf, _) in SECTORS.items():
-        specs.append(AssetSpec(etf, f"Demo {sector.replace('_', ' ').title()} Sector ETF", sector, "etf", "ARCA",
-                               70.0, 1.2e7, SECTOR_BETA[sector], 0.0, instrument="etf"))
+        specs.append(
+            AssetSpec(
+                etf,
+                f"Demo {sector.replace('_', ' ').title()} Sector ETF",
+                sector,
+                "etf",
+                "ARCA",
+                70.0,
+                1.2e7,
+                SECTOR_BETA[sector],
+                0.0,
+                instrument="etf",
+            )
+        )
     rng = np.random.default_rng(DEFAULT_SEED)
     for sector, (_, base_codes) in SECTORS.items():
         counters: dict[str, int] = {}
@@ -164,34 +216,157 @@ def universe_specs(stocks_per_sector: int = 8) -> list[AssetSpec]:
             beta = float(np.round(SECTOR_BETA[sector] * srng.uniform(0.75, 1.3), 3))
             idio = float(np.round(srng.uniform(0.010, 0.022), 4))
             exch = "NASDAQ" if code in {"SEMI", "SOFT", "BIO", "MEDIA"} else "NYSE"
-            specs.append(AssetSpec(symbol, f"Demo {code.title()} Holdings {n}", sector, "stock", exch, base_price,
-                                   base_volume, beta, idio))
+            specs.append(
+                AssetSpec(
+                    symbol,
+                    f"Demo {code.title()} Holdings {n}",
+                    sector,
+                    "stock",
+                    exch,
+                    base_price,
+                    base_volume,
+                    beta,
+                    idio,
+                )
+            )
     # special cases exercised by universe filters, data-quality checks and survivorship warnings
     specs += [
-        AssetSpec("DMPENNY1", "Demo Penny Mining Corp", "materials", "stock", "NASDAQ", 4.2, 3.0e6, 1.4, 0.03,
-                  tags=("penny",)),
-        AssetSpec("DMTHIN1", "Demo Thinly Traded Industries", "industrials", "stock", "NYSE", 42.0, 6.0e4, 1.0, 0.02,
-                  tags=("thin",)),
-        AssetSpec("DMLEV3X", "Demo 3x Leveraged Growth ETF", "benchmark", "etf", "ARCA", 55.0, 2.0e7, 3.0, 0.0,
-                  tags=("leveraged",), leveraged=True, instrument="etf"),
-        AssetSpec("DMOTC1", "Demo Over-the-Counter Ltd", "industrials", "stock", "OTC", 25.0, 2.0e6, 1.0, 0.025,
-                  tags=("otc",)),
-        AssetSpec("DMSPAC.WS", "Demo Acquisition Corp Warrant", "financials", "stock", "NASDAQ", 12.0, 2.0e6, 1.0,
-                  0.04, tags=("warrant",), instrument="warrant"),
-        AssetSpec("DMBANK.PR", "Demo Bank Preferred Series A", "financials", "stock", "NYSE", 25.0, 1.5e6, 0.3,
-                  0.005, tags=("preferred",), instrument="preferred"),
-        AssetSpec("DMDELIST1", "Demo Former Retail Co (delisted)", "consumer_discretionary", "stock", "NYSE", 60.0,
-                  3.0e6, 1.2, 0.025, tags=("delisted",), delisted_on=date(2024, 3, 15)),
-        AssetSpec("DMSPLIT1", "Demo Split Semiconductor", "technology", "stock", "NASDAQ", 240.0, 4.0e6, 1.3, 0.018,
-                  tags=("split",), split=("2023-06-12", 2.0)),
-        AssetSpec("DMRSPLIT1", "Demo Reverse Split Biotech", "health_care", "stock", "NASDAQ", 3.1, 9.0e6, 1.2, 0.03,
-                  tags=("reverse_split",), split=("2022-11-07", 0.1)),
-        AssetSpec("DMHALT1", "Demo Halted Medical Devices", "health_care", "stock", "NYSE", 75.0, 3.0e6, 0.9, 0.018,
-                  tags=("halt",), halts=("2026-08-10", "2026-08-11")),
-        AssetSpec("DMNEW1", "Demo Recent IPO Software", "technology", "stock", "NASDAQ", 48.0, 5.0e6, 1.3, 0.025,
-                  tags=("new_listing",), listed_from=date(2026, 3, 2)),
-        AssetSpec("DMADR1", "Demo Foreign Telecom ADR", "communication_services", "stock", "NYSE", 14.0, 4.0e5, 0.8,
-                  0.02, tags=("adr", "thin"), instrument="adr"),
+        AssetSpec(
+            "DMPENNY1", "Demo Penny Mining Corp", "materials", "stock", "NASDAQ", 4.2, 3.0e6, 1.4, 0.03, tags=("penny",)
+        ),
+        AssetSpec(
+            "DMTHIN1",
+            "Demo Thinly Traded Industries",
+            "industrials",
+            "stock",
+            "NYSE",
+            42.0,
+            6.0e4,
+            1.0,
+            0.02,
+            tags=("thin",),
+        ),
+        AssetSpec(
+            "DMLEV3X",
+            "Demo 3x Leveraged Growth ETF",
+            "benchmark",
+            "etf",
+            "ARCA",
+            55.0,
+            2.0e7,
+            3.0,
+            0.0,
+            tags=("leveraged",),
+            leveraged=True,
+            instrument="etf",
+        ),
+        AssetSpec(
+            "DMOTC1", "Demo Over-the-Counter Ltd", "industrials", "stock", "OTC", 25.0, 2.0e6, 1.0, 0.025, tags=("otc",)
+        ),
+        AssetSpec(
+            "DMSPAC.WS",
+            "Demo Acquisition Corp Warrant",
+            "financials",
+            "stock",
+            "NASDAQ",
+            12.0,
+            2.0e6,
+            1.0,
+            0.04,
+            tags=("warrant",),
+            instrument="warrant",
+        ),
+        AssetSpec(
+            "DMBANK.PR",
+            "Demo Bank Preferred Series A",
+            "financials",
+            "stock",
+            "NYSE",
+            25.0,
+            1.5e6,
+            0.3,
+            0.005,
+            tags=("preferred",),
+            instrument="preferred",
+        ),
+        AssetSpec(
+            "DMDELIST1",
+            "Demo Former Retail Co (delisted)",
+            "consumer_discretionary",
+            "stock",
+            "NYSE",
+            60.0,
+            3.0e6,
+            1.2,
+            0.025,
+            tags=("delisted",),
+            delisted_on=date(2024, 3, 15),
+        ),
+        AssetSpec(
+            "DMSPLIT1",
+            "Demo Split Semiconductor",
+            "technology",
+            "stock",
+            "NASDAQ",
+            240.0,
+            4.0e6,
+            1.3,
+            0.018,
+            tags=("split",),
+            split=("2023-06-12", 2.0),
+        ),
+        AssetSpec(
+            "DMRSPLIT1",
+            "Demo Reverse Split Biotech",
+            "health_care",
+            "stock",
+            "NASDAQ",
+            3.1,
+            9.0e6,
+            1.2,
+            0.03,
+            tags=("reverse_split",),
+            split=("2022-11-07", 0.1),
+        ),
+        AssetSpec(
+            "DMHALT1",
+            "Demo Halted Medical Devices",
+            "health_care",
+            "stock",
+            "NYSE",
+            75.0,
+            3.0e6,
+            0.9,
+            0.018,
+            tags=("halt",),
+            halts=("2026-08-10", "2026-08-11"),
+        ),
+        AssetSpec(
+            "DMNEW1",
+            "Demo Recent IPO Software",
+            "technology",
+            "stock",
+            "NASDAQ",
+            48.0,
+            5.0e6,
+            1.3,
+            0.025,
+            tags=("new_listing",),
+            listed_from=date(2026, 3, 2),
+        ),
+        AssetSpec(
+            "DMADR1",
+            "Demo Foreign Telecom ADR",
+            "communication_services",
+            "stock",
+            "NYSE",
+            14.0,
+            4.0e5,
+            0.8,
+            0.02,
+            tags=("adr", "thin"),
+            instrument="adr",
+        ),
     ]
     return specs
 
@@ -208,9 +383,14 @@ def _regime_path(rng: np.random.Generator, n: int) -> np.ndarray:
     return states
 
 
-def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = DEFAULT_END,
-             calendar: MarketCalendar | None = None, symbols: list[str] | None = None,
-             stocks_per_sector: int = 8) -> SyntheticMarket:
+def generate(
+    seed: int = DEFAULT_SEED,
+    start: date = DEFAULT_START,
+    end: date = DEFAULT_END,
+    calendar: MarketCalendar | None = None,
+    symbols: list[str] | None = None,
+    stocks_per_sector: int = 8,
+) -> SyntheticMarket:
     cal = calendar or default_calendar()
     sessions = cal.sessions_between(start, end)
     n = len(sessions)
@@ -284,14 +464,22 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
                 success = rng.random() < p_up
                 run = int(rng.integers(8, 18))
                 if success:
-                    inject[hi:hi + run] += rng.uniform(0.0040, 0.0080)
-                    vol_surge[hi:hi + 3] *= rng.uniform(2.2, 3.5)  # strong participation on real breakouts
+                    inject[hi : hi + run] += rng.uniform(0.0040, 0.0080)
+                    vol_surge[hi : hi + 3] *= rng.uniform(2.2, 3.5)  # strong participation on real breakouts
                 else:
-                    inject[hi:hi + 2] += 0.008
-                    inject[hi + 2:hi + 2 + run] -= rng.uniform(0.0035, 0.0065)
-                    vol_surge[hi:hi + 2] *= rng.uniform(1.1, 1.5)
-                setups_rows.append({"symbol": spec.symbol, "base_start": sessions[lo], "breakout": sessions[hi],
-                                    "regime": regime, "success": bool(success), "run": run})
+                    inject[hi : hi + 2] += 0.008
+                    inject[hi + 2 : hi + 2 + run] -= rng.uniform(0.0035, 0.0065)
+                    vol_surge[hi : hi + 2] *= rng.uniform(1.1, 1.5)
+                setups_rows.append(
+                    {
+                        "symbol": spec.symbol,
+                        "base_start": sessions[lo],
+                        "breakout": sessions[hi],
+                        "regime": regime,
+                        "success": bool(success),
+                        "run": run,
+                    }
+                )
                 i = hi + run + int(rng.integers(40, 110))
             # remove the injected setups' unconditional drift: the simulated edge is TIMING only
             ret = ret + inject - inject.mean()
@@ -312,8 +500,12 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
         low = np.minimum(open_, close) * np.exp(-rng_range * rng.uniform(0.3, 1.0, n))
         abs_z = np.abs(total) / max(spec.idio_vol, 0.006)
         volume = spec.base_volume * np.exp(rng.normal(0, 0.28, n)) * (1 + 0.35 * np.minimum(abs_z, 6)) * vol_surge
-        regime_vol = np.array([{"bull": 0.95, "chop": 1.0, "riskoff": 1.25, "rebound": 1.15, "shock": 1.8}[REGIMES[k]]
-                               for k in regime_idx])
+        regime_vol = np.array(
+            [
+                {"bull": 0.95, "chop": 1.0, "riskoff": 1.25, "rebound": 1.15, "shock": 1.8}[REGIMES[k]]
+                for k in regime_idx
+            ]
+        )
         volume = volume * regime_vol
 
         df = pd.DataFrame({"open": open_, "high": high, "low": low, "close": close, "volume": volume}, index=idx)
@@ -325,8 +517,15 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
             for col in ("open", "high", "low", "close"):
                 df.loc[post, col] = df.loc[post, col] / ratio
             df.loc[post, "volume"] = df.loc[post, "volume"] * ratio
-            actions.append({"symbol": spec.symbol, "type": "split", "effective_date": eff.isoformat(), "ratio": ratio,
-                            "is_demo": True})
+            actions.append(
+                {
+                    "symbol": spec.symbol,
+                    "type": "split",
+                    "effective_date": eff.isoformat(),
+                    "ratio": ratio,
+                    "is_demo": True,
+                }
+            )
 
         df[["open", "high", "low", "close"]] = df[["open", "high", "low", "close"]].round(2)
         df["high"] = df[["open", "high", "close"]].max(axis=1)
@@ -338,8 +537,14 @@ def generate(seed: int = DEFAULT_SEED, start: date = DEFAULT_START, end: date = 
             df = df[df.index >= pd.Timestamp(spec.listed_from)]
         if spec.delisted_on:
             df = df[df.index < pd.Timestamp(spec.delisted_on)]
-            actions.append({"symbol": spec.symbol, "type": "delisting", "effective_date": spec.delisted_on.isoformat(),
-                            "is_demo": True})
+            actions.append(
+                {
+                    "symbol": spec.symbol,
+                    "type": "delisting",
+                    "effective_date": spec.delisted_on.isoformat(),
+                    "is_demo": True,
+                }
+            )
         if spec.halts:
             df = df[~df.index.isin(pd.to_datetime(list(spec.halts)))]
         bars[spec.symbol] = df

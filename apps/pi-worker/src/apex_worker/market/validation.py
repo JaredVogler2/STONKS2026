@@ -30,11 +30,21 @@ class ValidationResult:
         return self.level >= 2 and not self.quarantined
 
 
-def validate_price(*, price: float | None, bid: float | None, ask: float | None, ts_exchange: datetime | None,
-                   ts_received: datetime, now: datetime, last_accepted_price: float | None,
-                   last_accepted_ts: datetime | None, reference_price: float | None,
-                   consolidated_reference: float | None = None, halted: bool = False,
-                   volume: int | None = None) -> ValidationResult:
+def validate_price(
+    *,
+    price: float | None,
+    bid: float | None,
+    ask: float | None,
+    ts_exchange: datetime | None,
+    ts_received: datetime,
+    now: datetime,
+    last_accepted_price: float | None,
+    last_accepted_ts: datetime | None,
+    reference_price: float | None,
+    consolidated_reference: float | None = None,
+    halted: bool = False,
+    volume: int | None = None,
+) -> ValidationResult:
     flags: list[str] = []
     if price is None or not isinstance(price, (int, float)) or not math.isfinite(price) or price <= 0:
         return ValidationResult(0, ("INVALID_PRICE",), True)

@@ -48,8 +48,18 @@ class TradeOutcome:
     flags: list[str] = field(default_factory=list)
 
 
-def simulate(o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, decision_index: int, entry_min: float,
-             entry_max: float, stop: float, target: float, cfg: ExecConfig = ExecConfig()) -> TradeOutcome:
+def simulate(
+    o: np.ndarray,
+    h: np.ndarray,
+    low: np.ndarray,
+    c: np.ndarray,
+    decision_index: int,
+    entry_min: float,
+    entry_max: float,
+    stop: float,
+    target: float,
+    cfg: ExecConfig = ExecConfig(),
+) -> TradeOutcome:
     n = len(c)
     slip = cfg.cost_bps_per_side / 1e4
     fill_i = None
@@ -109,6 +119,20 @@ def simulate(o: np.ndarray, h: np.ndarray, low: np.ndarray, c: np.ndarray, decis
         exit_px = c[exit_i] * (1 - slip)
     gross = (exit_px / (1 - slip)) / (fill_px / (1 + slip)) - 1  # raw prices, before modeled costs
     net = exit_px / fill_px - 1
-    return TradeOutcome(True, outcome, fill_i, exit_i, round(fill_px, 6), round(exit_px, 6), round(gross, 6),
-                        round(net, 6), round((exit_px - fill_px) / risk, 4) if risk > 0 else None, round(mfe, 6),
-                        round(mae, 6), exit_i - fill_i, ambiguous, gap_stop, flags)
+    return TradeOutcome(
+        True,
+        outcome,
+        fill_i,
+        exit_i,
+        round(fill_px, 6),
+        round(exit_px, 6),
+        round(gross, 6),
+        round(net, 6),
+        round((exit_px - fill_px) / risk, 4) if risk > 0 else None,
+        round(mfe, 6),
+        round(mae, 6),
+        exit_i - fill_i,
+        ambiguous,
+        gap_stop,
+        flags,
+    )

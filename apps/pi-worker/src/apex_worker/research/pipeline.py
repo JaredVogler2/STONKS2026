@@ -25,8 +25,13 @@ from apex_worker.research.evaluate import PromotionPolicy, challenger_beats_cham
 from apex_worker.research.redteam import REDTEAM_STRATEGY, planted_alpha_events
 from apex_worker.signals.strategies.library import STRATEGIES
 
-LABEL_DEFINITION = {"type": "TARGET_BEFORE_STOP", "horizon_sessions": 20, "same_bar_rule": "STOP_FIRST",
-                    "entry": "next-session limit over entry zone, 2-session validity", "cost_bps_per_side": "10"}
+LABEL_DEFINITION = {
+    "type": "TARGET_BEFORE_STOP",
+    "horizon_sessions": 20,
+    "same_bar_rule": "STOP_FIRST",
+    "entry": "next-session limit over entry zone, 2-session validity",
+    "cost_bps_per_side": "10",
+}
 
 
 @dataclass
@@ -50,10 +55,22 @@ def _load_synthetic(stocks_per_sector: int, start: date) -> tuple:
     return panel, bars, market.earnings, [], "synthetic_fixture"
 
 
-def run_training(source: str, out_dir: Path, *, strategies: list[str] | None = None, code_sha: str = "unknown",
-                 signing_key=None, signer_key_version: int = 1, champions: dict[str, dict] | None = None,
-                 policy: PromotionPolicy = PromotionPolicy(), is_demo: bool = True, now: datetime | None = None,
-                 stocks_per_sector: int = 24, start: date = date(2016, 1, 4), loader=None) -> TrainingResult:
+def run_training(
+    source: str,
+    out_dir: Path,
+    *,
+    strategies: list[str] | None = None,
+    code_sha: str = "unknown",
+    signing_key=None,
+    signer_key_version: int = 1,
+    champions: dict[str, dict] | None = None,
+    policy: PromotionPolicy = PromotionPolicy(),
+    is_demo: bool = True,
+    now: datetime | None = None,
+    stocks_per_sector: int = 24,
+    start: date = date(2016, 1, 4),
+    loader=None,
+) -> TrainingResult:
     t0 = time.monotonic()
     now = now or datetime.now(UTC)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -71,8 +88,13 @@ def run_training(source: str, out_dir: Path, *, strategies: list[str] | None = N
         elif loader is not None:
             loaded = loader()
             if loaded is None:
-                return TrainingResult("no_data", "historical_market_data", {}, detail="historical data source unavailable "
-                                      "(credentials missing or provider error); champion retained")
+                return TrainingResult(
+                    "no_data",
+                    "historical_market_data",
+                    {},
+                    detail="historical data source unavailable "
+                    "(credentials missing or provider error); champion retained",
+                )
             panel, bars, earnings, cats, ds = loaded
         else:
             return TrainingResult("no_data", source, {}, detail=f"unknown source {source}")
@@ -94,18 +116,34 @@ def run_training(source: str, out_dir: Path, *, strategies: list[str] | None = N
         reports[sid] = d
         champ = (champions or {}).get(sid)
         promotable, why = challenger_beats_champion(d, champ, policy)
-        decision = {"promotable": bool(promotable and wf.final_model is not None), "reason": why,
-                    "status": d["confidence_status"]}
+        decision = {
+            "promotable": bool(promotable and wf.final_model is not None),
+            "reason": why,
+            "status": d["confidence_status"],
+        }
         if wf.final_model is not None and d["confidence_status"] != "UNVALIDATED":
             artifact = wf.final_model.to_json().encode()
             ev = events[events["strategy_id"] == sid]
-            manifest = build_manifest(ReleaseInputs(
-                strategy_id=sid, artifact=artifact, report=d,
-                training_window={"start": str(ev["decision_date"].min().date()),
-                                 "end": wf.final_model.metadata.get("trained_through", "")},
-                training_data_hash=dhash, code_sha=code_sha, data_source=ds, is_demo=is_demo or ds == "synthetic_fixture",
-                label_definition=LABEL_DEFINITION, validity_days=policy.validity_days,
-                rollback_parent=(champ or {}).get("model_id")), signer_key_version, now)
+            manifest = build_manifest(
+                ReleaseInputs(
+                    strategy_id=sid,
+                    artifact=artifact,
+                    report=d,
+                    training_window={
+                        "start": str(ev["decision_date"].min().date()),
+                        "end": wf.final_model.metadata.get("trained_through", ""),
+                    },
+                    training_data_hash=dhash,
+                    code_sha=code_sha,
+                    data_source=ds,
+                    is_demo=is_demo or ds == "synthetic_fixture",
+                    label_definition=LABEL_DEFINITION,
+                    validity_days=policy.validity_days,
+                    rollback_parent=(champ or {}).get("model_id"),
+                ),
+                signer_key_version,
+                now,
+            )
             if signing_key is not None:
                 manifest = sign(manifest, signing_key)
             rel = out_dir / "releases" / manifest["model_id"]
@@ -113,8 +151,14 @@ def run_training(source: str, out_dir: Path, *, strategies: list[str] | None = N
             (rel / "model.json").write_bytes(artifact)
             (rel / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
             decision["model_id"] = manifest["model_id"]
-            candidates.append({"strategy_id": sid, "model_id": manifest["model_id"], "promotable": decision["promotable"],
-                               "signed": "signature" in manifest})
+            candidates.append(
+                {
+                    "strategy_id": sid,
+                    "model_id": manifest["model_id"],
+                    "promotable": decision["promotable"],
+                    "signed": "signature" in manifest,
+                }
+            )
         decisions[sid] = decision
     res = TrainingResult("succeeded", ds, reports, candidates, decisions, round(time.monotonic() - t0, 1))
     write_outputs(res, out_dir, code_sha, now)
@@ -122,18 +166,36 @@ def run_training(source: str, out_dir: Path, *, strategies: list[str] | None = N
 
 
 def write_outputs(res: TrainingResult, out_dir: Path, code_sha: str, now: datetime) -> None:
-    payload = {"generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "code_sha": code_sha, "status": res.status,
-               "data_source": res.data_source, "seconds": res.seconds, "decisions": res.decisions,
-               "candidates": res.candidates, "reports": res.reports}
+    payload = {
+        "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "code_sha": code_sha,
+        "status": res.status,
+        "data_source": res.data_source,
+        "seconds": res.seconds,
+        "decisions": res.decisions,
+        "candidates": res.candidates,
+        "reports": res.reports,
+    }
     (out_dir / "report.json").write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
-    lines = [f"# APEX training run — {payload['generated_at']}", "",
-             f"* data source: **{res.data_source}**", f"* code: `{code_sha}`", f"* runtime: {res.seconds}s", ""]
+    lines = [
+        f"# APEX training run — {payload['generated_at']}",
+        "",
+        f"* data source: **{res.data_source}**",
+        f"* code: `{code_sha}`",
+        f"* runtime: {res.seconds}s",
+        "",
+    ]
     if res.data_source == "synthetic_fixture":
         lines += ["> SYNTHETIC FIXTURE DATA — pipeline demonstration only, not evidence of a real edge.", ""]
-    lines += ["| strategy | status | holdout n | Brier skill | ECE | promotable | reason |", "|---|---|---|---|---|---|---|"]
+    lines += [
+        "| strategy | status | holdout n | Brier skill | ECE | promotable | reason |",
+        "|---|---|---|---|---|---|---|",
+    ]
     for sid, r in res.reports.items():
         h = r.get("holdout") or {}
         dec = res.decisions.get(sid, {})
-        lines.append(f"| {sid} | {r['confidence_status']} | {h.get('n')} | {h.get('brier_skill')} | {h.get('ece')} | "
-                     f"{dec.get('promotable')} | {dec.get('reason', '')[:80]} |")
+        lines.append(
+            f"| {sid} | {r['confidence_status']} | {h.get('n')} | {h.get('brier_skill')} | {h.get('ece')} | "
+            f"{dec.get('promotable')} | {dec.get('reason', '')[:80]} |"
+        )
     (out_dir / "summary.md").write_text("\n".join(lines) + "\n")

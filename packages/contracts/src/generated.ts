@@ -1211,7 +1211,9 @@ export interface SignalEvent {
     | "DISCARDED"
     | "NO_TRADE"
     | "STALE_DATA"
-    | "ADMIN_REVIEW";
+    | "ADMIN_REVIEW"
+    | "INTRADAY_TARGET_TOUCH"
+    | "INTRADAY_STOP_TOUCH";
   event_at: UtcTimestamp;
   dedupe_key: string;
   from_state: SignalState | null;
