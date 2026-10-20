@@ -1,5 +1,7 @@
 # STONKS2026 — APEX Swing-Trading Intelligence
 
+**Mandatory in-flight engineering amendment (2026-10-20):** [Laptop-free GitHub Actions model retraining, secure promotion and automatic Raspberry Pi updates](build-prompts/AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). A coding agent already implementing this repository must merge these changes without restarting and supersede any laptop-dependent training instructions.
+
 Private research and alert platform: liquid U.S. equities, 5–20 trading-session opportunity windows, empirical probability calibration, zero-required-subscription architecture, protected Vercel management dashboard, Raspberry Pi 5 continuous scanner, private Discord group alerts and independently monitored user-reported entry positions.
 
 ## For the coding agent — start here
