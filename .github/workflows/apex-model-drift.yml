@@ -1,0 +1,149 @@
+# Weekday lightweight drift diagnostics for the registry champions (laptop-free amendment, 2026-10-20).
+#
+# Fetch champions (+ signed artifacts) -> re-verify -> latest-window calibration (ECE, Brier skill on resolved events)
+# and feature PSI vs each champion's signed drift criteria -> report a `drift` training run. Optional work: it is skipped
+# (reported as skipped_budget) when the minutes budget cannot also cover the remaining required weekly trainings, when
+# measured usage is unknown, or when the owner turned `budgets.drift_enabled` off. Non-session days are reported as
+# skipped_holiday. No signing key here; read-only against the registry. Also prints the missed-run (SLA) status of the
+# weekly training as a second, independent detector (the Pi/dashboard detector does not depend on Actions running).
+# Max possible runtime: timeout-minutes 10 x up to 23 weekday runs per UTC month = 230 min/month.
+# Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in trailing comment).
+name: apex-model-drift
+
+on:
+  schedule:
+    # Weekdays 20:23 America/New_York (IANA `timezone` key documented by GitHub:
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+    # 00:23 UTC next day in EDT, 01:23 UTC in EST; off the top of the hour to reduce delay/drop risk.
+    - cron: "23 20 * * 1-5"
+      timezone: "America/New_York"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this manual run"
+        required: true
+        type: string
+      source:
+        description: "Data for the latest window: auto = Alpaca when keys exist, else the synthetic fixture (DEMO only)"
+        required: true
+        default: auto
+        type: choice
+        options: [auto, alpaca, synthetic]
+
+permissions:
+  contents: read
+
+# Read-only diagnostics: separate from apex-model-registry so they never delay a promotion.
+concurrency:
+  group: apex-model-drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: drift
+    # default branch only: schedules always run there (their payload need not carry `repository`); dispatches are checked
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: model-release
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RELEASE_URL: ${{ secrets.APEX_RELEASE_URL }}
+      APEX_RELEASE_AGENT_ID: ${{ secrets.APEX_RELEASE_AGENT_ID }}
+      APEX_RELEASE_HMAC_SECRET: ${{ secrets.APEX_RELEASE_HMAC_SECRET }}
+      APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
+      APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
+      APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Record start
+        id: start
+        working-directory: .
+        run: |
+          echo "at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+          echo "APEX_OUT=$RUNNER_TEMP/apex-drift" >> "$GITHUB_ENV"
+          echo "APEX_HISTORY=$RUNNER_TEMP/apex-history" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-drift"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Release policy
+        run: uv run --no-sync apex release policy --out "$APEX_OUT/policy.json"
+      - name: Budget gate (optional job)
+        id: budget
+        run: |
+          set +e
+          uv run --no-sync apex budget check --job drift --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/budget.json" --github-output
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
+      - name: Missed-run status of the scheduled workflows
+        continue-on-error: true
+        run: uv run --no-sync apex release sla --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/sla.json"
+      - name: Restore history cache
+        if: steps.budget.outputs.proceed == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-history
+          key: apex-history-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: apex-history-v1-
+      - name: Drift diagnostic
+        id: drift
+        if: steps.budget.outputs.proceed == 'true'
+        timeout-minutes: 7
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          REQUESTED_SOURCE: ${{ inputs.source || 'auto' }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          extra=()
+          if [ "$EVENT" = "schedule" ]; then extra+=(--skip-non-session); fi
+          if [ -n "$ALPACA_KEY_ID" ] && [ -n "$ALPACA_SECRET_KEY" ]; then echo "keys=true" >> "$GITHUB_OUTPUT"; fi
+          uv run --no-sync apex drift --source "$REQUESTED_SOURCE" --out "$APEX_OUT/run" \
+            --history-cache "$APEX_HISTORY" --github-output "${extra[@]}"
+      - name: Save history cache
+        if: always() && steps.drift.outputs.keys == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-history
+          key: apex-history-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$APEX_OUT/run/drift.md" ]; then cat "$APEX_OUT/run/drift.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f "$APEX_OUT/sla.json" ]; then { echo; echo '```json'; cat "$APEX_OUT/sla.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload evidence (drift report only, short retention)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-drift-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apex-drift/run/drift.json
+            ${{ runner.temp }}/apex-drift/run/drift.md
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Report drift run
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          PROCEED: ${{ steps.budget.outputs.proceed }}
+          STARTED_AT: ${{ steps.start.outputs.at }}
+          REASON: ${{ inputs.reason || 'scheduled weekday drift check' }}
+        run: |
+          status="$JOB_STATUS"
+          if [ "$PROCEED" = "false" ]; then status=skipped_budget; fi
+          uv run --no-sync apex release report-run --workflow drift --status "$status" --started-at "$STARTED_AT" \
+            --drift "$APEX_OUT/run/drift.json" --budget "$APEX_OUT/budget.json" --reason "$REASON"

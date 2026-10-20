@@ -43,6 +43,7 @@ class TrainingResult:
     decisions: dict[str, dict] = field(default_factory=dict)
     seconds: float = 0.0
     detail: str = ""
+    data_hash: str = ""  # sha256 of the OHLCV arrays trained on (also the manifests' training_data_hash)
 
 
 def _load_synthetic(stocks_per_sector: int, start: date) -> tuple:
@@ -70,6 +71,7 @@ def run_training(
     stocks_per_sector: int = 24,
     start: date = date(2016, 1, 4),
     loader=None,
+    bias_warnings: list[str] | None = None,
 ) -> TrainingResult:
     t0 = time.monotonic()
     now = now or datetime.now(UTC)
@@ -111,8 +113,15 @@ def run_training(
         if source != "redteam" and base is None and bars:
             ref = events[events["strategy_id"] == sid]
             base = baseline_events(panel, bars, spec, ref) if not ref.empty else None
-        rep, wf = evaluate_strategy(events, sid, MODEL_FEATURES, ds, baselines=base, policy=policy)
+        rep, wf = evaluate_strategy(
+            events, sid, MODEL_FEATURES, ds, baselines=base, policy=policy, bias_warnings=bias_warnings
+        )
         d = rep.to_dict()
+        st = STRATEGIES.get(sid)
+        if st is not None:  # the pre-registered hypothesis travels with its evidence
+            d["strategy"] = {"title": st.spec.title, "version": st.spec.version, "hypothesis": st.spec.hypothesis,
+                             "failure_modes": list(st.spec.failure_modes), "allowed_regimes": list(st.spec.allowed_regimes),
+                             "weak_prior": st.spec.weak_prior, "default_enabled": st.spec.default_enabled}
         reports[sid] = d
         champ = (champions or {}).get(sid)
         promotable, why = challenger_beats_champion(d, champ, policy)
@@ -160,7 +169,9 @@ def run_training(
                 }
             )
         decisions[sid] = decision
-    res = TrainingResult("succeeded", ds, reports, candidates, decisions, round(time.monotonic() - t0, 1))
+    res = TrainingResult(
+        "succeeded", ds, reports, candidates, decisions, round(time.monotonic() - t0, 1), data_hash=dhash
+    )
     write_outputs(res, out_dir, code_sha, now)
     return res
 
@@ -171,6 +182,8 @@ def write_outputs(res: TrainingResult, out_dir: Path, code_sha: str, now: dateti
         "code_sha": code_sha,
         "status": res.status,
         "data_source": res.data_source,
+        "data_hash": res.data_hash,
+        "detail": res.detail,
         "seconds": res.seconds,
         "decisions": res.decisions,
         "candidates": res.candidates,
@@ -182,6 +195,7 @@ def write_outputs(res: TrainingResult, out_dir: Path, code_sha: str, now: dateti
         "",
         f"* data source: **{res.data_source}**",
         f"* code: `{code_sha}`",
+        f"* data hash: `{res.data_hash[:16]}`",
         f"* runtime: {res.seconds}s",
         "",
     ]

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -41,6 +42,7 @@ class WorkerConfig:
     sec_user_agent: str | None = None
     model_trusted_keys: dict[int, str] = field(default_factory=dict)
     component_secret: bytes | None = None
+    config_errors: list[str] = field(default_factory=list)  # invalid values found while loading (never the values)
 
     def __repr__(self) -> str:  # never leak secrets via logging/tracebacks
         return (
@@ -60,16 +62,19 @@ class WorkerConfig:
         values.update(
             {k: v for k, v in os.environ.items() if k.startswith(("APEX_", "DISCORD_", "AGENT_", "ALPACA_", "SEC_"))}
         )
-        keys: dict[int, str] = {}
-        raw_keys = values.get("APEX_MODEL_TRUSTED_KEYS")
-        if raw_keys:
-            try:
-                keys = {int(k): str(v) for k, v in json.loads(raw_keys).items()}
-            except (ValueError, AttributeError):
-                keys = {}
+        keys, errors = parse_trusted_keys(values.get("APEX_MODEL_TRUSTED_KEYS"))
+        if (values.get("AGENT_HMAC_SECRET") or "").strip() and _b64(values.get("AGENT_HMAC_SECRET")) is None:
+            errors.append("AGENT_HMAC_SECRET must be base64 of >= 32 random bytes (generate with `apex keygen hmac`; "
+                          "the same value goes into the Vercel environment)")
+        mode = (values.get("APEX_MODE") or "DEMO").upper()
+        if mode not in RELEASE_MODES:
+            errors.append(f"APEX_MODE must be one of {', '.join(sorted(RELEASE_MODES))}")
         state = Path(values.get("APEX_STATE_DIR") or DEFAULT_STATE)
+        from apex_worker.agent.identity import AgentIdentity
+
+        ident = AgentIdentity.load(state)  # written by `apex pair`; env values override it
         cfg = cls(
-            release_mode=(values.get("APEX_MODE") or "DEMO").upper(),
+            release_mode=mode,
             state_dir=state,
             env_file=path if path.exists() else None,
             discord_token=(values.get("DISCORD_BOT_TOKEN") or "").strip() or None,
@@ -77,17 +82,38 @@ class WorkerConfig:
             owner_discord_ids=tuple(
                 x.strip() for x in (values.get("APEX_OWNER_DISCORD_IDS") or "").split(",") if x.strip()
             ),
-            api_base_url=(values.get("APEX_API_BASE_URL") or "").rstrip("/") or None,
-            agent_id=(values.get("APEX_AGENT_ID") or "").strip() or None,
+            api_base_url=(values.get("APEX_API_BASE_URL") or (ident.server if ident else "")).rstrip("/") or None,
+            agent_id=(values.get("APEX_AGENT_ID") or (ident.agent_id if ident else "")).strip() or None,
             agent_hmac_secret=_b64(values.get("AGENT_HMAC_SECRET")),
             vercel_bypass_secret=(values.get("APEX_VERCEL_BYPASS_SECRET") or "").strip() or None,
             alpaca_key_id=(values.get("ALPACA_KEY_ID") or "").strip() or None,
             alpaca_secret_key=(values.get("ALPACA_SECRET_KEY") or "").strip() or None,
             sec_user_agent=(values.get("SEC_USER_AGENT") or "").strip() or None,
             model_trusted_keys=keys,
+            config_errors=errors,
         )
         cfg.component_secret = load_or_create_component_secret(state)
         return cfg
+
+
+RELEASE_MODES = {"DEMO", "PAPER_LIVE_DATA", "PERSONAL_RESEARCH", "GROUP_POSITION_ALERTS"}
+_PUBKEY = re.compile(r"^[A-Za-z0-9_-]{43}$")
+
+
+def parse_trusted_keys(raw: str | None) -> tuple[dict[int, str], list[str]]:
+    """APEX_MODEL_TRUSTED_KEYS = JSON {"<version>": "<base64url Ed25519 public key>"}; Pi-held, never from the server."""
+    if not raw or not raw.strip():
+        return {}, []
+    bad = ["APEX_MODEL_TRUSTED_KEYS must be JSON {\"1\": \"<43-char base64url Ed25519 public key>\"} "
+           "(printed by `apex keygen signing`)"]
+    try:
+        data = json.loads(raw)
+        keys = {int(k): str(v) for k, v in data.items()}
+    except (ValueError, AttributeError, TypeError):
+        return {}, bad
+    if not keys or not all(_PUBKEY.fullmatch(v) for v in keys.values()):
+        return {}, bad
+    return keys, []
 
 
 def load_or_create_component_secret(state_dir: Path) -> bytes:

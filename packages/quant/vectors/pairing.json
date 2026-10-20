@@ -1,0 +1,38 @@
+{
+  "description": "TEST-ONLY pairing proof vectors shared by web (pairing.ts) and pi-worker (agent/pairing.py). Keys are fixed fake seeds; never use them for a real device.",
+  "ed25519_seed_b64url": "ERERERERERERERERERERERERERERERERERERERERERE",
+  "x25519_private_b64url": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI",
+  "ed25519_public_key": "0EqyMnQrtKs6E2i9RhXk5tAiSrcaAWuvhSCjMsl3hzc",
+  "x25519_public_key": "D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA",
+  "fingerprint": "10BA-682C-8AD1-3513",
+  "prefix": "apex-pairing-proof-v1\n",
+  "cases": [
+    {
+      "agent_id": "agt_testpi0001",
+      "code_input": "abcd-ef23",
+      "code_normalized": "ABCDEF23",
+      "code_hash": "bb0dde9ce1baf5b6683b02adc45ca36a33f5db002fd9a0f766ef180cfa6c3c0d",
+      "server_nonce": "bb0dde9ce1baf5b6",
+      "message_utf8": "apex-pairing-proof-v1\n{\"agent_id\":\"agt_testpi0001\",\"code\":\"ABCDEF23\",\"server_nonce\":\"bb0dde9ce1baf5b6\",\"x25519\":\"D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA\"}",
+      "proof": "Q3PZ7K38uibdoPfllj96NnU6CCJgkyVvyGt6bUJFxOW1xP4B-ABDWOZ4csaV7oUnvyITmgZljTwYSBi0s1_KAQ"
+    },
+    {
+      "agent_id": "agt_0123456789abcdef",
+      "code_input": "  WXYZ 2345 ",
+      "code_normalized": "WXYZ2345",
+      "code_hash": "de7f9120b2746c361fe7458891dcda3a72c93bf591a6b818321d9f5bcf32b023",
+      "server_nonce": "de7f9120b2746c36",
+      "message_utf8": "apex-pairing-proof-v1\n{\"agent_id\":\"agt_0123456789abcdef\",\"code\":\"WXYZ2345\",\"server_nonce\":\"de7f9120b2746c36\",\"x25519\":\"D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA\"}",
+      "proof": "GmX6qlbxv0p6ACXQJBS4sXhYca-cOpo92k2D8P9t0nagG8AveqnHKGjU6hrezoQ8ezfTMl43WLQVECZKT-drBg"
+    },
+    {
+      "agent_id": "agt_testpi0002",
+      "code_input": "HJKM-NPQR",
+      "code_normalized": "HJKMNPQR",
+      "code_hash": "4c7d16fef296522a9e40b7b03ac07768952331bb9f6c212d50a538ef1fba4fb9",
+      "server_nonce": "4c7d16fef296522a",
+      "message_utf8": "apex-pairing-proof-v1\n{\"agent_id\":\"agt_testpi0002\",\"code\":\"HJKMNPQR\",\"server_nonce\":\"4c7d16fef296522a\",\"x25519\":\"D6poTtKIZ7l_Smot7l34zpdOdrcBjj8iocTPJnhXDyA\"}",
+      "proof": "ZBBmaxhHaQZmlGE-4TiLDXIYVzr6Ne0OL18FwQnPQrAHHl7Itiixh2Yps6OLkkFDDfnlBn043ZzuPJE2cmsoCQ"
+    }
+  ]
+}

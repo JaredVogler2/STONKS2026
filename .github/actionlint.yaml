@@ -1,0 +1,8 @@
+# actionlint configuration (CI job `workflow-lint`).
+# actionlint 1.7.12 predates GitHub's documented `concurrency.queue` property ("queue: max" keeps every pending run in a
+# concurrency group instead of replacing it): https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+# Only that one unknown-key message is ignored, and only for the workflows directory.
+paths:
+  .github/workflows/**/*.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'

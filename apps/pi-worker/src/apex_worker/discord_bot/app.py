@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,7 +19,7 @@ from apex_worker.config import WorkerConfig
 from apex_worker.notifications import intents as intent_builders
 from apex_worker.storage.local import LocalStore
 
-from .backend import LocalMemberBackend, LocalPositionBackend, replay_spool
+from .backend import LocalMemberBackend, LocalPositionBackend, PositionBackend, replay_spool
 from .delivery import CHANNEL_KEYS, ChannelMap, MemoryTransport, OutboxDelivery
 from .limits import message_within_limits
 from .samples import sample_signal
@@ -38,13 +39,43 @@ PLACEHOLDER_GUILD = 100000000000000000
 PLACEHOLDER_CHANNEL = 100000000000000001
 
 
+def connected(cfg: WorkerConfig) -> bool:
+    """Connected mode: paired agent identity + bootstrap HMAC secret (APEX_BOT_POSITIONS=local forces offline)."""
+    if (os.environ.get("APEX_BOT_POSITIONS") or "").strip().lower() == "local":
+        return False
+    return bool(cfg.api_base_url and cfg.agent_id and cfg.agent_hmac_secret)
+
+
+def backends(cfg: WorkerConfig, store: LocalStore, guild_id: int) -> tuple[PositionBackend, LocalMemberBackend, str]:
+    """Local ledger + local members offline; cloud ledger + cloud-synced member mirror when paired."""
+    if not connected(cfg):
+        return (LocalPositionBackend(store, is_demo=cfg.release_mode == "DEMO"), LocalMemberBackend(store),
+                "local SQLite (offline canonical)")
+    from apex_worker.agent.client import AgentClient
+
+    from .remote_backend import RemoteMemberBackend, RemotePositionBackend
+
+    # short timeouts: interactions are deferred, but autocomplete must answer within 3 s; no agent POST spool here
+    # (the bot's own spool keeps member events / member actions during outages and replays them through these backends)
+    client = AgentClient(cfg.api_base_url or "", cfg.agent_id or "", cfg.agent_hmac_secret or b"",
+                         bypass_secret=cfg.vercel_bypass_secret, max_attempts=2, timeout=8.0, connect_timeout=3.0)
+    gid = str(guild_id) if guild_id else None
+    positions = RemotePositionBackend(client, guild_id=gid)
+    return (positions, RemoteMemberBackend(store, client, guild_id=gid, positions=positions),
+            "APEX cloud ledger (signed agent API)")
+
+
+def position_backend(cfg: WorkerConfig, store: LocalStore, guild_id: int) -> tuple[PositionBackend, str]:
+    positions, _members, label = backends(cfg, store, guild_id)
+    return positions, label
+
+
 def build_service(cfg: WorkerConfig, store: LocalStore, *, guild_id: int, runtime_status=None) -> tuple[
-        BotService, LocalPositionBackend, LocalMemberBackend]:
-    positions = LocalPositionBackend(store, is_demo=cfg.release_mode == "DEMO")
-    members = LocalMemberBackend(store)
+        BotService, PositionBackend, LocalMemberBackend]:
+    positions, members, label = backends(cfg, store, guild_id)
     svc = BotService(positions=positions, members=members, signals=store, spool=store,
                      component_secret=cfg.component_secret or b"", guild_id=guild_id, owner_ids=cfg.owner_discord_ids,
-                     release_mode=cfg.release_mode, runtime_status=runtime_status)
+                     release_mode=cfg.release_mode, runtime_status=runtime_status, backend_label=label)
     return svc, positions, members
 
 
@@ -143,7 +174,7 @@ def _run_gateway(cfg: WorkerConfig, settings: BotSettings, lock: InstanceLock) -
     async def spool_loop(stop: asyncio.Event) -> None:
         while not stop.is_set():
             try:
-                await asyncio.to_thread(replay_spool, positions, store, datetime.now(UTC))
+                await asyncio.to_thread(replay_spool, positions, store, datetime.now(UTC), 50, members)
             except Exception as exc:
                 log.warning("spool replay failed: %s", type(exc).__name__)
             with contextlib.suppress(TimeoutError):

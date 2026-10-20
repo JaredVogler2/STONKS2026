@@ -23,7 +23,9 @@ export const POST = ownerRoute(async (ctx, owner) => {
   }
   const res = await fetch(`https://api.github.com/repos/${gh.fields.repo}/actions/workflows/apex-model-train-weekly.yml/dispatches`, {
     method: "POST", headers: { Authorization: `Bearer ${gh.fields.token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-    body: JSON.stringify({ ref: "main", inputs: { reason: "owner dispatch from dashboard" } }), signal: AbortSignal.timeout(8000),
+    // inputs must match apex-model-train-weekly.yml; requested_by=admin records the run as an admin_dispatch
+    body: JSON.stringify({ ref: "main", inputs: { reason: "owner dispatch from dashboard", source: "auto", requested_by: "admin" } }),
+    signal: AbortSignal.timeout(8000),
   });
   if (res.status !== 204) throw new HttpError(502, "DISPATCH_FAILED", `GitHub returned HTTP ${res.status}`);
   await audit(ctx.db, { actorType: "owner", actorId: owner.userId, entity: "training_runs", action: "training.dispatched" });
