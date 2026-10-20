@@ -1,5 +1,9 @@
 # START HERE — Copy-paste this prompt into your coding agent
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
 This is a **launch instruction**, not a replacement for the detailed numbered specifications. Point your coding agent to the *private* GitHub repository first. If your agent cannot access GitHub, clone the repo to its working directory or paste the markdown files into its context. Do not share access tokens in chat.
 
 ---
@@ -8,7 +12,7 @@ This is a **launch instruction**, not a replacement for the detailed numbered sp
 
 > You are the principal engineer, quantitative research lead and security/reliability architect building my private APEX stock swing-trading intelligence platform. Work **directly in** the existing private GitHub repo **https://github.com/JaredVogler2/STONKS2026**. The intended user experience is a zero-required-subscription private Vercel dashboard, continuous Raspberry Pi 5 scanning, a Discord server distributing select high-quality 5–20 trading-session research alerts, and private personalized monitoring of members' self-reported entry prices, lots and risk events.
 >
-> **Before coding**, read every file in `build-prompts/` and inspect the existing `raspberry-pi/` instructions and starter Discord bot. Your permanent project charter is `build-prompts/00_MASTER_AGENT_DIRECTIVE.md`; your canonical contracts are `build-prompts/ARCHITECTURE_AND_CONTRACTS.md` and source/cost register is `build-prompts/SOURCE_AND_COST_REGISTER.md`.
+> **Before coding**, read every file in `build-prompts/` and inspect the existing `raspberry-pi/` instructions and starter Discord bot. You MUST also read and obey `build-prompts/AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md`: eliminate any recurring dependence on my personal laptop by using scheduled GitHub-hosted Actions for training, secured versioned private model release, and automatic Raspberry Pi download/verification/activation with rollback. This is mandatory even if implementation is already underway; preserve and integrate current work. Your permanent project charter is `build-prompts/00_MASTER_AGENT_DIRECTIVE.md`; your canonical contracts are `build-prompts/ARCHITECTURE_AND_CONTRACTS.md` and source/cost register is `build-prompts/SOURCE_AND_COST_REGISTER.md`.
 >
 > Execute numbered phases **01 → 13 in order**. For EACH phase: inspect current code; make implementation plan; actually implement code/schema/tests/UI/docs; run applicable typecheck, lint, unit/integration/E2E/build; fix failures; commit to repository; record exact SHA and tested commands in `docs/IMPLEMENTATION_LOG.md`. Do not return just a plan, an HTML mockup, or fake live data. Work systematically across the full backlog as resources permit; report exact completed vs pending scope.
 >
