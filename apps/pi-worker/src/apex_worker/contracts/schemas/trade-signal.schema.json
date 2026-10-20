@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/trade-signal.schema.json",
+  "title": "TradeSignal",
+  "description": "A research alert for a LONG 5-20 trading-session swing. Every published revision is immutable; later changes are new revisions or signal events.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "revision", "symbol", "side", "state", "created_at", "asof_at", "strategy_id", "strategy_version", "model_version", "policy_version", "quality_score", "levels", "horizon", "event_definition", "confidence", "quote", "thesis", "risk", "release_mode", "is_demo"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^sig_[0-9a-f]{24}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "company_name": { "type": "string", "maxLength": 120 },
+    "side": { "type": "string", "const": "LONG" },
+    "state": { "$ref": "#/$defs/SignalState" },
+    "created_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "asof_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "published_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "candidate_id": { "type": "string", "pattern": "^cand_[0-9a-f]{24}$" },
+    "strategy_id": { "type": "string", "pattern": "^[a-z0-9_]{2,48}$" },
+    "strategy_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "model_version": { "type": "string", "maxLength": 64 },
+    "policy_version": { "type": "string", "maxLength": 64 },
+    "feature_version": { "type": "string", "maxLength": 48 },
+    "quality_score": { "type": "number", "minimum": 0, "maximum": 100, "description": "Internal ranking only. NOT a probability." },
+    "levels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_min", "entry_max", "stop_level", "target_primary", "reward_to_risk"],
+      "properties": {
+        "entry_min": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "entry_max": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "stop_level": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "target_primary": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "target_secondary": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "reward_to_risk": { "$ref": "common.schema.json#/$defs/DecimalString", "description": "Net of modeled round-trip costs, from the entry-zone midpoint" },
+        "max_slippage_bps": { "type": "integer", "minimum": 0, "maximum": 500 },
+        "level_basis": { "type": "array", "items": { "type": "string", "maxLength": 120 }, "maxItems": 6 }
+      }
+    },
+    "horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_sessions", "max_sessions", "entry_expires_at", "entry_valid_sessions", "basis"],
+      "properties": {
+        "min_sessions": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "max_sessions": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "entry_expires_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+        "entry_valid_sessions": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "basis": { "type": "string", "enum": ["CALIBRATED_TIME_TO_HIT", "HEURISTIC"] }
+      }
+    },
+    "event_definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "horizon_sessions", "measured_from"],
+      "properties": {
+        "type": { "type": "string", "const": "TARGET_BEFORE_STOP" },
+        "horizon_sessions": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "measured_from": { "type": "string", "enum": ["ENTRY_FILL", "SIGNAL_ASOF"] },
+        "same_bar_rule": { "type": "string", "const": "STOP_FIRST" }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "label"],
+      "properties": {
+        "status": { "type": "string", "enum": ["CALIBRATED", "EXPERIMENTAL", "UNVALIDATED"] },
+        "label": { "type": "string", "maxLength": 80 },
+        "p_target_first": { "type": "number", "minimum": 0, "maximum": 1 },
+        "p_stop_first": { "type": "number", "minimum": 0, "maximum": 1 },
+        "p_expire": { "type": "number", "minimum": 0, "maximum": 1 },
+        "interval_80": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 },
+        "interval_95": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 },
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "effective_sample_size": { "type": "number", "minimum": 0 },
+        "calibration_version": { "type": "string", "maxLength": 64 },
+        "model_data_source": { "type": "string", "enum": ["historical_market_data", "synthetic_fixture", "none"] }
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["price", "provenance", "age_seconds"],
+      "properties": {
+        "price": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+        "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+        "age_seconds": { "type": "integer", "minimum": 0 },
+        "is_tradable_proxy": { "type": "boolean", "description": "False when the price is delayed or single-venue and must be confirmed at the broker" }
+      }
+    },
+    "thesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reasons", "counter_evidence", "regime"],
+      "properties": {
+        "summary": { "type": "string", "maxLength": 400 },
+        "reasons": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/EvidenceItem" }, "minItems": 2, "maxItems": 5 },
+        "counter_evidence": { "type": "array", "items": { "$ref": "common.schema.json#/$defs/EvidenceItem" }, "minItems": 1, "maxItems": 6 },
+        "regime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["label"],
+          "properties": {
+            "label": { "type": "string", "maxLength": 32 },
+            "probabilities": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 } },
+            "version": { "type": "string", "maxLength": 32 }
+          }
+        },
+        "catalysts": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["catalyst_id", "catalyst_type", "headline", "available_at"],
+            "properties": {
+              "catalyst_id": { "type": "string", "maxLength": 64 },
+              "catalyst_type": { "type": "string", "maxLength": 48 },
+              "headline": { "type": "string", "maxLength": 200 },
+              "source_url": { "type": "string", "format": "uri", "maxLength": 500 },
+              "available_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+              "direction": { "type": "string", "enum": ["potentially_positive", "potentially_negative", "mixed", "unknown"] }
+            }
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost_bps_per_side", "earnings_status", "tradability_status", "gap_risk_note"],
+      "properties": {
+        "cost_bps_per_side": { "type": "number", "minimum": 0, "maximum": 500 },
+        "earnings_status": { "type": "string", "enum": ["NONE_WITHIN_HORIZON_CONFIRMED", "WITHIN_HORIZON", "UNKNOWN"] },
+        "tradability_status": { "type": "string", "enum": ["likely_eligible", "user_verified", "unknown"] },
+        "gap_risk_note": { "type": "string", "maxLength": 240 },
+        "concentration_note": { "type": "string", "maxLength": 240 },
+        "sector": { "type": "string", "maxLength": 48 },
+        "notional_example": { "type": "string", "maxLength": 240, "description": "Hypothetical illustration only; never assumes a member's capital" }
+      }
+    },
+    "release_mode": { "$ref": "common.schema.json#/$defs/ReleaseMode" },
+    "is_demo": { "type": "boolean" },
+    "immutable_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "SignalState": {
+      "title": "SignalState",
+      "type": "string",
+      "enum": ["DISCOVERED", "EVALUATING", "QUALIFIED", "PUBLISHED", "ACTIVE", "CLOSED", "DISCARDED", "NO_TRADE", "EXPIRED", "INVALIDATED"]
+    }
+  }
+}

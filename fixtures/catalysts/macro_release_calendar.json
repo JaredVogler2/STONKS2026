@@ -1,0 +1,9 @@
+{
+  "schema": "apex.macro_release_calendar/1",
+  "_fixture_note": "FICTIONAL release names and ILLUSTRATIVE dates (not the real schedule). source_url points at the public schedule page an operator would verify against.",
+  "releases": [
+    {"release_key": "DEMO_CPI", "name": "Demo Consumer Price Index (fictional)", "scheduled_date": "2026-11-12", "scheduled_time_et": "08:30", "source_url": "https://www.bls.gov/schedule/news_release/cpi.htm", "series_ids": ["DMCPI"], "known_since": "2025-12-15T15:00:00Z", "confirmed": true},
+    {"release_key": "DEMO_PAYROLLS", "name": "Demo Payrolls Report (fictional)", "scheduled_date": "2026-11-06", "scheduled_time_et": "08:30", "source_url": "https://www.bls.gov/schedule/news_release/empsit.htm", "series_ids": [], "known_since": "2025-12-15T15:00:00Z", "confirmed": true},
+    {"release_key": "DEMO_POLICY_RATE", "name": "Demo Policy Rate Decision (fictional)", "scheduled_date": "2026-12-09", "scheduled_time_et": null, "source_url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm", "series_ids": [], "known_since": "2026-01-30T19:00:00Z", "confirmed": false}
+  ]
+}

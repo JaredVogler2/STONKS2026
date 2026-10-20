@@ -1,0 +1,8 @@
+chamber,member_name,transaction_date,disclosure_date,ticker,asset_description,transaction_type,amount_range,source_url
+senate,Senator Example Alpha (fictional),2026-08-01,2026-09-10,DMSEMI1,Demo Semiconductor One Inc - Common Stock,purchase,"$15,001 - $50,000",https://efdsearch.senate.gov/search/view/ptr/00000000-demo-0000-0000-000000000001/
+house,Representative Example Beta (fictional),2026-07-14,2026-08-20,DMBANK2,Demo Bank Two Corp - Common Stock,sale,"$1,001 - $15,000",https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/99990001.pdf
+house,Representative Example Gamma (fictional),2026-05-02,2026-07-15,,Demo Municipal Bond Fund (fictional),purchase,"$50,001 - $100,000",https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/99990002.pdf
+senate,Senator Example Delta (fictional),2026-09-01,2026-08-30,DMBIO4,Demo Bio Four Inc - Common Stock,purchase,"$1,001 - $15,000",https://efdsearch.senate.gov/search/view/ptr/00000000-demo-0000-0000-000000000002/
+senate,Senator Example Epsilon (fictional),2026-09-03,2026-09-20,DMLOG3,Beacon Logistics Corp - Common Stock,exchange,"Over $50,000,000",https://demo-provider.example/ptr/123
+house,Representative Example Zeta (fictional),2026-06-01,2026-06-20,DMSEMI1,Demo Semiconductor One Inc - Common Stock,gift,"$1,001 - $15,000",https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/99990003.pdf
+house,Representative Example Eta (fictional),2026-06-03,2026-06-25,DMSEMI1,Demo Semiconductor One Inc - Common Stock,sale,"$1,001 - $15,000",http://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/99990004.pdf

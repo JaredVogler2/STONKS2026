@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/common.schema.json",
+  "title": "Common",
+  "description": "Shared primitive definitions for all APEX contracts. All instants are UTC ISO-8601 with a trailing Z; market dates are America/New_York exchange session dates.",
+  "$defs": {
+    "UtcTimestamp": {
+      "title": "UtcTimestamp",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$",
+      "description": "UTC instant, ISO-8601, trailing Z"
+    },
+    "SessionDate": {
+      "title": "SessionDate",
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Exchange session date (America/New_York)"
+    },
+    "Symbol": {
+      "title": "Symbol",
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9.]{0,9}$",
+      "description": "US exchange symbol, upper case, 1-10 characters"
+    },
+    "Uuid": {
+      "title": "Uuid",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "DecimalString": {
+      "title": "DecimalString",
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^-?(0|[1-9][0-9]{0,15})(\\.[0-9]{1,10})?$",
+      "description": "Exact decimal encoded as a string (never a binary float)"
+    },
+    "NonNegativeDecimalString": {
+      "title": "NonNegativeDecimalString",
+      "type": "string",
+      "maxLength": 32,
+      "pattern": "^(0|[1-9][0-9]{0,15})(\\.[0-9]{1,10})?$"
+    },
+    "DiscordSnowflake": {
+      "title": "DiscordSnowflake",
+      "type": "string",
+      "pattern": "^[1-9][0-9]{14,20}$"
+    },
+    "Provider": {
+      "title": "Provider",
+      "type": "string",
+      "enum": ["alpaca", "replay", "sec_edgar", "senate_efd", "house_clerk", "news_rss", "fred", "manual", "discord", "dashboard", "starter_import"]
+    },
+    "Feed": {
+      "title": "Feed",
+      "type": "string",
+      "enum": ["iex", "sip", "demo", "none"],
+      "description": "iex = single exchange (NOT consolidated NBBO); sip = consolidated; demo = deterministic fixture"
+    },
+    "LatencyClass": {
+      "title": "LatencyClass",
+      "type": "string",
+      "enum": ["live", "delayed", "historical", "replay"]
+    },
+    "ReleaseMode": {
+      "title": "ReleaseMode",
+      "type": "string",
+      "enum": ["DEMO", "PAPER_LIVE_DATA", "PERSONAL_RESEARCH", "GROUP_POSITION_ALERTS"]
+    },
+    "HealthStatus": {
+      "title": "HealthStatus",
+      "type": "string",
+      "enum": ["OK", "DEGRADED", "DOWN", "STALE", "DISABLED", "UNCONFIGURED", "UNKNOWN"]
+    },
+    "Provenance": {
+      "title": "Provenance",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "feed", "latency_class", "ts_received", "is_demo"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/Provider" },
+        "feed": { "$ref": "#/$defs/Feed" },
+        "latency_class": { "$ref": "#/$defs/LatencyClass" },
+        "ts_exchange": { "$ref": "#/$defs/UtcTimestamp" },
+        "ts_received": { "$ref": "#/$defs/UtcTimestamp" },
+        "delayed_by_seconds": { "type": "integer", "minimum": 0 },
+        "is_demo": { "type": "boolean" }
+      }
+    },
+    "EvidenceItem": {
+      "title": "EvidenceItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "group", "text"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z0-9_]{2,64}$" },
+        "group": { "type": "string", "enum": ["price", "volume", "volatility", "sector", "regime", "catalyst", "liquidity", "data_quality", "event_risk", "concentration", "model"] },
+        "text": { "type": "string", "maxLength": 240 },
+        "value": { "type": ["number", "null"] },
+        "unit": { "type": "string", "maxLength": 24 },
+        "source_url": { "type": "string", "format": "uri", "maxLength": 500 },
+        "asof_at": { "$ref": "#/$defs/UtcTimestamp" }
+      }
+    }
+  }
+}

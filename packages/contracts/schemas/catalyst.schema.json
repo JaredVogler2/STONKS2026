@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/catalyst.schema.json",
+  "title": "Catalyst",
+  "description": "Time-aware public catalyst. event_at (when it happened), published_at (source publication), first_seen_at (APEX observed it) and available_at (earliest the algorithm may use it) are distinct. impact_score is NOT a win probability; entity/extraction confidence is separate from any return expectation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "catalyst_type", "source", "first_seen_at", "available_at", "headline", "source_grade", "direction", "entity_confidence", "extraction_confidence", "reason_codes", "source_hash", "parser_version", "legal_classification", "is_demo"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^cat_[0-9a-f]{24}$" },
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "cik": { "type": "string", "pattern": "^[0-9]{10}$" },
+    "catalyst_type": {
+      "type": "string",
+      "enum": ["earnings_release", "earnings_scheduled", "guidance_raise", "guidance_cut", "contract_award", "regulatory_decision", "merger_acquisition", "buyback", "insider_open_market_purchase", "insider_sale", "insider_award_or_exercise", "dilution_offering", "shelf_registration", "regulatory_action", "government_procurement", "macro_release", "sector_shock", "management_change", "ownership_13d", "ownership_13g", "periodic_report", "current_report_other", "political_disclosure", "news_other"]
+    },
+    "source": { "type": "string", "enum": ["sec_edgar", "senate_efd", "house_clerk", "news_rss", "fred", "manual", "replay"] },
+    "event_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "published_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "first_seen_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "available_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "canonical_url": { "type": "string", "maxLength": 500, "pattern": "^https://" },
+    "accession_number": { "type": "string", "pattern": "^[0-9]{10}-[0-9]{2}-[0-9]{6}$" },
+    "headline": { "type": "string", "maxLength": 200 },
+    "publisher": { "type": "string", "maxLength": 80 },
+    "source_grade": { "type": "string", "enum": ["A_official_filing", "B_official_release", "C_reputable_wire", "D_other", "E_unverified"] },
+    "direction": { "type": "string", "enum": ["potentially_positive", "potentially_negative", "mixed", "unknown"] },
+    "entity_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "extraction_confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "impact_score": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "actionable_age": { "type": "string", "enum": ["fresh", "recent", "stale", "lagged_disclosure", "scheduled_future"] },
+    "cluster_id": { "type": "string", "maxLength": 64 },
+    "revision_of": { "type": "string", "pattern": "^cat_[0-9a-f]{24}$" },
+    "reason_codes": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,64}$" }, "maxItems": 16 },
+    "regulatory_flags": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,48}$" }, "maxItems": 8 },
+    "parsed": { "type": "object" },
+    "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "parser_version": { "type": "string", "maxLength": 32 },
+    "legal_classification": { "type": "string", "enum": ["public_metadata_link_only", "public_domain_government", "licensed_summary", "manual_entry"] },
+    "is_demo": { "type": "boolean" }
+  }
+}

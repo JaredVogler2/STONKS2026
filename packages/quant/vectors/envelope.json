@@ -1,0 +1,22 @@
+{
+  "description": "TEST-ONLY X25519 envelope vector.",
+  "device_private_raw_b64url": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+  "device_public_b64url": "V9tLNZ8jrl4Ubk4lEgVnBHIlBjSMFQwUdT0Mkz0E1CE",
+  "plaintext": "{\"key_id\":\"TESTKEYID\",\"secret\":\"TESTSECRET\"}",
+  "envelope": {
+    "v": 1,
+    "alg": "X25519-HKDF-SHA256-A256GCM",
+    "epk": "UKYUCbHd0DJemxa3AOcZ6XcsBwALG9d4bpB8ZT0gSV0",
+    "salt": "AQEBAQEBAQEBAQEBAQEBAQ",
+    "iv": "AgICAgICAgICAgIC",
+    "ct": "UwjbvLUjK73mCoGWFG3dXLzHNa5Q6EhTitMQsLQFiBJoNvwcIbN6OZnXoBs",
+    "tag": "hpKJ0xLbz3hktnCM0GKH_g",
+    "meta": {
+      "device_id": "agt_testpi0001",
+      "provider": "alpaca",
+      "secret_version": 3,
+      "issued_at": "2026-10-20T20:00:00Z",
+      "expires_at": "2026-10-20T20:05:00Z"
+    }
+  }
+}

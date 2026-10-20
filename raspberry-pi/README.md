@@ -13,6 +13,9 @@
 5. [05 — Install the working starter bot](05_INSTALL_BOT.md). Test private slash commands that store individual paper-position entries.
 6. [06 — Everyday operation and troubleshooting](06_OPERATIONS_TROUBLESHOOTING.md). Make it start automatically after power outages and solve common issues.
 7. [07 — Security, architecture and future APEX integration](07_SECURITY_AND_INTEGRATION.md). Understand what is and isn't implemented.
+8. [08 — Upgrade to full APEX](08_APEX_UPGRADE.md). Replace the starter bot with the APEX worker and bot (one-command installer, pairing with your dashboard, revert path). Nothing new to buy.
+
+**Already running the starter bot?** Go straight to [08](08_APEX_UPGRADE.md): it imports your members' entries and safely retires the old service.
 
 ## What you are building
 
@@ -20,7 +23,7 @@
 
 **Discord** — a private server for distributing signals to invited members. Members can record their OWN fill price and share quantity using private slash commands. Personal entries are NOT published to the general alert channel.
 
-**Vercel APEX dashboard / market intelligence engine** — to be developed separately. The Pi does not itself provide market quotes, forecast probabilities, buy/sell recommendations, or Robinhood integration.
+**Vercel APEX dashboard** — your private web console (signals, research, models, settings). Set it up with [docs/README_OPERATOR.md](../docs/README_OPERATOR.md). With guide 08 the Pi also scans the market (free Alpaca IEX data), tracks members' self-reported positions and posts alerts. It never places orders and has no Robinhood integration.
 
 ### IMPORTANT: What works immediately after these instructions
 

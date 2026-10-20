@@ -1,0 +1,40 @@
+# Rendered by scripts/apex-install.sh. Placeholders: @USER@ @APP_DIR@ @ENV_FILE@ @STATE_DIR@ @UV@
+[Unit]
+Description=APEX market worker (scanner, quote stream, model sync, outbox bridge)
+Documentation=file://@APP_DIR@/../../docs/PI_WORKER.md
+After=network-online.target time-sync.target
+Wants=network-online.target time-sync.target
+# bounded restarts: 5 failures in 10 minutes stops the loop (see `apex-doctor.sh`)
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@APP_DIR@
+Environment=PYTHONUNBUFFERED=1 APEX_ENV_FILE=@ENV_FILE@ APEX_STATE_DIR=@STATE_DIR@
+ExecStart=@UV@ run --frozen --no-sync apex worker
+Restart=on-failure
+RestartSec=20
+# exit 2 = configuration error, 3 = another instance holds the lock: restarting cannot fix either
+RestartPreventExitStatus=2 3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+Nice=5
+MemoryMax=1200M
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@STATE_DIR@ @APP_DIR@/.venv
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

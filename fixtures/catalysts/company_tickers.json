@@ -1,0 +1,8 @@
+{
+  "0": {"cik_str": 9990001, "ticker": "DMSEMI1", "title": "Demo Semiconductor One Inc"},
+  "1": {"cik_str": 9990002, "ticker": "DMBANK2", "title": "Demo Bank Two Corp"},
+  "2": {"cik_str": 9990003, "ticker": "DMLOG3", "title": "Beacon Logistics Corp"},
+  "3": {"cik_str": 9990004, "ticker": "DMBIO4", "title": "Demo Bio Four Inc"},
+  "4": {"cik_str": 9990005, "ticker": "DMNEWNM", "title": "Demo Networks Five Inc"},
+  "5": {"cik_str": 9990011, "ticker": "DMRX", "title": "Demo Rx Therapeutics Inc"}
+}

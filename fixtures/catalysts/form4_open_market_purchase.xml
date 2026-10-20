@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<!-- FICTIONAL Form 4 in the SEC ownershipDocument format. Demo issuer and people do not exist. -->
+<ownershipDocument>
+    <schemaVersion>X0508</schemaVersion>
+    <documentType>4</documentType>
+    <periodOfReport>2026-10-07</periodOfReport>
+    <notSubjectToSection16>0</notSubjectToSection16>
+    <aff10b5One>0</aff10b5One>
+    <issuer>
+        <issuerCik>0009990001</issuerCik>
+        <issuerName>Demo Semiconductor One Inc</issuerName>
+        <issuerTradingSymbol>DMSEMI1</issuerTradingSymbol>
+    </issuer>
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0009990101</rptOwnerCik>
+            <rptOwnerName>Example Avery Q</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerAddress>
+            <rptOwnerStreet1>100 Example Way</rptOwnerStreet1>
+            <rptOwnerCity>Testville</rptOwnerCity>
+            <rptOwnerState>ZZ</rptOwnerState>
+            <rptOwnerZipCode>00000</rptOwnerZipCode>
+        </reportingOwnerAddress>
+        <reportingOwnerRelationship>
+            <isDirector>1</isDirector>
+            <isOfficer>1</isOfficer>
+            <isTenPercentOwner>0</isTenPercentOwner>
+            <isOther>0</isOther>
+            <officerTitle>Chief Executive Officer</officerTitle>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle><value>Common Stock</value></securityTitle>
+            <transactionDate><value>2026-10-07</value></transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>P</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares><value>10000</value></transactionShares>
+                <transactionPricePerShare><value>25.10</value><footnoteId id="F1"/></transactionPricePerShare>
+                <transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction><value>310000</value></sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership><value>D</value></directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+    <footnotes>
+        <footnote id="F1">Weighted average price. Fictional fixture: purchases executed in multiple trades between $25.02 and $25.18.</footnote>
+    </footnotes>
+    <remarks/>
+    <ownerSignature>
+        <signatureName>/s/ Example Avery Q (fictional)</signatureName>
+        <signatureDate>2026-10-09</signatureDate>
+    </ownerSignature>
+</ownershipDocument>

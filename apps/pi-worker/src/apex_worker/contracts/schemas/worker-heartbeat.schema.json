@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/worker-heartbeat.schema.json",
+  "title": "WorkerHeartbeat",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent_id", "sent_at", "worker_version", "release_mode", "components", "resources"],
+  "properties": {
+    "agent_id": { "type": "string", "pattern": "^agt_[a-z0-9]{8,32}$" },
+    "sent_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "worker_version": { "type": "string", "maxLength": 32 },
+    "git_sha": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+    "release_mode": { "$ref": "common.schema.json#/$defs/ReleaseMode" },
+    "secret_version_ack": { "type": "integer", "minimum": 0 },
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status"],
+        "properties": {
+          "status": { "$ref": "common.schema.json#/$defs/HealthStatus" },
+          "last_ok_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+          "detail": { "type": "string", "maxLength": 240 },
+          "metrics": { "type": "object", "additionalProperties": { "type": ["number", "string", "boolean", "null"] } }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rss_mb": { "type": "number", "minimum": 0 },
+        "mem_available_mb": { "type": "number", "minimum": 0 },
+        "disk_free_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "cpu_temp_c": { "type": ["number", "null"] },
+        "load_1m": { "type": "number", "minimum": 0 },
+        "spool_pending": { "type": "integer", "minimum": 0 },
+        "clock_synced": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}

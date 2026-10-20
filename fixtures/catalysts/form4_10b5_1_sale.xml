@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<!-- FICTIONAL Form 4: planned sale under a Rule 10b5-1 trading arrangement. -->
+<ownershipDocument>
+    <schemaVersion>X0508</schemaVersion>
+    <documentType>4</documentType>
+    <periodOfReport>2026-09-15</periodOfReport>
+    <aff10b5One>1</aff10b5One>
+    <issuer>
+        <issuerCik>0009990001</issuerCik>
+        <issuerName>Demo Semiconductor One Inc</issuerName>
+        <issuerTradingSymbol>DMSEMI1</issuerTradingSymbol>
+    </issuer>
+    <reportingOwner>
+        <reportingOwnerId>
+            <rptOwnerCik>0009990102</rptOwnerCik>
+            <rptOwnerName>Sample Jordan R</rptOwnerName>
+        </reportingOwnerId>
+        <reportingOwnerRelationship>
+            <isDirector>0</isDirector>
+            <isOfficer>1</isOfficer>
+            <isTenPercentOwner>0</isTenPercentOwner>
+            <isOther>0</isOther>
+            <officerTitle>Chief Financial Officer</officerTitle>
+        </reportingOwnerRelationship>
+    </reportingOwner>
+    <nonDerivativeTable>
+        <nonDerivativeTransaction>
+            <securityTitle><value>Common Stock</value></securityTitle>
+            <transactionDate><value>2026-09-15</value></transactionDate>
+            <transactionCoding>
+                <transactionFormType>4</transactionFormType>
+                <transactionCode>S</transactionCode>
+                <equitySwapInvolved>0</equitySwapInvolved>
+                <footnoteId id="F1"/>
+            </transactionCoding>
+            <transactionAmounts>
+                <transactionShares><value>20000</value></transactionShares>
+                <transactionPricePerShare><value>26.40</value><footnoteId id="F2"/></transactionPricePerShare>
+                <transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode>
+            </transactionAmounts>
+            <postTransactionAmounts>
+                <sharesOwnedFollowingTransaction><value>140000</value></sharesOwnedFollowingTransaction>
+            </postTransactionAmounts>
+            <ownershipNature>
+                <directOrIndirectOwnership><value>D</value></directOrIndirectOwnership>
+            </ownershipNature>
+        </nonDerivativeTransaction>
+    </nonDerivativeTable>
+    <footnotes>
+        <footnote id="F1">Fictional fixture: the sale was effected pursuant to a Rule 10b5-1 trading plan adopted by the reporting person on 2026-03-02.</footnote>
+        <footnote id="F2">Weighted average price (fictional).</footnote>
+    </footnotes>
+    <ownerSignature>
+        <signatureName>/s/ Sample Jordan R (fictional)</signatureName>
+        <signatureDate>2026-09-16</signatureDate>
+    </ownerSignature>
+</ownershipDocument>

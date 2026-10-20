@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/market-observation.schema.json",
+  "title": "MarketObservation",
+  "description": "One validated price observation for one symbol. A single shared observation per symbol feeds every member evaluation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["symbol", "kind", "price", "provenance", "validation_level", "quality_flags"],
+  "properties": {
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "kind": { "type": "string", "enum": ["trade", "quote", "bar_close"] },
+    "price": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "bid": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "ask": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "size": { "type": "integer", "minimum": 0 },
+    "volume": { "type": "integer", "minimum": 0, "description": "Volume on THIS feed only. IEX volume is never total market volume." },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+    "validation_level": { "type": "integer", "minimum": 0, "maximum": 3, "description": "0 rejected, 1 syntactic+timestamp, 2 venue-quality checks, 3 cross-checked vs consolidated" },
+    "quality_flags": { "type": "array", "items": { "type": "string", "pattern": "^[A-Z0-9_]{2,48}$" }, "maxItems": 16 },
+    "staleness_seconds": { "type": "integer", "minimum": 0 }
+  }
+}

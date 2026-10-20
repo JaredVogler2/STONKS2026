@@ -1,0 +1,394 @@
+{
+ "schema": "apex.catalyst_labels/1",
+ "_fixture_note": "Hand-labelled FICTIONAL sample. Labels were written as a human analyst would judge them (including cases the deterministic rules are expected to miss), not reverse-engineered from the classifier.",
+ "labeller": "APEX Phase 05 fixture author",
+ "items": [
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One Raises Full-Year Revenue Guidance on Data Center Demand",
+   "expected": {
+    "catalyst_type": "guidance_raise",
+    "direction": "potentially_positive",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two Lowers 2026 Net Interest Income Outlook",
+   "expected": {
+    "catalyst_type": "guidance_cut",
+    "direction": "potentially_negative",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four withdraws full-year guidance amid supply review",
+   "expected": {
+    "catalyst_type": "guidance_cut",
+    "direction": "potentially_negative",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Beacon Logistics (NYSE: DMLOG3) Wins $250 Million Federal Freight Contract",
+   "expected": {
+    "catalyst_type": "government_procurement",
+    "direction": "potentially_positive",
+    "symbol": "DMLOG3"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One secures multiyear supply order from automaker",
+   "expected": {
+    "catalyst_type": "contract_award",
+    "direction": "potentially_positive",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four Receives FDA Approval for DMB-101 in Rare Kidney Disease",
+   "expected": {
+    "catalyst_type": "regulatory_decision",
+    "direction": "potentially_positive",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four receives Complete Response Letter for DMB-202",
+   "expected": {
+    "catalyst_type": "regulatory_decision",
+    "direction": "potentially_negative",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four's partner wins FDA nod for rival drug",
+   "expected": {
+    "catalyst_type": "regulatory_decision",
+    "direction": "potentially_negative",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One to Acquire Example Photonics in $1.2 Billion Deal",
+   "expected": {
+    "catalyst_type": "merger_acquisition",
+    "direction": "mixed",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two agrees to be acquired by larger rival for $48 per share",
+   "expected": {
+    "catalyst_type": "merger_acquisition",
+    "direction": "potentially_positive",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two denies report it is exploring a sale",
+   "expected": {
+    "catalyst_type": "merger_acquisition",
+    "direction": "unknown",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two Announces $500 Million Share Repurchase Program",
+   "expected": {
+    "catalyst_type": "buyback",
+    "direction": "potentially_positive",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four Prices $150 Million Public Offering of Common Stock",
+   "expected": {
+    "catalyst_type": "dilution_offering",
+    "direction": "potentially_negative",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One completes $300 million convertible notes offering",
+   "expected": {
+    "catalyst_type": "dilution_offering",
+    "direction": "potentially_negative",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two CFO to Step Down",
+   "expected": {
+    "catalyst_type": "management_change",
+    "direction": "unknown",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four CEO resigns effective immediately",
+   "expected": {
+    "catalyst_type": "management_change",
+    "direction": "potentially_negative",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Networks Five settles patent lawsuit with rival",
+   "expected": {
+    "catalyst_type": "regulatory_action",
+    "direction": "mixed",
+    "symbol": "DMNEWNM"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two faces regulator probe over overdraft fees",
+   "expected": {
+    "catalyst_type": "regulatory_action",
+    "direction": "potentially_negative",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One shares slide despite beating estimates",
+   "expected": {
+    "catalyst_type": "earnings_release",
+    "direction": "mixed",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two third-quarter profit misses estimates",
+   "expected": {
+    "catalyst_type": "earnings_release",
+    "direction": "potentially_negative",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One Q3 revenue rises 12% as margins narrow",
+   "expected": {
+    "catalyst_type": "earnings_release",
+    "direction": "mixed",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four announces positive Phase 3 topline results",
+   "expected": {
+    "catalyst_type": "news_other",
+    "direction": "potentially_positive",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two raises quarterly dividend by 10%",
+   "expected": {
+    "catalyst_type": "news_other",
+    "direction": "potentially_positive",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bank Two to cut 5% of workforce in restructuring",
+   "expected": {
+    "catalyst_type": "news_other",
+    "direction": "mixed",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Beacon Expands Regional Hub Network as Holiday Volumes Climb",
+   "expected": {
+    "catalyst_type": "news_other",
+    "direction": "unknown",
+    "symbol": null
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "New tariffs on imported chips hit semiconductor sector",
+   "expected": {
+    "catalyst_type": "sector_shock",
+    "direction": "mixed",
+    "symbol": null
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Rx Therapeutics ($DMRX) Receives FDA Approval for DRX-7",
+   "expected": {
+    "catalyst_type": "regulatory_decision",
+    "direction": "potentially_positive",
+    "symbol": "DMRX"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Analyst upgrades Demo Bank Two to Buy on improving credit trends",
+   "expected": {
+    "catalyst_type": "news_other",
+    "direction": "potentially_positive",
+    "symbol": "DMBANK2"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Bio Four wins patent ruling against generic rival",
+   "expected": {
+    "catalyst_type": "regulatory_action",
+    "direction": "potentially_positive",
+    "symbol": "DMBIO4"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Semiconductor One misses on revenue but raises outlook",
+   "expected": {
+    "catalyst_type": "guidance_raise",
+    "direction": "mixed",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "headline",
+   "text": "Demo Networks Five recalls routers over overheating risk",
+   "expected": {
+    "catalyst_type": "regulatory_action",
+    "direction": "potentially_negative",
+    "symbol": "DMNEWNM"
+   }
+  },
+  {
+   "kind": "form4",
+   "fixture": "form4_open_market_purchase.xml",
+   "expected": {
+    "catalyst_type": "insider_open_market_purchase",
+    "direction": "potentially_positive",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "form4",
+   "fixture": "form4_10b5_1_sale.xml",
+   "expected": {
+    "catalyst_type": "insider_sale",
+    "direction": "unknown",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "form4",
+   "fixture": "form4_award_code_a.xml",
+   "expected": {
+    "catalyst_type": "insider_award_or_exercise",
+    "direction": "unknown",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "form4",
+   "fixture": "form4_exercise_m_withholding_f.xml",
+   "expected": {
+    "catalyst_type": "insider_award_or_exercise",
+    "direction": "unknown",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "form4",
+   "fixture": "form4_multiple_transactions.xml",
+   "expected": {
+    "catalyst_type": "insider_open_market_purchase",
+    "direction": "potentially_positive",
+    "symbol": "DMSEMI1"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "2.02,9.01",
+   "expected": {
+    "catalyst_type": "earnings_release",
+    "direction": "unknown"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "5.02",
+   "expected": {
+    "catalyst_type": "management_change",
+    "direction": "unknown"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "1.01,9.01",
+   "expected": {
+    "catalyst_type": "current_report_other",
+    "direction": "unknown"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "3.02",
+   "expected": {
+    "catalyst_type": "dilution_offering",
+    "direction": "potentially_negative"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "7.01,9.01",
+   "expected": {
+    "catalyst_type": "current_report_other",
+    "direction": "unknown"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "4.02,9.01",
+   "expected": {
+    "catalyst_type": "current_report_other",
+    "direction": "potentially_negative"
+   }
+  },
+  {
+   "kind": "8k",
+   "form": "8-K",
+   "items": "2.01,5.02,9.01",
+   "expected": {
+    "catalyst_type": "merger_acquisition",
+    "direction": "unknown"
+   }
+  }
+ ]
+}

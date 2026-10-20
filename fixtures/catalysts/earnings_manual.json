@@ -1,0 +1,10 @@
+{
+  "schema": "apex.earnings_manual/1",
+  "_fixture_note": "FICTIONAL curated entries. 'confirmed' requires an issuer-IR source URL; 'expected' is an unconfirmed estimate with an uncertainty window. Missing symbols mean UNKNOWN, never 'no earnings'.",
+  "entries": [
+    {"symbol": "DMSEMI1", "date": "2027-02-03", "timing": "AMC", "status": "confirmed", "source_url": "https://investors.dmsemi1.example/events/q4-2026-results", "known_since": "2026-10-15T12:00:00Z", "note": "IR events page lists Q4 FY2026 call"},
+    {"symbol": "DMBANK2", "date": "2026-07-17", "timing": "BMO", "status": "reported", "source_url": "https://investors.dmbank2.example/news/q2-2026", "known_since": "2026-07-17T11:00:00Z"},
+    {"symbol": "DMBANK2", "date": "2026-10-23", "timing": "BMO", "status": "confirmed", "source_url": "https://investors.dmbank2.example/events/q3-2026", "known_since": "2026-09-25T13:00:00Z"},
+    {"symbol": "DMBIO4", "date": "2026-11-10", "timing": "UNKNOWN", "status": "expected", "uncertainty_days": 7, "source_url": "https://investors.dmbio4.example/", "known_since": "2026-10-01T12:00:00Z", "note": "historical pattern only; company has not announced a date"}
+  ]
+}

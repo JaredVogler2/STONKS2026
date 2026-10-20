@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://apex.local/contracts/market-bar.schema.json",
+  "title": "MarketBar",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["symbol", "timeframe", "start_at", "open", "high", "low", "close", "volume", "adjustment", "provenance", "is_provisional"],
+  "properties": {
+    "symbol": { "$ref": "common.schema.json#/$defs/Symbol" },
+    "timeframe": { "type": "string", "enum": ["1Day", "15Min", "5Min", "1Min"] },
+    "session_date": { "$ref": "common.schema.json#/$defs/SessionDate" },
+    "start_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" },
+    "open": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "high": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "low": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "close": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "volume": { "type": "integer", "minimum": 0 },
+    "vwap": { "$ref": "common.schema.json#/$defs/NonNegativeDecimalString" },
+    "trade_count": { "type": "integer", "minimum": 0 },
+    "adjustment": { "type": "string", "enum": ["raw", "split", "dividend", "all"] },
+    "provenance": { "$ref": "common.schema.json#/$defs/Provenance" },
+    "is_provisional": { "type": "boolean", "description": "True while the session is still forming the bar" },
+    "asof_at": { "$ref": "common.schema.json#/$defs/UtcTimestamp" }
+  }
+}

@@ -1,0 +1,12 @@
+# Nightly snapshot of the Pi's local store. Rendered by scripts/apex-install.sh --with-backup-timer
+[Unit]
+Description=APEX nightly local backup
+
+[Service]
+Type=oneshot
+User=@USER@
+Environment=APEX_STATE_DIR=@STATE_DIR@
+EnvironmentFile=-@BACKUP_ENV@
+ExecStart=@REPO@/scripts/apex-backup.sh --pi
+Nice=15
+IOSchedulingClass=idle

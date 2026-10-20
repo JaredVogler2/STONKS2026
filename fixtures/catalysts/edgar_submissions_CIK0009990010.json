@@ -1,0 +1,50 @@
+{
+ "_fixture_note": "FICTIONAL delisted issuer whose ticker DMRX was later re-used by an unrelated company (CIK 0009990011).",
+ "cik": "9990010",
+ "entityType": "operating",
+ "name": "Demo Rx Legacy Corp",
+ "tickers": [],
+ "exchanges": [],
+ "formerNames": [],
+ "filings": {
+  "recent": {
+   "accessionNumber": [
+    "0009990010-20-000011",
+    "0009990010-21-000020"
+   ],
+   "filingDate": [
+    "2020-05-06",
+    "2021-06-25"
+   ],
+   "reportDate": [
+    "2020-05-06",
+    "2021-06-25"
+   ],
+   "acceptanceDateTime": [
+    "2020-05-06T16:10:00.000Z",
+    "2021-06-25T08:00:00.000Z"
+   ],
+   "form": [
+    "8-K",
+    "8-K"
+   ],
+   "items": [
+    "2.02,9.01",
+    "2.01,5.02,9.01"
+   ],
+   "primaryDocument": [
+    "dmrx-20200506.htm",
+    "dmrx-20210625.htm"
+   ],
+   "primaryDocDescription": [
+    "8-K",
+    "8-K"
+   ],
+   "size": [
+    30111,
+    52000
+   ]
+  },
+  "files": []
+ }
+}

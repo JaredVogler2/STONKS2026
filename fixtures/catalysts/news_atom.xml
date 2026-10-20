@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FICTIONAL Atom 1.0 newsroom feed. Invented issuers and headlines; copyright-safe test data. -->
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Demo Regulatory Newsroom (fictional)</title>
+  <id>urn:uuid:00000000-0000-4000-8000-000000000001</id>
+  <updated>2026-10-16T13:00:00Z</updated>
+  <link rel="self" href="https://newsroom.demo-regulator.example/atom.xml"/>
+  <entry>
+    <title>Demo Bio Four Receives FDA Approval for DMB-101 in Rare Kidney Disease</title>
+    <link rel="alternate" href="https://newsroom.demo-regulator.example/releases/2026/10/dmb-101-approval"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000101</id>
+    <published>2026-10-16T13:00:00Z</published>
+    <updated>2026-10-16T13:05:00Z</updated>
+  </entry>
+  <entry>
+    <title type="html">Demo Bio Four receives &lt;em&gt;Complete Response Letter&lt;/em&gt; for DMB-202</title>
+    <link href="https://newsroom.demo-regulator.example/releases/2026/09/dmb-202-crl?utm_source=atom"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000102</id>
+    <published>2026-09-30T20:10:00-04:00</published>
+  </entry>
+  <entry>
+    <title>Demo Semiconductor One to Acquire Example Photonics in $1.2 Billion Deal</title>
+    <link rel="alternate" href="https://newsroom.demo-regulator.example/filings/2026/10/dmsemi1-photonics"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000103</id>
+    <published>2026-10-05T11:00:00Z</published>
+  </entry>
+  <entry>
+    <title>Demo Bank Two Lowers 2026 Net Interest Income Outlook</title>
+    <link rel="alternate" href="https://newsroom.demo-regulator.example/filings/2026/10/dmbank2-outlook"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000104</id>
+    <updated>2026-10-02T21:30:00Z</updated>
+  </entry>
+  <entry>
+    <title>Demo Networks Five settles patent lawsuit with rival</title>
+    <link rel="alternate" href="https://newsroom.demo-regulator.example/filings/2026/10/dmnewnm-settlement"/>
+    <id>urn:uuid:00000000-0000-4000-8000-000000000105</id>
+    <published>2026-10-08T14:15:00Z</published>
+  </entry>
+</feed>

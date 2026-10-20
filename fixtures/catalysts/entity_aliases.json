@@ -1,0 +1,12 @@
+{
+  "schema": "apex.entity_aliases/1",
+  "note": "FICTIONAL issuers. 'ambiguous_names' are common words that only resolve when qualified (corporate suffix, cashtag or exchange mention).",
+  "companies": [
+    {"symbol": "DMSEMI1", "cik": "0009990001", "names": ["Demo Semiconductor One", "DemoSemi One"]},
+    {"symbol": "DMBANK2", "cik": "0009990002", "names": ["Demo Bank Two"]},
+    {"symbol": "DMLOG3", "cik": "0009990003", "names": ["Beacon Logistics"], "ambiguous_names": ["Beacon"]},
+    {"symbol": "DMBIO4", "cik": "0009990004", "names": ["Demo Bio Four"]},
+    {"symbol": "DMNEWNM", "cik": "0009990005", "names": ["Demo Networks Five"]},
+    {"symbol": "DMRX", "cik": "0009990011", "names": ["Demo Rx Therapeutics"]}
+  ]
+}

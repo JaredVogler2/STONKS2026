@@ -1,0 +1,10 @@
+{
+  "schema": "apex.ticker_alias_spans/1",
+  "note": "FICTIONAL demo issuers. valid_to is inclusive. A ticker may map to different CIKs over non-overlapping date ranges.",
+  "spans": [
+    {"ticker": "DMRX", "cik": "0009990010", "valid_from": "2018-01-02", "valid_to": "2021-06-30", "title": "Demo Rx Legacy Corp", "note": "delisted after acquisition; ticker retired"},
+    {"ticker": "DMRX", "cik": "0009990011", "valid_from": "2023-02-01", "valid_to": null, "title": "Demo Rx Therapeutics Inc", "note": "unrelated company re-used the ticker"},
+    {"ticker": "DMOLDNM", "cik": "0009990005", "valid_from": null, "valid_to": "2025-04-30", "title": "Demo Old Name Inc", "note": "renamed"},
+    {"ticker": "DMNEWNM", "cik": "0009990005", "valid_from": "2025-05-01", "valid_to": null, "title": "Demo Networks Five Inc", "note": "new ticker after rename"}
+  ]
+}
