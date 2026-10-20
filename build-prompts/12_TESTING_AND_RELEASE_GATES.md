@@ -1,5 +1,11 @@
 # PHASE 12 — Complete security, correctness, financial research and reliability validation
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
+**Additional required test suite:** end-to-end GitHub-hosted training to private signed registry to unattended Pi refresh (mock credentials in DEMO), unchanged champion after failed candidate, corrupted/unsigned artifact rejection, concurrent promotion suppression, GitHub cron missed-run detection, quota exhaustion graceful degradation, Pi offline catchup, no GitHub Actions PR secret exposure, no arbitrary pickle deserialization, verified no recurring laptop steps. Include measured minutes and version checks.
+
 ## Agent mission
 
 Act as an independent QA lead and hostile reviewer. Challenge assumptions, test cross-system behavior, verify empirically derived claims, inspect security, correct root causes and prepare **real release evidence**. This is not a checkbox-only review.
