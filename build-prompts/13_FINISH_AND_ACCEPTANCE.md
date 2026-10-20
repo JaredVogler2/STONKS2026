@@ -1,5 +1,11 @@
 # PHASE 13 — Assemble, validate, ship and hand over APEX
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
+**Release gate amendment:** APEX is NOT complete unless routine heavy retraining, quality-gated model promotion, private artifact distribution, Pi signature verification/atomic activation, self-recovery and rollback work without any laptop. Demonstrate and document the full cloud-runner-to-Pi round trip; state unverified stages if not executed. The model release/health UI shows last/next training, active/challenger, cost quotas and failure notices.
+
 ## Objective
 
 Integrate all preceding phases into a full, deployable, reliable, secure, aesthetically strong application. A coding agent must DO the work, not summarize what a human could code. Use the versioned contracts, runnable tests and documentation as source of truth.
