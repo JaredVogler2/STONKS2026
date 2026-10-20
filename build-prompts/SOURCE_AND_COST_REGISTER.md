@@ -1,5 +1,9 @@
 # Verified sources, quotas and licensing constraints — as of 2026-10-20
 
+## Mandatory amendment — October 20, 2026: Laptop-free training
+
+**This amendment supersedes any earlier suggestion that a personal laptop is needed for model retraining or manual Pi model deployment.** Read and implement [Autonomous cloud training amendment](AMENDMENT_2026-10-20_AUTONOMOUS_CLOUD_TRAINING.md). GitHub-hosted Actions runs recurring model training/evaluation, a private versioned model registry stores approved artifacts, and Raspberry Pi autonomously verifies, loads and rolls back models. Integrate into existing work without restarting or overwriting it. Required implementation: Phase 06 train/validation; Phase 11 deployment/refresh; Phase 12 chaos/security; Phase 13 laptop-free E2E acceptance. Offline DEMO must work without accounts. All model promotion must satisfy honest point-in-time/OOS risk and calibration gates; $0 recurring is contingent on quota.
+
 This is a **research register**, not a permanent guarantee. Agent: on deployment, verify terms and limits directly from official providers and record date + URL; never assume a historical price is valid today.
 
 | Service | Use | Free plan and meaningful constraint | Policy |
@@ -41,7 +45,7 @@ This is a **research register**, not a permanent guarantee. Agent: on deployment
 ## Free-tier preservation strategy
 
 - Broad end-of-day/day-delayed scanning, bounded active subscriptions, capped fetches.
-- Python Pi crunches features locally; heavy training on a personal laptop then models copied to Pi.
+- Python Pi crunches features locally; GitHub-hosted Actions performs scheduled CPU-heavy retraining within shared free-minute quotas; signed approved model artifacts are automatically fetched and activated on Pi. No personal laptop required for ongoing operation.
 - One cached quote per symbol feeds all members.
 - Supabase retains signals, critical snapshots, position events and audit only; local Parquet compressed bars with rotate/backup.
 - Dedup repeated alerts and exponentially back off APIs.
