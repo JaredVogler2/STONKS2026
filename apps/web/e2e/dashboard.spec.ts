@@ -20,7 +20,9 @@ test.describe("owner dashboard (DEMO)", () => {
       await expect(page.getByText("DEMO replay.").first()).toBeVisible();
       await expect(page.locator("main h1")).toBeVisible();
       await noHorizontalOverflow(page);
-      await page.screenshot({ path: info.outputPath(`${path === "/" ? "home" : path.slice(1)}.png`), fullPage: false });
+      // caret "initial": the default "hide" writes inline caret-color styles into inputs, which React reports as a
+      // hydration mismatch when the shot lands before a slow page (Settings) has hydrated
+      await page.screenshot({ path: info.outputPath(`${path === "/" ? "home" : path.slice(1)}.png`), fullPage: false, caret: "initial" });
     }
     expect(errors).toEqual([]);
   });
