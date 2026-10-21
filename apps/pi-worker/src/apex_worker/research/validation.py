@@ -2,7 +2,7 @@
 
 * The last `holdout_fraction` of decision dates is set aside BEFORE any fitting or threshold choice.
 * Development folds roll forward: train on everything before the test block whose label window ends
-  at least `embargo_sessions` business days before the test block starts (purging overlapping 20-session
+  at least `embargo_sessions` exchange sessions before the test block starts (purging overlapping 20-session
   labels), predict the block out of sample.
 * Thresholds are chosen on development OOS predictions only, then applied once to the holdout.
 """
@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
+from apex_worker.market.calendar import MarketCalendar, OutOfCalendarRange, default_calendar
 from apex_worker.research import metrics as M
 from apex_worker.research.model import CompetingModel, train
 
@@ -77,8 +78,22 @@ def _fit(train_df: pd.DataFrame, features: tuple[str, ...], cfg: ValidationConfi
     )
 
 
+def embargo_limit(test_start: pd.Timestamp, embargo: int, cal: MarketCalendar | None = None) -> pd.Timestamp:
+    """The exchange session `embargo` trading sessions before `test_start` (APEX-004: sessions, not weekdays, so a
+    holiday never shortens the embargo). Outside the pinned calendar (very old fixtures) it falls back to weekdays."""
+    cal = cal or default_calendar()
+    day = pd.Timestamp(test_start).date()
+    try:
+        for _ in range(embargo):
+            day = cal.previous_session(day)
+    except OutOfCalendarRange:
+        return test_start - pd.tseries.offsets.BDay(embargo)
+    return pd.Timestamp(day)
+
+
 def _purge(train_df: pd.DataFrame, test_start: pd.Timestamp, embargo: int) -> pd.DataFrame:
-    limit = test_start - pd.tseries.offsets.BDay(embargo)
+    """Keep training events whose label window (exit, or decision if unfilled) ends before the embargo limit."""
+    limit = embargo_limit(test_start, embargo)
     ends = train_df["exit_date"].fillna(train_df["decision_date"])
     return train_df[ends < limit]
 
