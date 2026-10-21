@@ -1,6 +1,14 @@
 # Real-equity execution status (Phase 14 / Issue #6)
 
-**Status (2026-10-21): PENDING FIRST REAL RUN. No real-equity backtest has been completed, and none is claimed.**
+**Status (2026-10-21 11:09Z): BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING.** The first real run was dispatched on `main` and
+stopped before any download, because the Alpaca secrets are not configured. No real-equity backtest has been completed, and
+none is claimed.
+
+## Attempted real runs (every attempt is recorded, including blocked ones)
+
+| Run | Commit | Experiment id | Outcome | Details |
+|---|---|---|---|---|
+| [39589850123](https://github.com/JaredVogler2/STONKS2026/actions/runs/39589850123) (job 119187791407), 2026-10-21 11:09:25–11:09:47Z | `7ee224c` (main, PR #7 merge) | `2026-10-21-fixed78-sip-8y` (alpaca, 8 years, fixed78) | **BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING**, exit 2 | Minutes checkpoint passed: 480 of 1500 minutes worst case, measured usage unknown. `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` were empty, so no provider request was made, no data was downloaded, no synthetic fallback ran and no strategy was evaluated. Artifact `apex-realeq-39589850123-1` (id 12341355551, sha256 `ac2b17f1…`, 7 days) holds the seven BLOCKED-status files only. |
 
 ## Ready, verified offline
 
@@ -13,11 +21,13 @@
 
 ## Not yet run (blockers)
 
-1. **The workflow is not on the default branch yet.** GitHub can only dispatch a `workflow_dispatch` workflow that exists on the default branch. The first real run is possible only after the implementation PR merges.
-2. **The Alpaca secrets in the `real-equities-research` environment are unverified.**
+1. ~~The workflow is not on the default branch yet.~~ Resolved: PR #7 merged at `7ee224c`, and the workflow dispatches from `main`.
+2. **The Alpaca secrets are not configured.** Run 39589850123 confirmed this: both values were empty in the `real-equities-research` job.
    - The coding agent cannot read repository secrets and has no Alpaca credentials in its container.
    - By policy it did not use, and will not use, any connected-tool (e.g. ChatGPT Alpaca connector) credential.
-   - If the secrets are absent, the run stops with **BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING**. It runs no synthetic fallback, and its execution log and job summary say so.
+   - Without the secrets the run stops with **BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING**, as run 39589850123 did. It runs no synthetic fallback, and its execution log and job summary say so.
+   - GitHub normally creates a referenced environment automatically on first use, with no protection rules. Check that
+     `real-equities-research` is restricted to `main` before you add the secrets.
    - One-time setup: [PROTOCOL.md §8](PROTOCOL.md#8-owner-one-time-setup-github-ui-only-no-laptop-no-pi).
 
 Steps NOT run: the real SIP download, the real data-quality inventory, the real H1–H8 and baseline evaluation, the portfolio, the dispositions, and publication of a real experiment directory.
