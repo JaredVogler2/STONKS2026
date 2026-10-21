@@ -30,10 +30,26 @@ actually run in the build container, not estimates. Release-level evidence is in
 | 06 research revision, 10 a11y | `32cb60f` | promotion-policy-2 (permutation gate), WCAG AA tokens and axe suite, ADRs 0001–0009, README | pytest, Playwright + axe |
 | Amendment + Pi connected mode | `2bf2819` | GitHub training/drift/release workflows, release CLI, history cache, CI; Pi agent client, pairing, worker runtime, model sync, connected bot, replay scenarios | pytest (3.11 and 3.13), vitest, actionlint, secret scan |
 | 13 research docs | `efbb6cf` | BACKTEST_REPORT, DEMO seed under policy-2, worst-case Actions forecast, Python release CLI round trip against the real routes | vitest (opt-in `APEX_PY_E2E=1`), Playwright |
+| 12 CI fix | `2890d4e` | web CI job installs uv for the contracts drift check (first GitHub CI run had failed) | GitHub CI green: 4/4 jobs |
+| 11 amendment: short-lived credentials | `c044a0f` | GitHub OIDC as the second factor on the release identity | 20 unit + route tests on PGlite and Postgres (local RSA key only) |
+| 12 cross-language | `88910a1` | real Pi worker against the real agent routes (`pi-agent.test.ts`, opt-in) | 9/9 on PGlite and Postgres |
+| 12 dependencies, flake | `fcc0b54` | vitest 4.1.11 / ajv 8.18.0 (audit: 3 critical → 0); e2e screenshot no longer races hydration | Playwright 17/17 twice |
+| 12 characterization | `84aa547` | levels, Quality and assessment rules pinned (48 tests); `assessment.py` coverage 25 % → 97 % | pytest |
+| amendments/ P0 | `bd3dbdf` | **APEX-001** train/live feature parity (shared assembler, fail-closed), **APEX-002** unsupported interval removed | parity test over 228 pairs; retrain byte-identical |
+| amendments/ P1 | `fc5b8c9` | **APEX-004** embargo counted in NYSE sessions | 8 holiday-boundary tests; ≤ 2 extra purged rows, no gate change |
+| policy bug | `18224ee` | open-per-sector cap counted sectorless names under a different key | reproduced (fails on the old line), fixed |
+| 13 report | (this commit) | TESTING_AND_METHODOLOGY_REPORT, METHODOLOGY_REFERENCE, TEST_EVIDENCE_MATRIX, RELEASE_AUDIT, `bench/level_study.py` | see RELEASE_AUDIT |
 
-Commits up to `3931e12` were merged to `main` through
-[JaredVogler2/STONKS2026#1](https://github.com/JaredVogler2/STONKS2026/pull/1) (merge `de754cd`). Later commits go out
-in [JaredVogler2/STONKS2026#3](https://github.com/JaredVogler2/STONKS2026/pull/3), which merges cleanly with `main`.
+Merged to `main`:
+- through `3931e12` via [JaredVogler2/STONKS2026#1](https://github.com/JaredVogler2/STONKS2026/pull/1) (merge `de754cd`);
+- through `2890d4e` via [JaredVogler2/STONKS2026#3](https://github.com/JaredVogler2/STONKS2026/pull/3);
+- through `18224ee` via [JaredVogler2/STONKS2026#4](https://github.com/JaredVogler2/STONKS2026/pull/4) (merge `4823a8a`).
+
+The owner's `amendments/` audit program (merged as PR #2) was read from `main`. Its Prompt A asks the in-flight agent to reproduce
+suspected P0 findings and fix confirmed ones minimally. APEX-001 and APEX-002 were confirmed and fixed; APEX-004 was fixed;
+the rest are tracked in [TESTING_AND_METHODOLOGY_REPORT.md](TESTING_AND_METHODOLOGY_REPORT.md) §7, together with new
+findings APEX-011 to APEX-026. This session's permission guard refused `git merge` and `git checkout -B` onto `main`, so
+the working branch keeps its already-merged history and adds new commits on top; each follow-up PR merges cleanly.
 
 ## Amendment 2026-10-20: laptop-free cloud training
 
@@ -84,7 +100,8 @@ the GitHub budget to $0 so a quota overrun stops jobs instead of billing.
 - Real-data training has never run.
 - The full cloud-runner-to-Pi round trip is demonstrated only in pieces:
   - the Python release CLI against the real release routes (`tests/integration/python-cli.test.ts`);
-  - the Pi model sync against the Python fake API and the replay scenarios.
+  - the Pi model sync against the Python fake API and the replay scenarios;
+  - the real Pi worker against the real agent routes (`tests/integration/pi-agent.test.ts`).
 
   It has never been demonstrated end to end on live infrastructure.
 
@@ -100,6 +117,12 @@ the GitHub budget to $0 so a quota overrun stops jobs instead of billing.
 | Dashboard colours failed WCAG AA contrast; the loading skeleton used a prohibited ARIA attribute | axe-core in Playwright | token changes, underlined inline links, `role="status"` |
 | `node --test tests/` failed on Node 22 for the contracts package | CI dry run | glob pattern |
 | "Run Training Now" sent only `reason`, so its runs were recorded as owner GitHub-UI runs | workflow input review | sends `source` and `requested_by=admin` |
+| Live model inputs differed from training: `squeeze_prev` always None, rounded regime probabilities (APEX-001) | amendment register; parity test over 228 pairs | one shared assembler, fail-closed (`bd3dbdf`) |
+| Per-alert "intervals" were binomial SEs of the holdout count (APEX-002) | amendment register; code review | removed; "interval not established" (`bd3dbdf`) |
+| Embargo counted weekdays, so holidays shortened it (APEX-004) | amendment register | NYSE sessions (`fc5b8c9`) |
+| Open-per-sector cap ignored sectorless names (`None` vs `"unknown"` key) | methodology audit | same key (`18224ee`) |
+| Web CI job had no `uv` for the contracts drift check | first GitHub CI run | setup-uv + locked sync (`2890d4e`) |
+| Intermittent e2e hydration mismatch | Playwright 2/2 reproduction | screenshot `caret: "initial"` (`fcc0b54`) |
 
 ## Next tasks (owner)
 

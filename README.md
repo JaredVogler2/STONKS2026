@@ -34,7 +34,8 @@ Everything in DEMO is synthetic (fictional `DM*` tickers) and labelled as such.
 
 - Members: [docs/README_USER.md](docs/README_USER.md)
 - Owner/operator: [docs/README_OPERATOR.md](docs/README_OPERATOR.md), [raspberry-pi/08_APEX_UPGRADE.md](raspberry-pi/08_APEX_UPGRADE.md), [docs/ADMIN_SETTINGS.md](docs/ADMIN_SETTINGS.md), [docs/PI_WORKER.md](docs/PI_WORKER.md), [docs/AUTONOMOUS_TRAINING.md](docs/AUTONOMOUS_TRAINING.md) (cloud retraining), [docs/DISCORD_BOT.md](docs/DISCORD_BOT.md)
-- Method and evidence: [docs/RISK_MODEL.md](docs/RISK_MODEL.md), [docs/BACKTEST_REPORT.md](docs/BACKTEST_REPORT.md)
+- Method and evidence: [docs/RISK_MODEL.md](docs/RISK_MODEL.md), [docs/BACKTEST_REPORT.md](docs/BACKTEST_REPORT.md), [docs/METHODOLOGY_REFERENCE.md](docs/METHODOLOGY_REFERENCE.md) (every formula and constant)
+- For research and refinement agents: [docs/TESTING_AND_METHODOLOGY_REPORT.md](docs/TESTING_AND_METHODOLOGY_REPORT.md), [docs/TEST_EVIDENCE_MATRIX.md](docs/TEST_EVIDENCE_MATRIX.md)
 - Safety: [docs/SECURITY.md](docs/SECURITY.md), [docs/COST_AND_QUOTAS.md](docs/COST_AND_QUOTAS.md)
 - Status: [docs/RELEASE_AUDIT.md](docs/RELEASE_AUDIT.md), [docs/IMPLEMENTATION_LOG.md](docs/IMPLEMENTATION_LOG.md), [docs/adr/](docs/adr/README.md)
 
