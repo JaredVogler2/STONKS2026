@@ -20,4 +20,4 @@ _None completed yet._
 
 ## Pending run
 
-- [Phase 14 tracking issue](../issues) — verify the issue number and link once the execution task is created.
+- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6) — open coding-agent work request; real-data backtest results are not yet produced.
