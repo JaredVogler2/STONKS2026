@@ -1,6 +1,6 @@
 # APEX Empirical Research Results — Central Register
 
-**Current status (2026-10-21):** Awaiting first complete REAL-equity strategy experiment. Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
+**Current status (2026-10-21):** Awaiting first complete REAL-equity strategy experiment (first attempt BLOCKED: Alpaca secrets not configured). Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
 
 The coding agent's execution contract is [Phase 14 — Real Equity Validation](../build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md).
 
@@ -24,4 +24,4 @@ _None completed yet._
 
 ## Pending run
 
-- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6). The pipeline, workflow and frozen protocol are implemented and tested offline. The first real run waits for (1) the workflow to reach `main` and (2) the owner's `real-equities-research` Alpaca secrets. Without those secrets it reports BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING. Real-data backtest results are **not yet produced**.
+- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6). The pipeline, workflow and frozen protocol are implemented and tested offline. The workflow is on `main`. The first dispatch, [run 39589850123](https://github.com/JaredVogler2/STONKS2026/actions/runs/39589850123) (2026-10-21), stopped with **BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING**: no data was downloaded and no strategy was evaluated. Real-data backtest results are **not yet produced**. They wait for the owner's `real-equities-research` Alpaca secrets ([setup](real-equities/PROTOCOL.md#8-owner-one-time-setup-github-ui-only-no-laptop-no-pi)).
