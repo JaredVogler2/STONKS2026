@@ -49,15 +49,22 @@ def test_least_privilege_timeouts_and_pinned_actions(name):
     assert wf["permissions"] == {"contents": "read"}, "top-level token must be read-only"
     raw = (WF_DIR / name).read_text()
     assert "pull_request_target" not in raw and "write-all" not in raw
+    # the only write scope anywhere is id-token (the GitHub OIDC second factor), and only on model-release jobs
+    oidc = {"contents": "read", "id-token": "write"}
     for job_id, job in wf["jobs"].items():
+        perms = job.get("permissions")
         if "uses" in job:  # reusable workflow call: local file only, and it sets its own timeouts
             assert job["uses"].startswith("./.github/workflows/")
-            assert job.get("permissions") == {"contents": "read"}
+            assert perms == (oidc if name in MODEL_WORKFLOWS else {"contents": "read"})
             continue
         assert isinstance(job.get("timeout-minutes"), int), f"{name}:{job_id} needs timeout-minutes"
         assert job["runs-on"].startswith("ubuntu-"), "standard hosted Linux runners only"
-        perms = job.get("permissions")
-        assert perms in (None, {"contents": "read"})
+        if name in MODEL_WORKFLOWS:
+            assert job.get("environment") == "model-release" and perms == oidc, f"{name}:{job_id}"
+        else:
+            assert perms in (None, {"contents": "read"})
+    if name == "ci.yml":
+        assert "id-token" not in raw, "untrusted PR code must never mint OIDC tokens"
     for _, _, step in steps(wf):
         uses = step.get("uses")
         if uses and not uses.startswith("./"):

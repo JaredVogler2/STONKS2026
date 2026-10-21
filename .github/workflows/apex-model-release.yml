@@ -52,6 +52,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: model-release
+    # id-token: write lets this job mint the short-lived GitHub OIDC token the release API requires on top of the HMAC
+    # (bound to this repo, the model-release environment and main; docs/AUTONOMOUS_TRAINING.md). Nothing else may write.
+    permissions:
+      contents: read
+      id-token: write
     # Standalone dispatches serialise with weekly training on apex-model-registry (acceptance test I). When called from
     # the weekly train, that caller run already holds the group, so the nested job uses a per-caller group instead
     # (re-using the caller's group would be a concurrency deadlock).
@@ -70,6 +75,7 @@ jobs:
       APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
       APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
       APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      APEX_RELEASE_OIDC_AUDIENCE: ${{ vars.APEX_RELEASE_OIDC_AUDIENCE }}
       ACTION: ${{ inputs.action }}
       MODEL_IDS: ${{ inputs.model_ids }}
       REASON: ${{ inputs.reason }}

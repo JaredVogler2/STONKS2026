@@ -19,7 +19,7 @@ Internet ──► Vercel Authentication (outer lock, all deployments)
               └─► Next.js proxy: bypass header only on signed machine routes
                     ├─► owner routes: Discord OAuth session + CSRF checks
                     ├─► agent routes: HMAC (shared secret) + paired device + nonce + clock window
-                    └─► release routes: separate release HMAC identity
+                    └─► release routes: separate release HMAC identity + single-use GitHub OIDC token
                           └─► Postgres `apex` schema (not exposed by Supabase Data API), RLS on every table
 Raspberry Pi: outbound connections only (Discord gateway, Vercel API, Alpaca, SEC); no listening ports
 GitHub Actions: release credentials only in a protected Environment, never available to pull-request code
@@ -41,7 +41,8 @@ GitHub Actions: release credentials only in a protected Environment, never avail
 | Personal updates posted publicly | DM-only routing enforced at ingestion, DB constraint (no rendered body for DMs), bot refuses personal kinds on channels; DM-blocked updates are held privately | `ingest.ts`, outbox CHECKs, `discord_bot/delivery.py` | bot tests; `server.test.ts` outbox controls |
 | Tampered research record | Signals are immutable revisions (hash), event tables are append-only by trigger, audit rows cannot be deleted | migration triggers | `server.test.ts` "event tables are append-only" |
 | Malicious or corrupt model | Ed25519-signed manifest (trusted public keys only), SHA-256 and size checks, JSON-only models (never pickle), feature-schema compatibility, atomic swap and rollback on the Pi, frozen promotion gates on the server | `services/models.ts`, `models/manifest.py`, `models/sync.py` | `server.test.ts` "model registry"; Python registry and sync tests |
-| CI release credentials stolen by a pull request | Release secrets only in the protected `model-release` Environment on `main`; `permissions: contents: read`; actions pinned to SHAs | `.github/workflows/*` | actionlint; workflow review |
+| CI release credentials stolen by a pull request | Release secrets only in the protected `model-release` Environment on `main`; `permissions: contents: read` (plus `id-token: write` only on model-release jobs, never in `ci.yml`); actions pinned to SHAs | `.github/workflows/*` | actionlint; `tests/test_release_workflows.py` |
+| Leaked release HMAC secret used from outside CI | Short-lived second factor: every release request needs a fresh GitHub OIDC token (RS256, GitHub's keys) bound to `APEX_RELEASE_GITHUB_REPOSITORY`, environment `model-release`, `refs/heads/main`, a `schedule`/`workflow_dispatch` run and an `apex-model-*` workflow file; each `jti` is accepted once. Required outside DEMO (503 until configured); `APEX_RELEASE_OIDC=off` is an explicit, logged escape hatch | `security/oidc.ts`, `http/route.ts`, `release/client.py` | `tests/unit/oidc.test.ts`, `tests/integration/release-oidc.test.ts`, `test_release_client.py` (locally signed tokens only; not yet tested against real GitHub tokens) |
 | Pi compromised over the network | No inbound ports; systemd sandboxing (ProtectSystem=strict, NoNewPrivileges, read-only home except state dir); env file mode 600 | `deploy/systemd/*.service.in` | `scripts/apex-doctor.sh` port and permission checks |
 | Lost or stolen Pi | Revoke the device in Settings (immediate 403); rotate `AGENT_HMAC_SECRET` (with `_PREVIOUS` overlap); re-pair; the device key never leaves the Pi | dashboard; `agents.ts` | integration tests (revoked device) |
 | Formula injection in CSV exports | Cells starting with `= + - @` are prefixed | `explorer.ts`, positions export | code review |
@@ -62,6 +63,6 @@ GitHub Actions: release credentials only in a protected Environment, never avail
 | `APEX_SESSION_SECRET` | Replace it. All sessions end; sign in again. |
 | `APEX_CONFIG_ENCRYPTION_KEY` | Set the new key, bump `_VERSION`, move the old key to `_PREVIOUS`, re-save integrations, remove `_PREVIOUS`. |
 | `AGENT_HMAC_SECRET` | Set the new one in Vercel with the old one as `_PREVIOUS`, update the Pi env, restart, then drop `_PREVIOUS`. |
-| `APEX_RELEASE_HMAC_SECRET` | Same pattern; update the GitHub Environment secret. |
+| `APEX_RELEASE_HMAC_SECRET` | Same pattern; update the GitHub Environment secret. A leaked value alone cannot call the release API (the OIDC factor), but rotate it anyway. |
 | Model signing key | Generate a new key version (`apex keygen`), add its public key to `APEX_MODEL_TRUSTED_KEYS` and the Pi, switch the GitHub secret, remove the old public key once no champion uses it. |
 | Discord bot token | Reset it in the Developer Portal, update the Pi env, `sudo systemctl restart apex-discord-bot`. |

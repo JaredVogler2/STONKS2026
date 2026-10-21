@@ -3,12 +3,15 @@ import type { Db } from "../db";
 import { serverEnv } from "../env";
 import { HttpError } from "../http/responses";
 import { NONCE_TTL_SECONDS, verifySignedRequest, type SignedHeaders } from "../security/hmac";
+import type { ReleaseOidcClaims } from "../security/oidc";
 import { securityEvent } from "./audit";
 
 export interface AgentIdentity {
   agentId: string;
   status: "active" | "pending_approval" | "release";
   skewSeconds: number;
+  /** release identity only: the verified GitHub OIDC claims (null when not required, e.g. DEMO without a token) */
+  oidc?: ReleaseOidcClaims | null;
 }
 
 export interface AgentAuthOptions {

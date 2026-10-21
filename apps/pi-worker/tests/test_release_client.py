@@ -133,3 +133,87 @@ def test_localhost_http_allowed_and_repr_masks_secret():
     cfg = ReleaseConfig.from_env(ENV | {"APEX_RELEASE_URL": "http://127.0.0.1:3000"})
     text = repr(cfg)
     assert "***" in text and ENV["APEX_RELEASE_HMAC_SECRET"] not in text and "SECRET" not in text.upper().replace("SECRET=***", "")
+
+
+# ---- GitHub Actions OIDC (short-lived second factor) ----------------------------------------------------------------
+OIDC_ENV = ENV | {
+    "ACTIONS_ID_TOKEN_REQUEST_URL": "https://pipelines.example.test/idtoken?api-version=2.0",
+    "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "runner-request-token",  # TEST-ONLY
+}
+
+
+def _jwt(n: int) -> str:
+    return f"eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiI{n}In0.sig{n}"
+
+
+def test_oidc_token_is_fetched_fresh_for_every_attempt_and_sent_with_the_hmac():
+    issued, sent = [], []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.host == "pipelines.example.test":
+            assert req.headers["authorization"] == "bearer runner-request-token"
+            assert req.url.params["audience"] == "apex-release" and req.url.params["api-version"] == "2.0"
+            issued.append(_jwt(len(issued)))
+            return httpx.Response(200, json={"value": issued[-1]})
+        verify(req)
+        sent.append(req.headers["x-apex-oidc"])
+        if len(sent) == 1:
+            return httpx.Response(503, json={"error": {"code": "BUSY", "message": "retry"}})
+        return httpx.Response(200, json={"mode": "LIVE"})
+
+    with make(handler, OIDC_ENV) as c:
+        assert c.policy() == {"mode": "LIVE"}
+        c.report_run({"workflow": "drift"})
+    assert sent == issued and len(set(sent)) == 3  # retry and each call carried its own single-use token
+    assert c.oidc_tokens == 3 and c.requests == 3
+
+
+def test_oidc_custom_audience_and_no_token_outside_actions():
+    seen = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.host == "pipelines.example.test":
+            seen.append(req.url.params["audience"])
+            return httpx.Response(200, json={"value": _jwt(1)})
+        seen.append(req.headers.get("x-apex-oidc"))
+        return httpx.Response(200, json={})
+
+    with make(handler, OIDC_ENV | {"APEX_RELEASE_OIDC_AUDIENCE": "apex-prod"}) as c:
+        c.policy()
+    with make(handler) as c:  # local / DEMO: no runner token service, nothing sent
+        c.policy()
+    with make(handler, ENV | {"ACTIONS_ID_TOKEN_REQUEST_URL": "https://pipelines.example.test/idtoken"}) as c:  # half a pair
+        c.policy()
+    assert seen == ["apex-prod", _jwt(1), None, None]
+
+
+def test_oidc_failures_are_explicit_and_never_leak_the_token():
+    def refusing(req: httpx.Request) -> httpx.Response:
+        if req.url.host == "pipelines.example.test":
+            return httpx.Response(403, json={"message": "no id-token permission"})
+        raise AssertionError("the release API must not be called without a token")
+
+    with make(refusing, OIDC_ENV) as c, pytest.raises(ReleaseError) as e:
+        c.policy()
+    assert e.value.code == "OIDC_TOKEN_UNAVAILABLE" and "id-token: write" in e.value.message
+
+    calls = []
+
+    def flaky(req: httpx.Request) -> httpx.Response:
+        if req.url.host == "pipelines.example.test":
+            calls.append(1)
+            if len(calls) == 1:
+                raise httpx.ConnectError("reset")
+            if len(calls) == 2:
+                return httpx.Response(200, json={"value": "not-a-jwt"})
+        return httpx.Response(200, json={})
+
+    with make(flaky, OIDC_ENV) as c, pytest.raises(ReleaseError) as e:
+        c.policy()  # transport error is retried; a malformed token is not
+    assert e.value.code == "OIDC_TOKEN_UNAVAILABLE" and "malformed" in e.value.message and len(calls) == 2
+
+    cfg = ReleaseConfig.from_env(OIDC_ENV)
+    assert "runner-request-token" not in repr(cfg) and "oidc=github-actions" in repr(cfg)
+    for bad in ({"ACTIONS_ID_TOKEN_REQUEST_URL": "http://pipelines.example.test/idtoken"}, {"APEX_RELEASE_OIDC_AUDIENCE": "bad aud!"}):
+        with pytest.raises(ReleaseConfigError):
+            ReleaseConfig.from_env(OIDC_ENV | bad)
