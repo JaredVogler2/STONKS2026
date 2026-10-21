@@ -24,6 +24,7 @@ from apex_worker.models.store import ActiveModel
 from apex_worker.research.dataset import MODEL_FEATURES
 from apex_worker.signals.levels import LEVELS_VERSION, LevelConfig, Levels, compute_levels, dec_str
 from apex_worker.signals.lifecycle import signal_id_for
+from apex_worker.signals.model_features import assemble
 from apex_worker.timeutil import iso_utc, parse_utc
 
 POLICY_VERSION = "policy-1"
@@ -62,29 +63,20 @@ class PolicyOutcome:
         return [d.signal for d in self.decisions if d.signal]
 
 
-def model_row(cand: dict, lv: Levels) -> dict:
-    f = cand["_internal"]["features"]
-    g = cand.get("group_scores") or {}
-    atr = cand["_internal"].get("atr") or f.get("atr_14") or 0
-    regime = cand["_internal"].get("regime_probabilities") or {}
-    return {
-        "setup_score": cand["_internal"].get("setup_score"),
-        "quality": cand["quality_score"],
-        **{f"g_{k}": g.get(k) for k in ("price", "sector", "volume", "volatility", "regime", "catalyst")},
-        "atr_pct_14": f.get("atr_pct_14"),
-        "rs_bench_20": f.get("rs_bench_20"),
-        "rel_volume_1": f.get("rel_volume_1"),
-        "squeeze_prev": None,
-        "dist_sma20_atr": f.get("dist_sma20_atr"),
-        "regime_p_trending_up": regime.get("trending_up"),
-        "regime_p_risk_off": regime.get("risk_off"),
-        "rr_net": lv.reward_to_risk_net,
-        "stop_dist_atr": (lv.mid - lv.stop) / atr if atr else None,
-        "earnings_unknown": 1.0 if cand["_internal"].get("earnings_status") == "UNKNOWN" else 0.0,
-    }
+def model_row(cand: dict, lv: Levels) -> dict | None:
+    """The live model input vector, built by the same assembler as the training rows (APEX-001).
+
+    None when the candidate does not carry the unrounded row inputs (built by an older engine): no forecast is better
+    than one computed on an imputed vector."""
+    i = cand["_internal"]
+    inputs = i.get("model_inputs")
+    if inputs is None:
+        return None
+    return assemble(inputs, i.get("setup_score"), cand["quality_score"], cand.get("group_scores") or {}, lv,
+                    i.get("earnings_status") == "UNKNOWN")
 
 
-def confidence_block(model: ActiveModel | None, row: dict, now_iso: str, release_mode: str) -> tuple[dict, dict | None]:
+def confidence_block(model: ActiveModel | None, row: dict | None, now_iso: str, release_mode: str) -> tuple[dict, dict | None]:
     if model is None:
         return {
             "status": "UNVALIDATED",
@@ -105,24 +97,29 @@ def confidence_block(model: ActiveModel | None, row: dict, now_iso: str, release
             "model_data_source": man.get("data_source", "none"),
             "calibration_version": man["model_id"],
         }, None
+    if row is None:  # fail closed: never forecast on a vector that could differ from training (APEX-001)
+        return {
+            "status": "UNVALIDATED",
+            "label": "UNVALIDATED - model input vector unavailable",
+            "model_data_source": man.get("data_source", "none"),
+            "calibration_version": man["model_id"],
+        }, None
     p = model.model.predict([{k: row.get(k) for k in MODEL_FEATURES}])[0]
     n = int(ev.get("holdout_n") or 0)
-    se = (p[0] * (1 - p[0]) / max(n, 1)) ** 0.5
-    lo80, hi80 = max(0.0, p[0] - 1.2816 * se), min(1.0, p[0] + 1.2816 * se)
-    lo95, hi95 = max(0.0, p[0] - 1.96 * se), min(1.0, p[0] + 1.96 * se)
-    label = ("Calibrated" if status == "CALIBRATED" else "EXPERIMENTAL") + (
-        " (SYNTHETIC DEMO MODEL)" if man.get("data_source") == "synthetic_fixture" else ""
-    )
+    # APEX-002: no per-alert interval. A binomial band from the holdout count treats a fitted per-stock forecast as an
+    # iid sample proportion and ignores parameter, calibration, dependence and regime uncertainty, so it would be false
+    # precision. Intervals stay unset (and are not rendered) until a block-bootstrap interval with measured coverage on
+    # held-out data exists; sample_count is the plain holdout size, not an effective sample size.
+    label = ("Calibrated estimate" if status == "CALIBRATED" else "EXPERIMENTAL estimate") + (
+        " (interval not established)"
+    ) + (" (SYNTHETIC DEMO MODEL)" if man.get("data_source") == "synthetic_fixture" else "")
     conf = {
         "status": status,
         "label": label[:80],
         "p_target_first": round(float(p[0]), 4),
         "p_stop_first": round(float(p[1]), 4),
         "p_expire": round(float(p[2]), 4),
-        "interval_80": [round(lo80, 4), round(hi80, 4)],
-        "interval_95": [round(lo95, 4), round(hi95, 4)],
         "sample_count": n,
-        "effective_sample_size": float(n),
         "calibration_version": man["model_id"],
         "model_data_source": man.get("data_source", "none"),
     }

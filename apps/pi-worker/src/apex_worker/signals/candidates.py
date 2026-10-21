@@ -22,6 +22,7 @@ from apex_worker.features.panel import FeaturePanel, sector_context
 from apex_worker.features.regime import REGIME_STATES
 from apex_worker.market.calendar import MarketCalendar, default_calendar
 from apex_worker.signals.context import context_frame, decision_instant
+from apex_worker.signals.model_features import row_inputs
 from apex_worker.signals.quality import QUALITY_VERSION, quality
 from apex_worker.signals.strategies.library import Strategy, enabled_strategies
 from apex_worker.timeutil import iso_utc
@@ -369,6 +370,7 @@ class CandidateEngine:
                 validate("SignalCandidate", cand)
                 cand["_internal"] = {
                     "features": values,
+                    "model_inputs": row_inputs(row),  # unrounded, for the shared model-vector assembler
                     "setup_score": setup,
                     "coverage": q.coverage,
                     "penalties": q.penalties,
