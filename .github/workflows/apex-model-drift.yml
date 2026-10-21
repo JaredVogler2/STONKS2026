@@ -85,10 +85,22 @@ jobs:
           cache-dependency-glob: apps/pi-worker/uv.lock
       - name: Install (locked, runtime only)
         run: uv sync --locked --no-dev
+      - name: Preflight (production registry configured?)
+        id: preflight
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # No network: PRODUCTION_REGISTRY_UNCONFIGURED => scheduled runs skip every registry step (job summary says
+          # so); manual runs fail. Authentication is unchanged: the registry steps still need HMAC + GitHub OIDC.
+          extra=()
+          if [ "$EVENT" != "schedule" ]; then extra+=(--fail-when-unconfigured); fi
+          uv run --no-sync apex release preflight --github-output "${extra[@]}"
       - name: Release policy
+        if: steps.preflight.outputs.configured == 'true'
         run: uv run --no-sync apex release policy --out "$APEX_OUT/policy.json"
       - name: Budget gate (optional job)
         id: budget
+        if: steps.preflight.outputs.configured == 'true'
         run: |
           set +e
           uv run --no-sync apex budget check --job drift --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/budget.json" --github-output
@@ -96,6 +108,7 @@ jobs:
           set -e
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
       - name: Missed-run status of the scheduled workflows
+        if: steps.preflight.outputs.configured == 'true'
         continue-on-error: true
         run: uv run --no-sync apex release sla --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/sla.json"
       - name: Restore history cache
@@ -142,7 +155,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
       - name: Report drift run
-        if: always()
+        if: always() && steps.preflight.outputs.configured == 'true'
         env:
           JOB_STATUS: ${{ job.status }}
           PROCEED: ${{ steps.budget.outputs.proceed }}

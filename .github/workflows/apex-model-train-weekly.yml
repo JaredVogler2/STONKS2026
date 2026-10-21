@@ -109,11 +109,23 @@ jobs:
           cache-dependency-glob: apps/pi-worker/uv.lock
       - name: Install (locked, runtime only)
         run: uv sync --locked --no-dev
+      - name: Preflight (production registry configured?)
+        id: preflight
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          # No network: PRODUCTION_REGISTRY_UNCONFIGURED => scheduled runs skip every registry step (job summary says
+          # so); manual runs fail. Authentication is unchanged: the registry steps still need HMAC + GitHub OIDC.
+          extra=()
+          if [ "$EVENT" != "schedule" ]; then extra+=(--fail-when-unconfigured); fi
+          uv run --no-sync apex release preflight --github-output "${extra[@]}"
       - name: Release policy (mode, promotion policy, budget, month usage)
         id: policy
+        if: steps.preflight.outputs.configured == 'true'
         run: uv run --no-sync apex release policy --out "$APEX_OUT/policy.json" --github-output
       - name: Budget gate
         id: budget
+        if: steps.preflight.outputs.configured == 'true'
         run: |
           set +e
           uv run --no-sync apex budget check --job train --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/budget.json" --github-output
@@ -181,7 +193,7 @@ jobs:
           uv run --no-sync apex release upload --dir "$APEX_OUT/run" --policy "$APEX_OUT/policy.json" \
             --out "$APEX_OUT/upload.json" --github-output
       - name: Report training run
-        if: always()
+        if: always() && steps.preflight.outputs.configured == 'true'
         env:
           JOB_STATUS: ${{ job.status }}
           PROCEED: ${{ steps.budget.outputs.proceed }}

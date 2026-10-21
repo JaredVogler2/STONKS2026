@@ -313,6 +313,7 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--code-sha", default="local")
     from apex_worker.release.cli import add_history_args
     from apex_worker.release.cli import register as register_release_commands
+    from apex_worker.research.realeq.cli import register as register_research_commands
 
     add_history_args(tr)  # --history-cache/--history-years/--history-feed/--history-max-requests (alpaca source)
     tr.set_defaults(func=cmd_train)
@@ -356,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
     ms.add_argument("--apply", action="store_true")
     ms.set_defaults(func=cmd_migrate_starter)
     register_release_commands(sub)  # CI: `apex release ...`, `apex drift`, `apex budget check`
+    register_research_commands(sub)  # research only: `apex research real-equities`, `apex research budget-check`
     return p
 
 

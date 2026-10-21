@@ -109,7 +109,9 @@ def build_events(
     earnings: dict[str, list[str]] | None = None,
     symbols: list[str] | None = None,
     progress: Callable[[str], None] | None = None,
+    funnel: dict[str, dict[str, int]] | None = None,
 ) -> pd.DataFrame:
+    """`funnel`, when given, counts per strategy how many sessions reached each stage (research reports)."""
     cats = list(catalysts)
     rows: list[dict] = []
     for symbol in sorted(symbols or panel.features):
@@ -138,6 +140,13 @@ def build_events(
             trig = strat.trigger_frame(ctx)
             fire = trig["trigger"] & ok & window
             regime_ok = ctx["regime_label"].isin(list(strat.spec.allowed_regimes))
+            stage = None
+            if funnel is not None:
+                stage = funnel.setdefault(
+                    strat.strategy_id, {"triggered": 0, "gate_eligible": 0, "quality_scored": 0, "levels_valid": 0}
+                )
+                stage["triggered"] += int((trig["trigger"].fillna(False).astype(bool) & window).sum())
+                stage["gate_eligible"] += int(fire.sum())
             for t in np.flatnonzero(fire.to_numpy()):
                 row = ctx.iloc[t]
                 setup = float(trig["setup_score"].iloc[t])
@@ -149,6 +158,8 @@ def build_events(
                 )
                 if q.score is None:
                     continue
+                if stage is not None:
+                    stage["quality_scored"] += 1
                 lv = compute_levels(
                     float(row["close"]),
                     float(row["atr_14"]),
@@ -158,6 +169,8 @@ def build_events(
                 )
                 if not isinstance(lv, Levels):
                     continue
+                if stage is not None:
+                    stage["levels_valid"] += 1
                 res = simulate(o, h, low, c, t, lv.entry_min, lv.entry_max, lv.stop, lv.target, spec.execution)
                 rec = {
                     "symbol": symbol,
@@ -180,6 +193,9 @@ def build_events(
                     "return_net": res.return_net,
                     "return_gross": res.return_gross,
                     "r_multiple": res.r_multiple,
+                    "entry_price": res.entry_price,
+                    "exit_price": res.exit_price,
+                    "dollar_vol_med_20": float(row["dollar_vol_med_20"]),
                     "mfe": res.mfe,
                     "mae": res.mae,
                     "sessions_held": res.sessions_held,

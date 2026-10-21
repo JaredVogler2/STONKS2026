@@ -255,7 +255,9 @@ class AlpacaAdapter:
                 )
         return out
 
-    async def get_corporate_actions(self, symbols: list[str], start: date, end: date) -> list[dict] | None:
+    async def get_corporate_actions(
+        self, symbols: list[str], start: date, end: date, types: str = "forward_split,reverse_split,cash_dividend"
+    ) -> list[dict] | None:
         try:
             data = await self._get(
                 f"{DATA_BASE}/v1beta1/corporate-actions",
@@ -263,7 +265,7 @@ class AlpacaAdapter:
                     "symbols": ",".join(symbols[:BATCH]),
                     "start": start.isoformat(),
                     "end": end.isoformat(),
-                    "types": "forward_split,reverse_split,cash_dividend",
+                    "types": types,
                 },
                 Priority.OPTIONAL,
             )
