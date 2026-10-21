@@ -103,7 +103,10 @@ def walk_forward(
     features: tuple[str, ...],
     cfg: ValidationConfig = ValidationConfig(),
     shuffle_labels: bool = False,
+    holdout_start: pd.Timestamp | None = None,
 ) -> WalkForwardResult:
+    """`holdout_start` freezes the holdout boundary on the calendar (real-equity protocol); default: the last
+    `holdout_fraction` of this event set's decision dates."""
     ev = events[events["filled"]].sort_values("decision_date").reset_index(drop=True)
     if shuffle_labels:
         rng = np.random.default_rng(cfg.seed)
@@ -112,7 +115,9 @@ def walk_forward(
     dates = np.sort(ev["decision_date"].unique())
     if len(dates) < 10:
         return WalkForwardResult([], pd.DataFrame(), pd.DataFrame(), pd.NaT, None)
-    holdout_start = pd.Timestamp(dates[int(len(dates) * (1 - cfg.holdout_fraction))])
+    if holdout_start is None:
+        holdout_start = pd.Timestamp(dates[int(len(dates) * (1 - cfg.holdout_fraction))])
+    holdout_start = pd.Timestamp(holdout_start)
     dev = ev[ev["decision_date"] < holdout_start]
     holdout = ev[ev["decision_date"] >= holdout_start].copy()
     dev_dates = np.sort(dev["decision_date"].unique())

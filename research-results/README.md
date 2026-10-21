@@ -4,6 +4,10 @@
 
 The coding agent's execution contract is [Phase 14 — Real Equity Validation](../build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md).
 
+- Frozen experiment protocol: [real-equities/PROTOCOL.md](real-equities/PROTOCOL.md) (`realeq-protocol-1`).
+- Execution status and blockers: [real-equities/EXECUTION_STATUS.md](real-equities/EXECUTION_STATUS.md).
+- Runner: `apex research real-equities`. Workflow: `.github/workflows/apex-real-equities-research.yml` (manual, `main` only, research only).
+
 ## Publication rules
 
 - Each genuine experiment belongs in `real-equities/<experiment_id>/`, with `manifest.json`, `data_quality.json`, `strategy_metrics.json`, `comparisons.md`, `recommendations.md` and `execution_log.md`.
@@ -20,4 +24,4 @@ _None completed yet._
 
 ## Pending run
 
-- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6) — open coding-agent work request; real-data backtest results are not yet produced.
+- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6). The pipeline, workflow and frozen protocol are implemented and tested offline. The first real run waits for (1) the workflow to reach `main` and (2) the owner's `real-equities-research` Alpaca secrets. Without those secrets it reports BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING. Real-data backtest results are **not yet produced**.

@@ -19,6 +19,13 @@ runs on GitHub-hosted runners, Vercel, Supabase and the Pi.
 | `.github/workflows/apex-model-train-weekly.yml` | Monday 19:17 America/New_York + `workflow_dispatch` | 45 min (train step 30) | `model-release` env | registers candidates |
 | `.github/workflows/apex-model-release.yml` | `workflow_dispatch` + `workflow_call` (from weekly train when AUTO) | 10 min | `model-release` env | promote / rollback |
 | `.github/workflows/apex-model-drift.yml` | weekdays 20:23 America/New_York + `workflow_dispatch` | 10 min (drift step 7) | `model-release` env (no signing key) | no (reports a `drift` run) |
+| `.github/workflows/apex-real-equities-research.yml` | `workflow_dispatch` only (Phase 14) | 30 min (research step 25) | `real-equities-research` env: Alpaca market-data keys only | **never** (research only; no id-token) |
+
+**Registry preflight.** Drift and weekly training first run `apex release preflight` (no network). If the `model-release`
+environment has none of `APEX_RELEASE_URL` / `APEX_RELEASE_AGENT_ID` / `APEX_RELEASE_HMAC_SECRET`, it reports
+`PRODUCTION_REGISTRY_UNCONFIGURED` in the job summary: scheduled runs then skip every registry step (and finish without
+touching the registry), manual runs fail. A partial or malformed configuration always fails. HMAC + OIDC authentication is
+unchanged. Real-equity research needs none of this ([research-results/real-equities/PROTOCOL.md](../research-results/real-equities/PROTOCOL.md)).
 
 The weekly train runs: budget gate → current champions → bounded, incremental, checksummed history → train → sign → evidence → register → report.
 
@@ -38,6 +45,7 @@ Python commands (all in `apps/pi-worker`, `apex_worker/release/`):
 
 | Command | Purpose |
 |---|---|
+| `apex release preflight` | no network: `PRODUCTION_REGISTRY_UNCONFIGURED` / `_MISCONFIGURED` / `CONFIGURED` from which names are set |
 | `apex release policy` | deployment mode, `models.policy`, `budgets`, this month's measured minutes, last run per workflow |
 | `apex release champions [--verify]` | champion summaries for `apex train --champions`; `--verify` re-checks registry checksums/signatures |
 | `apex release upload --dir DIR` | register signed candidates (promotable only by default; DEMO models never sent to a live registry) |

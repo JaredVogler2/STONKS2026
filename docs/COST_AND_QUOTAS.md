@@ -20,6 +20,9 @@ Network egress (Pi): ≈ 12.6 MB/day, far below any home connection limit.
 Notes
 - Limits marked ASSUMED or "verify" change over time; check the linked page before relying on them. Nothing in APEX upgrades a plan automatically.
 - GitHub Actions minutes are shared with every private repository and workflow on the account; the weekly job skips optional work when the configured budget is low.
+- `apex-real-equities-research` (Phase 14) is manual-only and not part of the scheduled worst case above: each run costs
+  at most 30 minutes (job timeout) and about 16–20 Alpaca requests for 8 years of fixed78 daily bars. Its pre-fetch
+  checkpoint skips the run when the scheduled worst case plus 30 minutes would exceed `APEX_ACTIONS_MONTHLY_BUDGET`.
 - Supabase Free pauses after inactivity; the Pi keeps its spool and the dashboard reports the outage. Resume the project from the Supabase dashboard.
 - Market data shown to other Discord members can be subject to redistribution terms even when the API itself is free (compliance switch ALLOW_EXTERNAL_MARKET_DATA_REDISPLAY stays OFF by default).
 

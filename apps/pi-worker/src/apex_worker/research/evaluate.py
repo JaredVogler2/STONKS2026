@@ -105,11 +105,12 @@ def evaluate_strategy(
     policy: PromotionPolicy = PromotionPolicy(),
     vcfg: ValidationConfig = ValidationConfig(),
     bias_warnings: list[str] | None = None,
+    holdout_start: pd.Timestamp | None = None,
 ) -> tuple[StrategyReport, WalkForwardResult]:
     ev = events[events["strategy_id"] == strategy_id].copy()
-    wf = walk_forward(ev, features, vcfg)
+    wf = walk_forward(ev, features, vcfg, holdout_start=holdout_start)
     shuffled_runs = [
-        walk_forward(ev, features, replace(vcfg, seed=vcfg.seed + i), shuffle_labels=True)
+        walk_forward(ev, features, replace(vcfg, seed=vcfg.seed + i), shuffle_labels=True, holdout_start=holdout_start)
         for i in range(max(1, policy.shuffle_permutations))
     ]
     shuffled = shuffled_runs[0]

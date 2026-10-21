@@ -87,6 +87,53 @@ def _trusted():
     return trusted_keys_from_env(os.environ.get("APEX_MODEL_TRUSTED_KEYS"))
 
 
+# ---- apex release preflight ------------------------------------------------------------------------------------
+REGISTRY_UNCONFIGURED = "PRODUCTION_REGISTRY_UNCONFIGURED"
+
+
+def cmd_preflight(args) -> int:
+    """No network. Is the production release registry configured for this job's environment?
+
+    * none of APEX_RELEASE_URL / _AGENT_ID / _HMAC_SECRET set -> PRODUCTION_REGISTRY_UNCONFIGURED: configured=false and
+      exit 0 (the workflow then skips every registry step), or exit 2 with --fail-when-unconfigured (manual runs);
+    * set but incomplete or malformed -> configuration error, exit 2 (someone started configuring: fail loudly);
+    * valid -> configured=true. Authentication (HMAC + GitHub OIDC) is unchanged: this only reads which names are set.
+    """
+    from apex_worker.release.client import ENV_AGENT, ENV_SECRET, ENV_URL, ReleaseConfig, ReleaseConfigError
+
+    names = (ENV_URL, ENV_AGENT, ENV_SECRET)
+    present = [n for n in names if (os.environ.get(n) or "").strip()]
+    body: dict = {"names_checked": list(names), "present": present}
+    if not present:
+        body |= {"configured": False, "status": REGISTRY_UNCONFIGURED,
+                 "detail": "the `model-release` GitHub Environment has no release-registry secrets; registry steps skipped",
+                 "remediation": "docs/AUTONOMOUS_TRAINING.md: deploy the dashboard + Supabase registry, create the "
+                 "`model-release` environment (main only) with APEX_RELEASE_URL, APEX_RELEASE_AGENT_ID and "
+                 "APEX_RELEASE_HMAC_SECRET. Real-equity research does not need any of this "
+                 "(apex-real-equities-research.yml)."}
+        rc = EXIT_CONFIG if args.fail_when_unconfigured else 0
+    else:
+        try:
+            ReleaseConfig.from_env()
+            body |= {"configured": True, "status": "CONFIGURED"}
+            rc = 0
+        except ReleaseConfigError as exc:
+            body |= {"configured": False, "status": "PRODUCTION_REGISTRY_MISCONFIGURED", "detail": str(exc)}
+            rc = EXIT_CONFIG
+    _write_json(args.out, body)
+    github_output({"configured": body["configured"], "registry_status": body["status"]}, args.github_output)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary and not body["configured"]:
+        with open(summary, "a", encoding="utf-8") as fh:
+            fh.write(f"## {body['status']}\n\n{body['detail']}\n\n{body.get('remediation', '')}\n")
+    if not body["configured"]:
+        level = "error" if rc else "warning"
+        print(f"::{level} title={body['status']}::{body['detail']}" if os.environ.get("GITHUB_ACTIONS")
+              else f"{body['status']}: {body['detail']}", file=sys.stderr)
+    print(json.dumps(body, sort_keys=True))
+    return rc
+
+
 # ---- apex train --source alpaca support -----------------------------------------------------------------------
 def alpaca_loader_from_env(args):
     """(loader, info) for `apex train --source alpaca`; credentials come from ALPACA_KEY_ID / ALPACA_SECRET_KEY."""
@@ -567,6 +614,10 @@ def register(sub) -> None:
             p.add_argument("--policy", help="policy JSON from `apex release policy --out` (else fetched)")
             p.add_argument("--offline", action="store_true", help="never call the release API for policy")
 
+    pf = rs.add_parser("preflight", help="no network: report PRODUCTION_REGISTRY_UNCONFIGURED before any registry call")
+    common(pf)
+    pf.add_argument("--fail-when-unconfigured", action="store_true", help="exit 2 instead of skipping (manual runs)")
+    pf.set_defaults(func=cmd_preflight)
     po = rs.add_parser("policy", help="deployment mode, promotion policy, budgets, month usage, last runs")
     common(po)
     po.set_defaults(func=cmd_policy)
