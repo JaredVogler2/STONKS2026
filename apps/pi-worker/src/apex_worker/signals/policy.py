@@ -193,7 +193,7 @@ class SignalPolicy:
             if not isinstance(lv, Levels):
                 out.decisions.append(PolicyDecision(cand["id"], cand["symbol"], "REJECTED", [lv.code]))
                 continue
-            sector = internal.get("sector")
+            sector = internal.get("sector") or "unknown"  # the key published signals carry in risk.sector
             if open_by_sector.get(sector, 0) + new_by_sector.get(sector, 0) >= self.cfg.max_open_per_sector:
                 out.decisions.append(PolicyDecision(cand["id"], cand["symbol"], "REJECTED", ["SECTOR_EXPOSURE_CAP"]))
                 continue
