@@ -23,6 +23,7 @@ from apex_worker.research.execution import ExecConfig, simulate
 from apex_worker.signals.candidates import EXCLUDED_INSTRUMENTS, GateConfig
 from apex_worker.signals.context import context_frame
 from apex_worker.signals.levels import LevelConfig, Levels, compute_levels
+from apex_worker.signals.model_features import assemble, row_inputs
 from apex_worker.signals.quality import quality
 from apex_worker.signals.strategies.library import Strategy
 
@@ -96,22 +97,8 @@ def earnings_within_series(
 
 
 def _row_features(row: pd.Series, setup: float, q, lv: Levels, earnings_unknown: bool) -> dict:
-    atr = float(row["atr_14"])
-    return {
-        "setup_score": setup,
-        "quality": q.score,
-        **{f"g_{k}": v for k, v in q.groups.items()},
-        "atr_pct_14": row.get("atr_pct_14"),
-        "rs_bench_20": row.get("rs_bench_20"),
-        "rel_volume_1": row.get("rel_volume_1"),
-        "squeeze_prev": row.get("squeeze_prev"),
-        "dist_sma20_atr": row.get("dist_sma20_atr"),
-        "regime_p_trending_up": row.get("regime_p_trending_up"),
-        "regime_p_risk_off": row.get("regime_p_risk_off"),
-        "rr_net": lv.reward_to_risk_net,
-        "stop_dist_atr": (lv.mid - lv.stop) / atr if atr > 0 else None,
-        "earnings_unknown": 1.0 if earnings_unknown else 0.0,
-    }
+    # the same assembler as live signals (signals/model_features.py): training/serving parity, APEX-001
+    return assemble(row_inputs(row), setup, q.score, q.groups, lv, earnings_unknown)
 
 
 def build_events(

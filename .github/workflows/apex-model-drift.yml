@@ -46,6 +46,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: model-release
+    # id-token: write lets this job mint the short-lived GitHub OIDC token the release API requires on top of the HMAC
+    # (bound to this repo, the model-release environment and main; docs/AUTONOMOUS_TRAINING.md). Nothing else may write.
+    permissions:
+      contents: read
+      id-token: write
     defaults:
       run:
         shell: bash
@@ -57,6 +62,7 @@ jobs:
       APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
       APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
       APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      APEX_RELEASE_OIDC_AUDIENCE: ${{ vars.APEX_RELEASE_OIDC_AUDIENCE }}
       PYTHONHASHSEED: "0"
       TZ: UTC
     steps:

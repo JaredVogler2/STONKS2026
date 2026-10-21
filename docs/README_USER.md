@@ -27,7 +27,7 @@ APEX is a private research assistant that lives in your Discord server.
 | **Research setup (not high-conviction)** | The pattern matched, but APEX has **no tested evidence** that this kind of setup works. Treat it as something to study. |
 | **Quality 80/100 (NOT a probability)** | A ranking against other setups that day. A higher number is a cleaner match, **not** a higher chance of success. |
 | **UNVALIDATED: no calibrated probability** | No model has passed out-of-sample testing for this strategy, so APEX states no odds. |
-| **Calibrated probability 58 % (interval 51–65 %)** | Only shown after a model passed strict out-of-sample tests. It is the historical rate at which similar setups reached the target before the stop. It is still not a promise. |
+| **Calibrated estimate (interval not established): P(target before stop) = 58 %** | Only shown after a model passed strict out-of-sample tests. It is the model's estimate of how often similar setups reached the target before the stop. APEX shows no ± range because it has not yet measured one honestly. It is still not a promise. |
 | **Entry zone / Stop / Target** | The planned buy range, the level where the idea is invalid, and the planned profit level. Gaps can jump past a stop: **it is not a guaranteed exit price.** |
 | **Quote … (age 12 min)** | Where the price came from and how old it is. Old prices are labelled; APEX does not pretend a stale price is current. |
 | **DEMO** | Fictional practice data (tickers starting with `DM`). Not real stocks. |

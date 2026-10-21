@@ -132,11 +132,11 @@ def confidence_text(conf: dict) -> str:
     if conf["status"] == "UNVALIDATED" or conf.get("p_target_first") is None:
         return "**UNVALIDATED** - no calibrated probability (insufficient out-of-sample evidence)"
     p = conf["p_target_first"]
-    lo, hi = conf.get("interval_80") or [None, None]
+    lo, hi = conf.get("interval_80") or [None, None]  # only ever set by a validated interval method (APEX-002)
     rng = f" (80% interval {lo:.0%}-{hi:.0%})" if lo is not None else ""
     return (
         f"{conf['label']}: P(target before stop within horizon) = **{p:.0%}**{rng}; "
-        f"n={conf.get('sample_count', 0)} out-of-sample; model {conf.get('calibration_version', '?')}"
+        f"holdout n={conf.get('sample_count', 0)}; model {conf.get('calibration_version', '?')}"
     )
 
 

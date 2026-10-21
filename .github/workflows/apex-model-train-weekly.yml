@@ -66,6 +66,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: model-release
+    # id-token: write lets this job mint the short-lived GitHub OIDC token the release API requires on top of the HMAC
+    # (bound to this repo, the model-release environment and main; docs/AUTONOMOUS_TRAINING.md). Nothing else may write.
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       promotion_mode: ${{ steps.upload.outputs.promotion_mode }}
       registered_count: ${{ steps.upload.outputs.registered_count }}
@@ -81,6 +86,7 @@ jobs:
       APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
       APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
       APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      APEX_RELEASE_OIDC_AUDIENCE: ${{ vars.APEX_RELEASE_OIDC_AUDIENCE }}
       PYTHONHASHSEED: "0"
       TZ: UTC
     steps:
@@ -197,8 +203,10 @@ jobs:
     name: auto-promote (server promotion_mode=auto only)
     needs: train
     if: needs.train.outputs.promotion_mode == 'auto' && needs.train.outputs.registered_count != '' && needs.train.outputs.registered_count != '0'
+    # a called workflow can only narrow the caller's token: the nested release job needs id-token for its OIDC factor
     permissions:
       contents: read
+      id-token: write
     uses: ./.github/workflows/apex-model-release.yml
     with:
       action: promote

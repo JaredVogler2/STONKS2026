@@ -24,6 +24,9 @@ The full checklist with comments is [`apps/web/.env.example`](../apps/web/.env.e
 | `APEX_CONFIG_ENCRYPTION_KEY` (+ `_VERSION`, `_PREVIOUS`, `_PREVIOUS_VERSION`) | to store integrations | exactly 32 random bytes, base64; AES-256-GCM | see [SECURITY.md](SECURITY.md#secret-rotation-summary) |
 | `AGENT_HMAC_SECRET` (+ `_PREVIOUS`) | for the Pi | 32+ random bytes, base64; same value on the Pi | overlap with `_PREVIOUS` |
 | `APEX_RELEASE_HMAC_SECRET` (+ `_PREVIOUS`) | for cloud training | 32+ random bytes, base64; same value in the GitHub Environment | overlap with `_PREVIOUS` |
+| `APEX_RELEASE_GITHUB_REPOSITORY` | for cloud training outside DEMO | `owner/repo` whose `apex-model-*` workflows may call the release API (GitHub OIDC second factor) | — |
+| `APEX_RELEASE_GITHUB_REF` / `APEX_RELEASE_OIDC_AUDIENCE` | no | release branch (default `main`) / token audience (default `apex-release`) | — |
+| `APEX_RELEASE_OIDC` | no | `off` disables the OIDC factor (HMAC only, warning logged); only for a host that cannot issue GitHub OIDC tokens | — |
 | `APEX_MODEL_TRUSTED_KEYS` | for any model | `{"1":"<43-char base64url Ed25519 public key>"}` | add the new version, remove the old later |
 | `DISCORD_OAUTH_CLIENT_ID` / `_SECRET` | for owner sign-in | Discord application OAuth2 | Developer Portal → reset secret |
 | `APEX_OWNER_DISCORD_IDS` | for owner sign-in | comma-separated Discord user ids | edit |

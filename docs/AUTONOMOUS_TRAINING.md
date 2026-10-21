@@ -90,8 +90,11 @@ Choose a release identity such as `rel_ghactions01`: `rel_` followed by 8–32 l
      * `APEX_MODEL_TRUSTED_KEYS`: the public JSON. CI then re-verifies signatures locally and in the registry.
      * optional `APEX_MODEL_SIGNER_VERSION` (default 1).
      * optional `APEX_ACTIONS_MONTHLY_BUDGET`: overrides the dashboard budget.
+     * optional `APEX_RELEASE_OIDC_AUDIENCE`: only if you changed the audience on the Vercel side (default
+       `apex-release`).
 2. **Actions → General**
-   * *Workflow permissions*: **Read repository contents** (the workflows also declare `permissions: contents: read`).
+   * *Workflow permissions*: **Read repository contents**. The workflows declare `permissions: contents: read`, and
+     add `id-token: write` only on the jobs that call the release API (see §2.3, *Short-lived release credential*).
    * *Fork pull request workflows*: require approval for outside collaborators.
    * If your plan offers it, turn on *Require actions to be pinned to a full-length commit SHA*. Every action here is
      already SHA-pinned.
@@ -106,12 +109,46 @@ Production only — do not give Preview deployments the release secret:
 * `APEX_RELEASE_HMAC_SECRET_PREVIOUS`: only during a rotation.
 * `APEX_MODEL_TRUSTED_KEYS`: public. The server refuses candidates signed by any other key.
 * `APEX_MODE`.
+* `APEX_RELEASE_GITHUB_REPOSITORY`: `owner/repo` of this repository. **Required outside DEMO**: without it every
+  release call is refused with `503 RELEASE_OIDC_NOT_CONFIGURED`.
+* optional `APEX_RELEASE_GITHUB_REF` (default `main`) and `APEX_RELEASE_OIDC_AUDIENCE` (default `apex-release`).
+
+**Short-lived release credential (GitHub OIDC).** The release HMAC secret is long-lived, so it is not enough on its
+own. Every release request must also carry `x-apex-oidc`: a GitHub-issued OIDC token. The workflow job mints a fresh
+one per request (`permissions: id-token: write`); it lives minutes, and the server accepts each token once (its `jti`
+is burnt until it expires).
+
+The server verifies the token's RS256 signature against GitHub's published keys
+(`token.actions.githubusercontent.com`, cached 1 h; kept for up to 24 h if GitHub is unreachable). It then requires
+all of these:
+
+* issuer `https://token.actions.githubusercontent.com`;
+* audience `apex-release`;
+* `repository` = `APEX_RELEASE_GITHUB_REPOSITORY`;
+* `environment` = `model-release`;
+* `ref` = `refs/heads/main`;
+* event `schedule` or `workflow_dispatch`;
+* the job's workflow file is an `.github/workflows/apex-model-*.yml` of this repository on `main`;
+* lifetime ≤ 1 h, with ±60 s skew.
+
+A stolen HMAC secret therefore cannot call the release API from outside these workflows. A pull request cannot mint
+a matching token: `ci.yml` has no `id-token` permission, and PR runs have neither the environment nor `main`.
+
+Two exceptions to the requirement:
+
+* **DEMO.** The token is optional, so local replays and the DEMO seed work without GitHub. A token that *is* sent is
+  still verified.
+* **`APEX_RELEASE_OIDC=off`.** This is an explicit escape hatch for a host that cannot issue OIDC tokens. It falls back
+  to HMAC only and logs a warning. Do not set it on a GitHub-hosted setup.
+
+Each verified write is audited (`release.oidc_verified`, with run id, commit and workflow). Training-run rows take
+their run id, attempt and commit from the signed claims, not from the request body.
 
 The registry lives in Supabase Postgres:
 
 * `apex.model_versions` holds metadata and the signed manifest.
 * `apex.model_artifacts` holds the compact JSON artifact (≤ 2 MB, typically a few KB).
-* Both have RLS enabled. They are reachable only through the server, and the service-role key exists only in Vercel.
+* Both have RLS enabled. They are reachable only through the server: the database URL (`DATABASE_URL`) exists only in Vercel, and no Supabase API key (anon or service-role) is used at all.
 * Retention is champion + 2 other versions per strategy, pruned on promotion. That fits Supabase Free.
 * A Supabase Storage bucket is **not** used: the artifacts are small enough for Postgres. This is a deliberate
   simplification.
@@ -300,7 +337,10 @@ real runs report `minutes_used`. Storage:
   trigger, so PR code never meets release credentials. The `model-release` environment is restricted to `main`, and
   the jobs also check `github.ref` against the default branch.
 * Least privilege throughout:
-  * `permissions: contents: read` on every workflow and on the reusable call.
+  * `permissions: contents: read` on every workflow.
+  * The only write scope is `id-token: write`. It is on the train, drift and release jobs (and on the reusable call,
+    because a called workflow can only narrow its caller's token). It mints the short-lived OIDC token, not repository
+    access, and `ci.yml` never has it (asserted by `tests/test_release_workflows.py`).
   * `persist-credentials: false` on checkout.
   * Third-party actions are pinned to full commit SHAs, resolved with `git ls-remote` with annotated tags dereferenced:
     * `actions/checkout` v7.0.1;
@@ -318,6 +358,8 @@ real runs report `minutes_used`. Storage:
   * is never uploaded: artifacts contain only `report.json` / `summary.md` / `drift.*`, and tests assert it.
   * GitHub also masks secret values in logs.
 * Requests are signed with APEX-HMAC-SHA256-V1: a ±60 s window, single-use nonces, and the body hash.
+  * Every request also carries a fresh single-use GitHub OIDC token bound to this repository, `model-release`, `main`
+    and an `apex-model-*` workflow (§2.3). Verified locally with a test RSA key only; see §9.
   * The client never follows redirects.
   * The base URL must be `https://`.
   * Secrets are masked in `repr`.
@@ -361,7 +403,7 @@ What was verified in the development sandbox on 2026-10-20 (no GitHub runner, no
   on all four workflows. The only suppressed message is the documented `concurrency.queue` key.
 * **Workflow YAML** (`tests/test_release_workflows.py`, PyYAML), which checks:
   * parsing;
-  * read-only permissions;
+  * read-only permissions, except `id-token: write` on the model-release jobs and never in `ci.yml`;
   * timeouts on every job;
   * SHA pins with version comments;
   * no PR triggers on the model workflows;
@@ -375,7 +417,17 @@ What was verified in the development sandbox on 2026-10-20 (no GitHub runner, no
 * **Python tests**: client signing/retries/config, upload/acceptance D/report-run/promote, budget/DST/SLA,
   history download (full → reuse → incremental → corrupt → split re-adjustment → request budget), the Alpaca loader
   feeding `run_training`, and drift.
-* **Cross-language end to end** (scratch, outside the repository): the Python `apex` CLI against the real Next.js
+* **GitHub OIDC factor** (`apps/web/tests/unit/oidc.test.ts`, `tests/integration/release-oidc.test.ts`, Python
+  `tests/test_release_client.py`), with a locally generated RSA key and an injected key set:
+  * a valid token is accepted;
+  * these are rejected: wrong audience, issuer, repository, environment, ref or event; a non `apex-model-*`
+    workflow; expired, not-yet-valid or over-long tokens; `alg: none` / HS256; forged signatures; unknown key ids
+    (after one rate-limited refetch); replayed `jti`;
+  * missing token outside DEMO is 401; unconfigured repository is 503; a key-set outage with nothing cached is 503;
+    the `off` switch and DEMO-optional behaviour work;
+  * the Python client fetches a fresh token per attempt.
+* **Cross-language end to end** (`apps/web/tests/integration/python-cli.test.ts`, opt-in with `APEX_PY_E2E=1`): the
+  Python `apex` CLI against the real Next.js
   release route handlers on PGlite with the real migrations. The flow was:
   1. policy;
   2. budget;
@@ -393,6 +445,9 @@ What was verified in the development sandbox on 2026-10-20 (no GitHub runner, no
 **UNVERIFIED**:
 
 * any real GitHub Actions run;
+* a real GitHub OIDC token: the claim names and formats (`job_workflow_ref`, `environment`, `ref`, `event_name`) follow
+  GitHub's documentation but have only been tested with locally signed tokens. If a first real run is refused with
+  `RELEASE_OIDC_INVALID (<reason>)`, `apex.security_events` names the failing check;
 * the `model-release` environment and its secrets;
 * GitHub's acceptance of the `timezone` and `queue` keys in a live parse (both are documented, and actionlint accepts
   `timezone`);

@@ -84,7 +84,7 @@ The forecast is the probability that the target is touched **before** the stop w
 | Challenger vs champion | skill gain ≥ 0.005 |
 
 What each outcome produces:
-- **CALIBRATED.** Probabilities are shown with an interval (normal approximation from the holdout size), plus expected value in R after costs.
+- **CALIBRATED.** The probability is shown as a point estimate labelled *interval not established*, plus expected value in R after costs. A binomial band from the holdout count would treat a fitted per-stock forecast as an independent sample proportion and ignore parameter, calibration, dependence and regime uncertainty, so no interval is published until a block-bootstrap interval with measured coverage on held-out data exists (APEX-002).
 - **EXPERIMENTAL.** Shown for study only; never a high-conviction alert.
 - **UNVALIDATED.** No probability anywhere: not in Discord, not in the dashboard. The database enforces it with a CHECK constraint.
 
