@@ -94,7 +94,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
                 {res.rows.map((r) => (
                   <tr key={r.id} className="hover:bg-surface-2/60">
                     <Td className="font-medium">
-                      <Link href={`/signals/${r.id}`} className="text-info hover:underline">{r.symbol}</Link>
+                      <Link href={`/signals/${r.id}`} className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info">{r.symbol}</Link>
                       {r.is_demo && !ctx.isDemo ? <span className="ml-1.5"><DemoTag /></span> : null}
                       {r.revision > 1 ? <span className="ml-1 text-[11px] text-faint">r{r.revision}</span> : null}
                     </Td>

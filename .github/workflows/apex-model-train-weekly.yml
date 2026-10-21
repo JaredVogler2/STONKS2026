@@ -1,0 +1,207 @@
+# Weekly unattended model retraining on a standard GitHub-hosted Linux runner (laptop-free amendment, 2026-10-20).
+#
+#   budget gate -> champions -> bounded/incremental/checksummed history -> train (purged walk-forward, untouched holdout,
+#   isotonic calibration, frozen promotion policy, red-team controls) -> signed JSON candidates -> ephemeral evidence
+#   (report + summary only, 7 days) -> register with the private release API -> training-run report.
+#
+# * Never runs for pull_request (no PR code ever sees the `model-release` environment secrets) and only on the
+#   default branch: schedules always run there; a manual dispatch from another branch is skipped by the job `if`, and
+#   the environment's deployment-branch rule (main only) refuses the secrets anyway.
+# * A candidate that fails validation or does not beat the champion is never uploaded: the incumbent stays untouched.
+#   Promotion is the server's decision (frozen policy re-applied, DEMO/synthetic models can never become live champions).
+#   Default policy is MANUAL promotion; when the server reports promotion_mode=auto, the reusable
+#   apex-model-release.yml promotes the registered candidates (the server still refuses anything that fails the policy).
+# * The Ed25519 signing key is exposed ONLY to the train step's environment, is popped from the process environment
+#   after it is read, and is never written to disk, artifacts or logs (GitHub also masks secret values in logs).
+# * Max possible runtime: timeout-minutes 45 x up to 5 Mondays = 225 min/month (+10 x 5 for auto-release). See
+#   docs/AUTONOMOUS_TRAINING.md for the full minutes budget.
+#
+# Actions pinned to full commit SHAs (version in the trailing comment).
+name: apex-model-train-weekly
+
+on:
+  schedule:
+    # Monday 19:17 America/New_York: after the session close and the provider's bar finalisation, off the top of the hour
+    # (GitHub delays/drops more at :00). GitHub documents `timezone` (IANA name) for schedule entries:
+    # https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+    # so the wall-clock time stays 19:17 ET through DST (23:17 UTC in EDT, 00:17 UTC Tuesday in EST).
+    # Holiday Mondays still run: training uses completed sessions through the prior session (skipping would only make
+    # the model a week staler). Schedules are best effort; the dashboard/Pi missed-run detector covers drops.
+    - cron: "17 19 * * 1"
+      timezone: "America/New_York"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this manual run (recorded in the training-run report)"
+        required: true
+        type: string
+      source:
+        description: "Training data: auto = Alpaca history when keys exist, else the synthetic fixture (DEMO only)"
+        required: true
+        default: auto
+        type: choice
+        options: [auto, alpaca, synthetic]
+      requested_by:
+        description: "owner (GitHub UI) or admin (dashboard 'Run Training Now' dispatch)"
+        required: false
+        default: owner
+        type: choice
+        options: [owner, admin]
+
+permissions:
+  contents: read
+
+# One registry writer at a time (acceptance test I): weekly training and manual promote/rollback share this group and
+# never cancel each other; `queue: max` keeps every pending run instead of replacing it (documented by GitHub).
+concurrency:
+  group: apex-model-registry
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  train:
+    name: train
+    # default branch only: schedules always run there (their payload need not carry `repository`); dispatches are checked
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: model-release
+    outputs:
+      promotion_mode: ${{ steps.upload.outputs.promotion_mode }}
+      registered_count: ${{ steps.upload.outputs.registered_count }}
+      candidate_ids: ${{ steps.upload.outputs.candidate_ids }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RELEASE_URL: ${{ secrets.APEX_RELEASE_URL }}
+      APEX_RELEASE_AGENT_ID: ${{ secrets.APEX_RELEASE_AGENT_ID }}
+      APEX_RELEASE_HMAC_SECRET: ${{ secrets.APEX_RELEASE_HMAC_SECRET }}
+      APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
+      APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
+      APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Record start
+        id: start
+        working-directory: .
+        run: |
+          echo "at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+          echo "APEX_OUT=$RUNNER_TEMP/apex-train" >> "$GITHUB_ENV"
+          echo "APEX_HISTORY=$RUNNER_TEMP/apex-history" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-train"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Release policy (mode, promotion policy, budget, month usage)
+        id: policy
+        run: uv run --no-sync apex release policy --out "$APEX_OUT/policy.json" --github-output
+      - name: Budget gate
+        id: budget
+        run: |
+          set +e
+          uv run --no-sync apex budget check --job train --policy "$APEX_OUT/policy.json" --out "$APEX_OUT/budget.json" --github-output
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
+      - name: Current champions (frozen comparison baseline)
+        if: steps.budget.outputs.proceed == 'true'
+        run: uv run --no-sync apex release champions --out "$APEX_OUT/champions.json"
+      - name: Restore history cache
+        if: steps.budget.outputs.proceed == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-history
+          key: apex-history-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: apex-history-v1-
+      - name: Train, validate, calibrate, sign
+        id: train
+        if: steps.budget.outputs.proceed == 'true'
+        timeout-minutes: 30
+        env:
+          APEX_MODEL_SIGNING_KEY: ${{ secrets.APEX_MODEL_SIGNING_KEY }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          APEX_MODEL_SIGNER_VERSION: ${{ vars.APEX_MODEL_SIGNER_VERSION }}
+          REQUESTED_SOURCE: ${{ inputs.source || 'auto' }}
+        run: |
+          src="$REQUESTED_SOURCE"
+          if [ "$src" = "auto" ]; then
+            if [ -n "$ALPACA_KEY_ID" ] && [ -n "$ALPACA_SECRET_KEY" ]; then src=alpaca; else src=synthetic; fi
+          fi
+          echo "source_used=$src" >> "$GITHUB_OUTPUT"
+          if [ "$src" = "synthetic" ]; then
+            echo "::warning::Training on the SYNTHETIC fixture: DEMO-labelled evidence only; it can never become a live champion."
+          fi
+          uv run --no-sync apex train --source "$src" --sign --key-version "${APEX_MODEL_SIGNER_VERSION:-1}" \
+            --champions "$APEX_OUT/champions.json" --out "$APEX_OUT/run" --history-cache "$APEX_HISTORY"
+      - name: Save history cache
+        if: always() && steps.train.outputs.source_used == 'alpaca'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-history
+          key: apex-history-v1-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$APEX_OUT/run/summary.md" ]; then cat "$APEX_OUT/run/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f "$APEX_OUT/budget.json" ]; then
+            { echo; echo '```json'; cat "$APEX_OUT/budget.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload evidence (report + summary only, short retention)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-train-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apex-train/run/report.json
+            ${{ runner.temp }}/apex-train/run/summary.md
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Register candidates with the private registry
+        id: upload
+        if: steps.train.outcome == 'success'
+        run: |
+          uv run --no-sync apex release upload --dir "$APEX_OUT/run" --policy "$APEX_OUT/policy.json" \
+            --out "$APEX_OUT/upload.json" --github-output
+      - name: Report training run
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          PROCEED: ${{ steps.budget.outputs.proceed }}
+          STARTED_AT: ${{ steps.start.outputs.at }}
+          REASON: ${{ inputs.reason || 'scheduled weekly run' }}
+          REQUESTED_BY: ${{ inputs.requested_by || 'schedule' }}
+          REQUESTED_SOURCE: ${{ inputs.source || 'auto' }}
+          SOURCE_USED: ${{ steps.train.outputs.source_used }}
+        run: |
+          status="$JOB_STATUS"
+          if [ "$PROCEED" = "false" ]; then status=skipped_budget; fi
+          extra=()
+          if [ "$REQUESTED_BY" = "admin" ]; then extra+=(--trigger admin_dispatch); fi
+          uv run --no-sync apex release report-run --workflow train_weekly --status "$status" --started-at "$STARTED_AT" \
+            --dir "$APEX_OUT/run" --upload "$APEX_OUT/upload.json" --budget "$APEX_OUT/budget.json" \
+            --reason "$REASON" --source-requested "$REQUESTED_SOURCE" --source-used "${SOURCE_USED:-none}" "${extra[@]}"
+
+  promote:
+    name: auto-promote (server promotion_mode=auto only)
+    needs: train
+    if: needs.train.outputs.promotion_mode == 'auto' && needs.train.outputs.registered_count != '' && needs.train.outputs.registered_count != '0'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/apex-model-release.yml
+    with:
+      action: promote
+      model_ids: ${{ needs.train.outputs.candidate_ids }}
+      reason: "auto: weekly training run ${{ github.run_id }}"
+      caller_run_id: ${{ github.run_id }}

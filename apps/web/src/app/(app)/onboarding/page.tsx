@@ -97,7 +97,7 @@ export default async function OnboardingPage() {
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                 <div className="space-y-1.5 text-[13px]">
                   <div><span className="text-faint">Check: </span>{s.evidence}</div>
-                  <div><span className="text-faint">Next: </span>{s.next}{s.href ? <> <Link href={s.href} className="text-info hover:underline">Open →</Link></> : null}</div>
+                  <div><span className="text-faint">Next: </span>{s.next}{s.href ? <> <Link href={s.href} className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info">Open →</Link></> : null}</div>
                 </div>
                 <div className="flex flex-wrap items-start gap-2">
                   {s.doc.map((d) => (

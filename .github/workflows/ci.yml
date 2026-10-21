@@ -1,0 +1,120 @@
+# CI for pull requests and pushes to main. Runs untrusted PR code, so it has NO secrets, NO environment and a
+# read-only token. Release credentials live only in the `model-release` environment used by the apex-model-* workflows,
+# which never run for pull_request events.
+#
+# Third-party actions are pinned to full commit SHAs (version in the trailing comment), resolved with
+# `git ls-remote https://github.com/<owner>/<action> refs/tags/<tag>` (annotated tags dereferenced with ^{}).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Scanner unit tests
+        run: node --test scripts/secret-scan.test.mjs
+      - name: Scan tracked files
+        run: node scripts/secret-scan.mjs
+
+  node:
+    name: web + contracts (lint, typecheck, test, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0 (version from package.json packageManager)
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      # the contracts drift check regenerates the Pydantic models too (datamodel-codegen + ruff from the pi-worker dev group)
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install Python codegen tools (locked)
+        run: uv sync --locked --project apps/pi-worker
+      - name: Contracts codegen drift check
+        run: pnpm contracts:check
+      - name: Embedded migrations drift check
+        run: pnpm --filter @apex/web gen:check
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit + integration tests
+        run: pnpm test
+      - name: Build (DEMO mode, no secrets)
+        env:
+          APEX_MODE: DEMO
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: pnpm build
+
+  python:
+    name: pi-worker (ruff, pytest)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/pi-worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, all extras so the Discord + research tests run)
+        run: uv sync --locked --all-extras
+      - name: Ruff
+        run: uv run --no-sync ruff check src tests
+      - name: Pytest
+        run: uv run --no-sync pytest -q -p no:cacheprovider
+
+  workflow-lint:
+    name: workflow lint (actionlint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+      - name: actionlint (pinned PyPI build; uses the runner's shellcheck)
+        run: uv tool run --from actionlint-py==1.7.12.25 actionlint -color
+
+  # e2e (Playwright: 1440 px + 390 px journeys and axe WCAG checks) is run locally with `pnpm e2e` and is deliberately
+  # not a CI job: it roughly doubles the minutes per push, and the free Actions minutes are budgeted for the model
+  # workflows first (docs/AUTONOMOUS_TRAINING.md). To add it, use a separate job with no secrets and APEX_MODE=DEMO:
+  #   pnpm install --frozen-lockfile && pnpm --filter @apex/web exec playwright install --with-deps chromium && pnpm e2e

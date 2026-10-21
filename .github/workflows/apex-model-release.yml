@@ -1,0 +1,134 @@
+# Validated promote / rollback of registry models through the private release API, in the protected `model-release`
+# environment. Two entry points:
+#   * workflow_dispatch: the owner promotes or rolls back specific model id(s) (manual policy is the default);
+#   * workflow_call: apex-model-train-weekly.yml calls it after registration when the server reports promotion_mode=auto.
+# The server re-applies the frozen promotion policy and `force` is not reachable from CI, so a candidate that fails the
+# policy can never be promoted from here. After the call the job re-reads the champions, re-verifies their checksum (and
+# Ed25519 signature when APEX_MODEL_TRUSTED_KEYS is set) and fails if the registry is not in the expected state.
+# Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in trailing comment).
+name: apex-model-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "promote or rollback"
+        required: true
+        type: choice
+        options: [promote, rollback]
+      model_ids:
+        description: "Model id (mdl_...); several comma separated. Rollback: the CURRENT champion to roll back."
+        required: true
+        type: string
+      reason:
+        description: "Why (recorded in the release run report and the job summary)"
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      action:
+        required: true
+        type: string
+      model_ids:
+        required: true
+        type: string
+      reason:
+        required: true
+        type: string
+      caller_run_id:
+        description: "Set by the weekly train caller: it already holds the apex-model-registry group"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    # default branch only: schedules always run there (their payload need not carry `repository`); dispatches are checked
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: model-release
+    # Standalone dispatches serialise with weekly training on apex-model-registry (acceptance test I). When called from
+    # the weekly train, that caller run already holds the group, so the nested job uses a per-caller group instead
+    # (re-using the caller's group would be a concurrency deadlock).
+    concurrency:
+      group: ${{ inputs.caller_run_id && format('apex-model-registry-nested-{0}', inputs.caller_run_id) || 'apex-model-registry' }}
+      cancel-in-progress: false
+      queue: max
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RELEASE_URL: ${{ secrets.APEX_RELEASE_URL }}
+      APEX_RELEASE_AGENT_ID: ${{ secrets.APEX_RELEASE_AGENT_ID }}
+      APEX_RELEASE_HMAC_SECRET: ${{ secrets.APEX_RELEASE_HMAC_SECRET }}
+      APEX_VERCEL_BYPASS_SECRET: ${{ secrets.APEX_VERCEL_BYPASS_SECRET }}
+      APEX_MODEL_TRUSTED_KEYS: ${{ vars.APEX_MODEL_TRUSTED_KEYS }}
+      APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      ACTION: ${{ inputs.action }}
+      MODEL_IDS: ${{ inputs.model_ids }}
+      REASON: ${{ inputs.reason }}
+      NESTED: ${{ inputs.caller_run_id }}
+      TZ: UTC
+    steps:
+      - name: Record start
+        id: start
+        working-directory: .
+        run: |
+          echo "at=$(date -u +%s)" >> "$GITHUB_OUTPUT"
+          echo "APEX_OUT=$RUNNER_TEMP/apex-release" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-release"
+          case "$ACTION" in promote|rollback) ;; *) echo "::error::action must be promote or rollback"; exit 2 ;; esac
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Budget gate
+        id: budget
+        run: |
+          set +e
+          uv run --no-sync apex budget check --job release --out "$APEX_OUT/budget.json" --github-output
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
+      - name: Promote / roll back, then re-verify the registry
+        id: release
+        if: steps.budget.outputs.proceed == 'true'
+        run: |
+          strict=()
+          if [ -z "$NESTED" ]; then strict+=(--fail-on-reject); fi  # an owner's explicit request that is refused fails the job
+          uv run --no-sync apex release "$ACTION" --model-ids "$MODEL_IDS" --reason "$REASON" \
+            --out "$APEX_OUT/release.json" --github-output "${strict[@]}"
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "# APEX model $ACTION"
+            echo
+            echo "* models: \`$MODEL_IDS\`"
+            echo "* reason: $REASON"
+            if [ -f "$APEX_OUT/release.json" ]; then echo; echo '```json'; cat "$APEX_OUT/release.json"; echo '```'; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Report release run
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          PROCEED: ${{ steps.budget.outputs.proceed }}
+          STARTED_AT: ${{ steps.start.outputs.at }}
+        run: |
+          status="$JOB_STATUS"
+          if [ "$PROCEED" = "false" ]; then status=skipped_budget; fi
+          uv run --no-sync apex release report-run --workflow release --status "$status" --started-at "$STARTED_AT" \
+            --release-result "$APEX_OUT/release.json" --budget "$APEX_OUT/budget.json" --reason "$ACTION: $REASON"

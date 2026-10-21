@@ -62,9 +62,12 @@ const monthsTo350 = (350 * 1024 * KB - steadyState) / growthPerMonth;
 const discordMsgsPerDay = p.signals * 4 + p.positions * 1.5 + 2;
 
 // ---- GitHub Actions (minutes / month) ----
+// Worst-case month, same profile as apps/pi-worker/src/apex_worker/release/budget.py: 5 Mondays and 23 weekdays, every
+// run reaching its timeout-minutes; auto-release only runs after a training when promotion_mode=auto.
 const trainTimeout = 45;
+const releaseTimeout = 10;
 const driftTimeout = 10;
-const actionsMax = trainTimeout * 4.35 + driftTimeout * SESSIONS_PER_MONTH;
+const actionsMax = trainTimeout * 5 + releaseTimeout * 5 + driftTimeout * 23;
 
 const fmt = (n, d = 0) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (a, b) => `${fmt((a / b) * 100, 1)}%`;
@@ -75,7 +78,7 @@ const rows = [
   ["Alpaca IEX streamed symbols", `${p.symbols}`, "30", pct(p.symbols, 30), "https://docs.alpaca.markets/us/docs/about-market-data-api"],
   ["Supabase database size", `≈ ${fmt(steadyState / 1024 / 1024, 1)} MB steady + ${fmt(growthPerMonth / 1024 / 1024, 1)} MB / month`, "500 MB (warn 350, stop 450)", `${fmt(monthsTo350, 0)} months to 350 MB`, "https://supabase.com/docs/guides/platform/billing-on-supabase"],
   ["Discord messages", `${fmt(discordMsgsPerDay)} / day`, "per-route rate limits (bot honours 429 retry-after)", "n/a", "https://discord.com/developers/docs/topics/rate-limits"],
-  ["GitHub Actions minutes (max possible)", `${fmt(actionsMax)} / month`, "2,000 / month on Free, shared by ALL repos", pct(actionsMax, 2000), "https://docs.github.com/en/billing/concepts/product-billing/github-actions"],
+  ["GitHub Actions minutes (max possible, model workflows)", `${fmt(actionsMax)} / month (${fmt(actionsMax - releaseTimeout * 5)} with manual promotion), plus CI`, "2,000 / month on Free, shared by ALL repos", pct(actionsMax, 2000), "https://docs.github.com/en/billing/concepts/product-billing/github-actions"],
   ["SEC EDGAR", "≤ 2 requests / second (polite pacing)", "10 / second fair-access ceiling", "≤ 20%", "https://www.sec.gov/os/accessing-edgar-data"],
 ];
 

@@ -68,7 +68,7 @@ def sample_assessment(position_id: str, symbol: str, now: datetime, *, status: s
                       version: int = 1) -> dict:
     return {
         "position_id": position_id, "symbol": symbol, "asof_at": iso_utc(now), "assessment_version": f"v{version}",
-        "status": status, "price_status": "FRESH", "price": "97.10", "quote_age_seconds": 120,
+        "status": status, "price_status": "FRESH_VERIFIED", "price": "97.10", "quote_age_seconds": 120,
         "quote_provenance": {"provider": "replay", "feed": "demo", "latency_class": "replay", "ts_received": iso_utc(now),
                              "is_demo": True},
         "total_quantity": "20", "avg_cost": "101", "unrealized_pnl": "-78", "unrealized_pct": -0.0386,

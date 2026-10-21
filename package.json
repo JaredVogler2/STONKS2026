@@ -17,6 +17,7 @@
     "contracts:generate": "pnpm --filter @apex/contracts generate",
     "contracts:check": "pnpm --filter @apex/contracts check",
     "e2e": "pnpm --filter @apex/web e2e",
-    "secret-scan": "node scripts/secret-scan.mjs"
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "demo": "pnpm --filter @apex/web demo"
   }
 }

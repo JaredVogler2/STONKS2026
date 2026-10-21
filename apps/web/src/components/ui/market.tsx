@@ -73,12 +73,12 @@ export function SectorHeatmap({ rows, maxPerSector = 2 }: { rows: SectorRow[]; m
               <span className="truncate text-xs font-medium">{humanize(r.sector)}</span>
               <span className="num text-xs font-semibold">{r.ret_20 === null ? "n/a" : fmtPct(r.ret_20, 1, true)}</span>
             </div>
-            <div className="num mt-1 flex flex-wrap gap-x-2 text-[11px] text-fg/70">
+            <div className="num mt-1 flex flex-wrap gap-x-2 text-[11px] text-fg/90">
               <span>rank {r.rank_20 === null ? "n/a" : `${Math.round(r.rank_20 * 100)}p`}</span>
               <span>{r.rank_change_20 === null ? "" : `${r.rank_change_20 > 0 ? "▲" : r.rank_change_20 < 0 ? "▼" : "■"} ${Math.abs(Math.round(r.rank_change_20 * 100))}`}</span>
               <span>breadth {r.breadth_above_sma50 === null ? "n/a" : `${Math.round(r.breadth_above_sma50 * 100)}%`}</span>
             </div>
-            <div className="mt-1 text-[11px] text-fg/70">
+            <div className="mt-1 text-[11px] text-fg/90">
               {r.open_signals} open signal{r.open_signals === 1 ? "" : "s"}
               {crowded ? <span className="ml-1 font-medium text-warn">· crowded</span> : null}
             </div>

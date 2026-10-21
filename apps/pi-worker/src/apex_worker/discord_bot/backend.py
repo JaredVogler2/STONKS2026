@@ -24,6 +24,7 @@ from apex_worker.storage.local import LocalStore, OutboxRow, OwnershipError
 from apex_worker.timeutil import iso_utc
 
 SPOOL_KIND = "discord_position_event"
+MEMBER_SPOOL_KIND = "discord_member_action"  # connected mode: prefs / revoke changes awaiting cloud sync
 
 BOT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS discord_member_prefs (
@@ -285,10 +286,16 @@ class LocalMemberBackend:
 
 
 # ---------------------------------------------------------------------------------------------------------------
-def replay_spool(backend: PositionBackend, store: LocalStore, now: datetime, limit: int = 50) -> dict[str, int]:
-    """Push queued (pending-sync) member events to the backend. Idempotency keys make retries safe."""
+def replay_spool(backend: PositionBackend, store: LocalStore, now: datetime, limit: int = 50,
+                 members: object | None = None) -> dict[str, int]:
+    """Push queued (pending-sync) member events to the backend. Idempotency keys make retries safe.
+
+    With a connected member backend (`members.replay`), queued preference / revocation changes replay in order too."""
     counts = {"acked": 0, "rejected": 0, "retry": 0}
     for row in store.spool_due(now, limit):
+        if row["kind"] == MEMBER_SPOOL_KIND and hasattr(members, "replay"):
+            _replay_member(members, store, row, now, counts)
+            continue
         if row["kind"] != SPOOL_KIND:
             continue
         payload = json.loads(row["payload"])
@@ -314,3 +321,17 @@ def replay_spool(backend: PositionBackend, store: LocalStore, now: datetime, lim
         counts["acked"] += 1
     return counts
 
+
+def _replay_member(members, store: LocalStore, row, now: datetime, counts: dict[str, int]) -> None:
+    try:
+        members.replay(json.loads(row["payload"]))
+    except BackendUnavailable as exc:
+        store.spool_mark(row["id"], "retry", now, error=str(exc), retry_in=min(900, 30 * 2 ** min(int(row["attempts"]), 5)))
+        counts["retry"] += 1
+        return
+    except ServiceError as exc:
+        store.spool_mark(row["id"], "rejected", now, error=exc.code)
+        counts["rejected"] += 1
+        return
+    store.spool_mark(row["id"], "acked", now)
+    counts["acked"] += 1

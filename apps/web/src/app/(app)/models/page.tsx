@@ -13,9 +13,11 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Models & Automation" };
 
 type Json = Record<string, unknown>;
+// Worst-case month (same profile as apex_worker/release/budget.py): 5 Mondays, 23 weekdays, every run at its timeout.
 const DRIFT_TIMEOUT_MIN = 10; // per-run cap in apex-model-drift.yml
-const WEEKS_PER_MONTH = 4.35;
-const WEEKDAYS_PER_MONTH = 21.75;
+const RELEASE_TIMEOUT_MIN = 10; // per-run cap in apex-model-release.yml (after a training, promotion_mode=auto only)
+const MAX_MONDAYS = 5;
+const MAX_WEEKDAYS = 23;
 
 export default async function ModelsPage() {
   await pageOwner();
@@ -28,7 +30,8 @@ export default async function ModelsPage() {
   const budgets = settings.budgets.value;
   const gh = integrations.find((i) => i.provider === "github");
   const ghReady = gh?.fields.every((f) => f.configured) ?? false;
-  const maxMonthly = budgets.train_timeout_minutes * WEEKS_PER_MONTH + (budgets.drift_enabled ? DRIFT_TIMEOUT_MIN * WEEKDAYS_PER_MONTH : 0);
+  const maxMonthly = budgets.train_timeout_minutes * MAX_MONDAYS + (budgets.drift_enabled ? DRIFT_TIMEOUT_MIN * MAX_WEEKDAYS : 0)
+    + (policy.value.promotion_mode === "auto" ? RELEASE_TIMEOUT_MIN * MAX_MONDAYS : 0);
   const used = Number(panel.minutes_month ?? 0);
   const strategies = [...new Set(versions.map((v) => String(v.strategy_id)))];
   const trainHealth = health.components.find((c) => c.key === "training_schedule");
@@ -63,7 +66,7 @@ export default async function ModelsPage() {
         </Card>
         <Card title="Actions minutes" definition="Shared with every workflow on the account; app checks are not a billing safeguard.">
           <BudgetGauge used={used} budget={budgets.actions_monthly_minutes} label="this month (reported by runs)" />
-          <p className="mt-2 text-[11px] text-faint">Max possible: {fmtNum(maxMonthly, 0)} min/month ({budgets.train_timeout_minutes} min × weekly{budgets.drift_enabled ? ` + ${DRIFT_TIMEOUT_MIN} min × weekdays` : ""}). Set GitHub spending limit to $0.</p>
+          <p className="mt-2 text-[11px] text-faint">Max possible: {fmtNum(maxMonthly, 0)} min/month in a 5-Monday month ({budgets.train_timeout_minutes} min × {MAX_MONDAYS}{budgets.drift_enabled ? ` + ${DRIFT_TIMEOUT_MIN} min × ${MAX_WEEKDAYS} weekdays` : ""}{policy.value.promotion_mode === "auto" ? ` + ${RELEASE_TIMEOUT_MIN} min × ${MAX_MONDAYS} auto-releases` : ""}), plus CI. Set the GitHub spending limit to $0.</p>
         </Card>
       </section>
 

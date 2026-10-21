@@ -1,6 +1,6 @@
 """Strategy evaluation, frozen promotion policy and champion/challenger comparison.
 
-The promotion policy below is FROZEN (version promotion-policy-1) before any candidate is compared to a
+The promotion policy below is FROZEN (version `POLICY_VERSION`) before any candidate is compared to a
 champion. A model is only CALIBRATED when every gate passes on the untouched holdout; EXPERIMENTAL with
 a smaller sample; otherwise UNVALIDATED (no probability is shown). Models trained on synthetic fixtures
 can never be used for live signals regardless of their metrics.
@@ -8,7 +8,7 @@ can never be used for live signals regardless of their metrics.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -16,7 +16,7 @@ import pandas as pd
 from apex_worker.research import metrics as M
 from apex_worker.research.validation import ValidationConfig, WalkForwardResult, walk_forward
 
-POLICY_VERSION = "promotion-policy-1"
+POLICY_VERSION = "promotion-policy-2"  # v2: permutation test (K shuffled-label runs) replaces a single shuffle
 COST_GRID_BPS = (0.0, 10.0, 25.0, 50.0)
 
 
@@ -31,7 +31,9 @@ class PromotionPolicy:
     eval_cost_bps: float = 25.0
     min_selected_trades: int = 30
     min_lower_bound_mean_return: float = 0.0  # p10 of block-bootstrap mean net return at eval cost
-    max_shuffled_skill: float = 0.01
+    max_shuffled_skill: float = 0.01  # leakage alarm on the MEAN shuffled-label holdout skill
+    shuffle_permutations: int = 20  # one shuffle is too noisy at small holdouts (sd up to ~0.13 measured)
+    permutation_quantile: float = 0.95  # real holdout skill must beat this quantile of shuffled-label skills
     challenger_min_skill_gain: float = 0.005
     validity_days: int = 21
 
@@ -106,7 +108,15 @@ def evaluate_strategy(
 ) -> tuple[StrategyReport, WalkForwardResult]:
     ev = events[events["strategy_id"] == strategy_id].copy()
     wf = walk_forward(ev, features, vcfg)
-    shuffled = walk_forward(ev, features, vcfg, shuffle_labels=True)
+    shuffled_runs = [
+        walk_forward(ev, features, replace(vcfg, seed=vcfg.seed + i), shuffle_labels=True)
+        for i in range(max(1, policy.shuffle_permutations))
+    ]
+    shuffled = shuffled_runs[0]
+    shuffled_skills = np.array(
+        [r.holdout_metrics["brier_skill"] for r in shuffled_runs if r.holdout_metrics.get("brier_skill") is not None],
+        float,
+    )
     thr = choose_threshold(wf.oos, policy.eval_cost_bps, policy.min_selected_trades)
     hold = wf.holdout
     selected = hold[hold["p_target"] >= thr] if (thr is not None and not hold.empty) else hold.iloc[0:0]
@@ -122,7 +132,15 @@ def evaluate_strategy(
         "ece": hm.get("ece"),
         "selected_trades": sel_sum.get("n", 0),
         "selected_mean_lower_p10": (sel_sum.get("ci") or {}).get("p10"),
-        "shuffled_skill": shuffled.holdout_metrics.get("brier_skill"),
+        "shuffled_skill": round(float(shuffled_skills.mean()), 5) if len(shuffled_skills) else None,
+        "shuffled_skill_q": round(float(np.quantile(shuffled_skills, policy.permutation_quantile)), 5)
+        if len(shuffled_skills)
+        else None,
+        "permutation_p": round(
+            float((1 + np.sum(shuffled_skills >= hm["brier_skill"])) / (1 + len(shuffled_skills))), 4
+        )
+        if len(shuffled_skills) and hm.get("brier_skill") is not None
+        else None,
     }
     if gates["holdout_entries"] < policy.min_holdout_entries_experimental:
         reasons.append(f"holdout entries {gates['holdout_entries']} < {policy.min_holdout_entries_experimental}")
@@ -142,7 +160,16 @@ def evaluate_strategy(
     ):
         reasons.append(f"selected trades' p10 mean net return <= 0 at {policy.eval_cost_bps:g} bps/side")
     if gates["shuffled_skill"] is not None and gates["shuffled_skill"] > policy.max_shuffled_skill:
-        reasons.append("RED TEAM FAIL: shuffled labels still show skill (leakage suspected)")
+        reasons.append("RED TEAM FAIL: shuffled labels still show skill on average (leakage suspected)")
+    if (
+        gates["brier_skill"] is not None
+        and gates["shuffled_skill_q"] is not None
+        and gates["brier_skill"] <= gates["shuffled_skill_q"]
+    ):
+        reasons.append(
+            f"holdout skill {gates['brier_skill']} not above the shuffled-label "
+            f"{policy.permutation_quantile:.0%} quantile {gates['shuffled_skill_q']} (permutation p={gates['permutation_p']})"
+        )
     if not reasons:
         status = "CALIBRATED" if gates["holdout_entries"] >= policy.min_holdout_entries_calibrated else "EXPERIMENTAL"
     else:
@@ -194,7 +221,14 @@ def evaluate_strategy(
         cost_sensitivity=cost_sens,
         baselines=base,
         regime_breakdown=regime_bd,
-        shuffled_control=shuffled.holdout_metrics,
+        shuffled_control={
+            **shuffled.holdout_metrics,
+            "permutations": len(shuffled_skills),
+            "skill_mean": gates["shuffled_skill"],
+            "skill_sd": round(float(shuffled_skills.std()), 5) if len(shuffled_skills) else None,
+            f"skill_q{int(policy.permutation_quantile * 100)}": gates["shuffled_skill_q"],
+            "skill_max": round(float(shuffled_skills.max()), 5) if len(shuffled_skills) else None,
+        },
         economics_all=M.economic_summary(ev),
         bias_warnings=warn,
     )

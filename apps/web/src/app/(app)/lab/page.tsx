@@ -24,7 +24,7 @@ const GLOSSARY: [string, string][] = [
   ["Brier skill", "Improvement of the model's probability error over always predicting the training base rate. 0 = no better than the base rate; negative = worse."],
   ["ECE", "Expected calibration error: the average gap between predicted and observed frequency across probability bins. Lower is better."],
   ["Walk-forward + holdout", "The model is trained only on the past and tested on the next period, repeatedly; a final untouched holdout is scored once. Overlapping labels are purged and embargoed so the future cannot leak in."],
-  ["Shuffled-label control", "The same pipeline run with labels randomly permuted. It must find no skill; if it does, the pipeline is leaking information."],
+  ["Shuffled-label control", "The same pipeline re-run 20 times with labels randomly permuted. On average it must find no skill (otherwise the pipeline leaks information), and the real holdout skill must beat the 95th percentile of those runs (a permutation test), so small-sample luck is not mistaken for an edge."],
   ["Red-team planted alpha", "A synthetic dataset with a known, planted edge. The pipeline must find it, which proves it can detect real skill when it exists."],
   ["R multiple", "Profit or loss in units of the initial risk (entry minus stop). +2R means twice the amount risked."],
   ["Expected shortfall (5%)", "Average return of the worst 5% of outcomes: the size of a bad case, not just its likelihood."],
@@ -71,7 +71,7 @@ export default async function LabPage({ searchParams }: { searchParams: Promise<
                   const ci = (e.mean_return_net_ci ?? {}) as Json;
                   return (
                     <tr key={String(b.id)} className={cn("hover:bg-surface-2/60", b.id === sel?.id && "bg-surface-2")}>
-                      <Td><Link href={`/lab?s=${String(b.id)}`} className="text-info hover:underline" aria-current={b.id === sel?.id ? "true" : undefined}>{strategyLabel(String(b.strategy_id))}</Link></Td>
+                      <Td><Link href={`/lab?s=${String(b.id)}`} className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info" aria-current={b.id === sel?.id ? "true" : undefined}>{strategyLabel(String(b.strategy_id))}</Link></Td>
                       <Td><Badge tone={confidenceTone(rp.confidence_status as string)}>{String(rp.confidence_status ?? "n/a").toLowerCase()}</Badge></Td>
                       <Td align="right">{String(h.n ?? "—")}</Td>
                       <Td align="right" className={n(h.brier_skill) === null ? "" : (n(h.brier_skill) ?? 0) > 0 ? "text-pos" : "text-neg"}>{n(h.brier_skill) === null ? "—" : fmtNum(h.brier_skill, 3)}</Td>
@@ -123,7 +123,9 @@ export default async function LabPage({ searchParams }: { searchParams: Promise<
                   ["Regimes covered", String(gates.regimes ?? "—")],
                   ["Brier skill", n(gates.brier_skill) === null ? "—" : fmtNum(gates.brier_skill, 3)],
                   ["ECE", n(gates.ece) === null ? "—" : fmtNum(gates.ece, 3)],
-                  ["Shuffled-label skill", n(gates.shuffled_skill) === null ? "—" : fmtNum(gates.shuffled_skill, 3)],
+                  ["Shuffled-label skill (mean)", n(gates.shuffled_skill) === null ? "—" : fmtNum(gates.shuffled_skill, 3)],
+                  ["Shuffled 95th percentile", n(gates.shuffled_skill_q) === null ? "not in this report" : fmtNum(gates.shuffled_skill_q, 3)],
+                  ["Permutation p-value", n(gates.permutation_p) === null ? "—" : fmtNum(gates.permutation_p, 3)],
                   ["Selected trades", String(gates.selected_trades ?? "—")],
                   ["Selected p10 net", n(gates.selected_mean_lower_p10) === null ? "—" : fmtPct(gates.selected_mean_lower_p10, 2, true)],
                 ]} />

@@ -107,9 +107,15 @@ def cmd_train(args) -> int:
             print(f"--sign requires the signing key in ${args.key_env} (GitHub Environment secret)", file=sys.stderr)
             return 2
         key = load_signing_key(raw)
+        os.environ.pop(args.key_env, None)  # held in memory only; never inherited by anything this process starts
     champions = (
         json.loads(Path(args.champions).read_text()) if args.champions and Path(args.champions).exists() else None
     )
+    loader, info = None, None
+    if args.source == "alpaca":  # bounded, incremental, checksummed history (apex_worker.market.history)
+        from apex_worker.release.cli import alpaca_loader_from_env
+
+        loader, info = alpaca_loader_from_env(args)
     res = run_training(
         args.source,
         Path(args.out),
@@ -119,7 +125,15 @@ def cmd_train(args) -> int:
         signer_key_version=args.key_version,
         champions=champions,
         is_demo=args.source != "alpaca",
+        loader=loader,
+        bias_warnings=info.warnings if info else None,
     )
+    if info is not None:
+        (Path(args.out) / "history.json").write_text(json.dumps(info.to_dict(), indent=2, sort_keys=True) + "\n")
+    if not (Path(args.out) / "report.json").exists():  # no_data before any output: still leave evidence
+        from apex_worker.research.pipeline import write_outputs
+
+        write_outputs(res, Path(args.out), os.environ.get("GITHUB_SHA", args.code_sha), datetime.now(UTC))
     print(f"training status={res.status} data={res.data_source} candidates={len(res.candidates)} seconds={res.seconds}")
     if res.detail:
         print(res.detail)
@@ -144,9 +158,18 @@ def cmd_model(args) -> int:
             return 1
         print("VERIFIED")
         return 0
-    store = ModelStore(cfg.state_dir / "models", cfg.model_trusted_keys, cfg.release_mode)
+    root = cfg.state_dir / "models" / "strategies"  # same per-strategy layout the worker's model sync uses
+    if args.action == "status":
+        out = {}
+        for d in sorted(p for p in root.iterdir() if p.is_dir()) if root.exists() else []:
+            st = ModelStore(d, cfg.model_trusted_keys, cfg.release_mode)
+            act = st.load_active(now)
+            out[d.name] = {"current": st.current_id(), "previous": st.previous_id(), "loaded": act.model_id if act else None}
+        _print(out)
+        return 0
     if args.action == "install":
         manifest = json.loads(Path(args.manifest).read_text())
+        store = ModelStore(root / str(manifest.get("strategy_id", "unknown")), cfg.model_trusted_keys, cfg.release_mode)
         try:
             active = store.install(manifest, Path(args.artifact).read_bytes(), now)
         except ManifestRejected as exc:
@@ -154,15 +177,13 @@ def cmd_model(args) -> int:
             return 1
         print(f"ACTIVE {active.model_id}")
         return 0
-    if args.action == "rollback":
-        back = store.rollback(now)
-        print(f"ACTIVE {back.model_id}" if back else "no previous model to roll back to")
-        return 0 if back else 1
-    active = store.load_active(now)
-    _print(
-        {"current": store.current_id(), "previous": store.previous_id(), "loaded": active.model_id if active else None}
-    )
-    return 0
+    if not args.strategy:
+        print("rollback needs --strategy STRATEGY_ID", file=sys.stderr)
+        return 2
+    store = ModelStore(root / args.strategy, cfg.model_trusted_keys, cfg.release_mode)
+    back = store.rollback(now)
+    print(f"ACTIVE {back.model_id}" if back else "no previous model to roll back to")
+    return 0 if back else 1
 
 
 def cmd_keygen(args) -> int:
@@ -214,14 +235,20 @@ def cmd_seed(args) -> int:
 
 
 def cmd_replay(args) -> int:
-    from apex_worker.demo.replay import run_all, run_scenario
+    from apex_worker.demo.replay import SCENARIOS, run_all, run_scenario
 
-    results = [run_scenario(args.scenario)] if args.scenario else run_all()
+    out = Path(args.out) if args.out else None
+    if args.scenario and args.scenario not in SCENARIOS:
+        print(f"unknown scenario {args.scenario!r}; choose one of: {', '.join(SCENARIOS)}", file=sys.stderr)
+        return 2
+    results = [run_scenario(args.scenario, out)] if args.scenario else run_all(out)
     ok = all(r["passed"] for r in results)
     for r in results:
         print(f"[{'PASS' if r['passed'] else 'FAIL'}] {r['name']}: {r['summary']}")
         for f in r.get("failures", []):
             print(f"     - {f}")
+    if results:
+        print(f"Reports: {Path(results[0]['report']).parent}")
     return 0 if ok else 1
 
 
@@ -240,7 +267,8 @@ def cmd_worker(args) -> int:
 def cmd_pair(args) -> int:
     from apex_worker.agent.pairing import pair_device
 
-    return pair_device(args.code, device_name=args.name)
+    return pair_device(args.code, server=args.server, device_name=args.name, wait_seconds=args.wait,
+                       new_identity=args.new_identity)
 
 
 def cmd_migrate_starter(args) -> int:
@@ -283,11 +311,16 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--key-version", type=int, default=1)
     tr.add_argument("--champions")
     tr.add_argument("--code-sha", default="local")
+    from apex_worker.release.cli import add_history_args
+    from apex_worker.release.cli import register as register_release_commands
+
+    add_history_args(tr)  # --history-cache/--history-years/--history-feed/--history-max-requests (alpaca source)
     tr.set_defaults(func=cmd_train)
     md = sub.add_parser("model", help="verify/install/rollback/status of signed models")
     md.add_argument("action", choices=["verify", "install", "rollback", "status"])
     md.add_argument("--manifest")
     md.add_argument("--artifact")
+    md.add_argument("--strategy", help="strategy id (rollback)")
     md.set_defaults(func=cmd_model)
     kg = sub.add_parser("keygen", help="generate secrets locally (printed once; store them yourself)")
     kg.add_argument("kind", choices=["hmac", "session", "encryption", "signing"])
@@ -299,8 +332,11 @@ def build_parser() -> argparse.ArgumentParser:
     sd.add_argument("--out", default="../../fixtures/demo/web-seed.json")
     sd.add_argument("--work", default=".apex-local/seed")
     sd.set_defaults(func=cmd_seed)
-    rp = sub.add_parser("replay", help="run deterministic replay scenarios")
-    rp.add_argument("--scenario")
+    rp = sub.add_parser("replay", help="run deterministic replay scenarios (DEMO fixtures, no network, no keys)")
+    rg = rp.add_mutually_exclusive_group(required=True)
+    rg.add_argument("--all", action="store_true", help="run every scenario")
+    rg.add_argument("--scenario", help="run one scenario by name")
+    rp.add_argument("--out", help="report directory (default <state_dir>/replay)")
     rp.set_defaults(func=cmd_replay)
     bt = sub.add_parser("bot", help="run the Discord gateway bot")
     bt.add_argument("--dry-run", action="store_true")
@@ -310,12 +346,16 @@ def build_parser() -> argparse.ArgumentParser:
     wk.set_defaults(func=cmd_worker)
     pr = sub.add_parser("pair", help="pair this Pi with the dashboard using a one-time code")
     pr.add_argument("code")
+    pr.add_argument("--server", help="dashboard base URL, e.g. https://apex-xyz.vercel.app (or APEX_API_BASE_URL)")
     pr.add_argument("--name", default="apex-pi")
+    pr.add_argument("--wait", type=float, default=0, help="seconds to wait for owner approval (default: do not wait)")
+    pr.add_argument("--new-identity", action="store_true", help="new keys + agent id (after a revocation)")
     pr.set_defaults(func=cmd_pair)
     ms = sub.add_parser("migrate-starter", help="import raspberry-pi/bot starter entries (dry run by default)")
     ms.add_argument("--starter-db", default=str(Path.home() / "STONKS2026/raspberry-pi/bot/data/positions.sqlite3"))
     ms.add_argument("--apply", action="store_true")
     ms.set_defaults(func=cmd_migrate_starter)
+    register_release_commands(sub)  # CI: `apex release ...`, `apex drift`, `apex budget check`
     return p
 
 

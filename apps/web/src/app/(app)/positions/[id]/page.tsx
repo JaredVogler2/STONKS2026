@@ -46,7 +46,7 @@ export default async function PositionPage({ params }: { params: Promise<{ id: s
     <>
       <div className="text-[12px] text-faint"><Link href="/positions" className="hover:text-fg">My Positions</Link> / {p.symbol}</div>
       <PageHeader title={`${p.symbol} · self-reported position`}
-        subtitle={<>Opened {fmtEt(p.opened_at)}{p.signal_id ? <> from signal <Link className="text-info hover:underline" href={`/signals/${p.signal_id}`}>{p.signal_id.slice(0, 16)}…</Link></> : " (no APEX signal)"}. Cost method FIFO.</>} />
+        subtitle={<>Opened {fmtEt(p.opened_at)}{p.signal_id ? <> from signal <Link className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info" href={`/signals/${p.signal_id}`}>{p.signal_id.slice(0, 16)}…</Link></> : " (no APEX signal)"}. Cost method FIFO.</>} />
       <div className="flex flex-wrap items-center gap-2">
         <Badge>{p.state.toLowerCase().replace(/_/g, " ")}</Badge>
         <AssessmentBadge status={isOpen || p.state === "WATCHING" ? (latest.status as string | undefined) : "CLOSED"} />

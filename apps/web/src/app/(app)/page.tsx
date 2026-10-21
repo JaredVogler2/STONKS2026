@@ -98,7 +98,7 @@ export default async function CommandCenter() {
                   return (
                     <tr key={c.id} className="hover:bg-surface-2/60">
                       <Td className="font-medium">
-                        {c.signal_id ? <Link href={`/signals/${c.signal_id}`} className="text-info hover:underline">{c.symbol}</Link> : c.symbol}
+                        {c.signal_id ? <Link href={`/signals/${c.signal_id}`} className="text-info underline decoration-info/40 underline-offset-2 hover:decoration-info">{c.symbol}</Link> : c.symbol}
                         {c.scan_id !== scan?.id ? <span className="ml-1 text-[11px] text-faint">({fmtAge(ageSeconds(now, c.asof_at))} ago)</span> : null}
                       </Td>
                       <Td className="max-w-[180px] truncate text-muted" ><span title={strategyLabel(c.strategy_id)}>{strategyLabel(c.strategy_id)}</span></Td>

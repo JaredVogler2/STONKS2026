@@ -112,7 +112,7 @@ export function Notice({ tone = "info", title, children, action }: { tone?: Tone
     <div role={tone === "neg" ? "alert" : "status"} className={cn("flex flex-wrap items-start justify-between gap-3 rounded-lg border px-3.5 py-2.5", TONE[tone])}>
       <div className="min-w-0">
         <div className="text-[13px] font-semibold">{title}</div>
-        {children ? <div className="mt-0.5 text-xs text-fg/80">{children}</div> : null}
+        {children ? <div className="mt-0.5 text-xs text-fg/90">{children}</div> : null}
       </div>
       {action}
     </div>
