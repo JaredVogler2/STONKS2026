@@ -18,7 +18,7 @@ import math
 import os
 import tempfile
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -31,6 +31,7 @@ from apex_worker.discovery.v3 import portfolio as PF
 from apex_worker.discovery.v3.contracts import DataProvenance, EvaluationWindow, HypothesisSpec, PolicySpec, sha256_json
 from apex_worker.discovery.v3.registry import TrialRegistry
 from apex_worker.research import inference as INF
+from apex_worker.research.execution_v2 import Costs, ExecutionPolicy
 from apex_worker.research.realeq import study_v2 as S
 from apex_worker.research.realeq.protocol_v2 import BoundariesV2
 from apex_worker.research.training_data import BENCHMARK
@@ -99,8 +100,11 @@ def _weights_result(w: pd.DataFrame, pre: S.Prepared, lo: int, hi: int, cost: fl
     r, x, _xo = allocation_returns(w.reindex(pre.sessions), opens, closes, cost, with_open_exposure=True)
     rr, xx = r.iloc[lo : hi + 1].to_numpy(float), x.iloc[lo : hi + 1].to_numpy(float)
     eq = np.cumprod(1 + rr)
-    return PF.PortfolioResult(rr, eq, xx, np.zeros(len(rr)), int((~w.isna().all(axis=1)).sum()), {}, 0.0, 0.0, 0.0,
-                              float(np.sum(xx * eq)), 0, lo, hi, ["WEIGHTS agent: turnover/costs inside returns"])
+    tw = w.reindex(pre.sessions).iloc[: hi + 1].dropna(how="all").fillna(0.0)
+    traded = float(tw.diff().abs().sum(axis=1).iloc[1:].sum() + tw.iloc[0].abs().sum()) if len(tw) else 0.0
+    return PF.PortfolioResult(rr, eq, xx, np.zeros(len(rr)), len(tw), {}, traded * float(np.mean(eq)), 0.0, 0.0,
+                              float(np.sum(xx * eq)), int((tw > 0).sum(axis=1).max()) if len(tw) else 0, lo, hi,
+                              ["WEIGHTS agent: costs inside returns; turnover approximated from target-weight changes"])
 
 
 def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
@@ -118,13 +122,20 @@ def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
         zero = _weights_result(w, pre, lo, end, 0.0)
         out["signals"] = {"rebalance_rows": port.taken}
     else:
-        sigs = A.SELECTORS[pol.selector](pre, b, pol.params)
-        run = S.run_arm(pol.params.get("seed_name", pol.policy_id), pol.arm, sigs, pre, b, q,
-                        stop_k=pol.params.get("stop_atr"))
+        ex = execution_policy(pol)
+        extra = max(0, ex.exit.horizon_sessions - S.P["execution"]["horizon_sessions"])
+        bb = replace(b, dev_range=(lo, hi - extra)) if extra else b  # a longer hold stops deciding earlier
+        sigs = A.SELECTORS[pol.selector](pre, bb, pol.params)
+        run = S.run_arm(pol.params.get("seed_name", pol.policy_id), pol.arm, sigs, pre, bb, q,
+                        stop_k=pol.params.get("stop_atr"), policy=ex)
+        out["execution"] = ex.to_dict()
         rows = run.rows
         trades = _trades(rows)
         port = PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end, pol.allocation, pol.cost_bps_per_side)
         zero = PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end, pol.allocation, 0.0, 0.0)
+        out["cost_sensitivity"] = {f"{c}bps": PF.metrics(PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end,
+                                                                          pol.allocation, float(c)).returns)
+                                   for c in (10, 50)}
         books = [PF.run_portfolio(_control_trades(rows, pre, j), closes, spy_open, spy_close, lo, end, pol.allocation,
                                   pol.cost_bps_per_side) for j in range(K)]
         books = [x for x in books if x.taken > 0]
@@ -152,6 +163,15 @@ def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
             "cost_sensitivity_note": "the zero-cost book bounds the friction; 25 bps/side is an assumption, not a "
             "measured spread"}
     return out
+
+
+def execution_policy(pol: PolicySpec) -> ExecutionPolicy:
+    """The registered arm's execution_v2 policy at the policy's cost, with an optional registered `horizon`."""
+    base = S.arm_policy(pol.arm)
+    h = int(pol.params.get("horizon", base.exit.horizon_sessions))
+    if not 5 <= h <= 60:
+        raise ValueError("horizon must be 5..60 sessions")
+    return ExecutionPolicy(base.entry, replace(base.exit, horizon_sessions=h), Costs(pol.cost_bps_per_side))
 
 
 def disposition(res: dict, holm_p: float | None, obj: O.Objective = O.PRINCIPAL_OBJECTIVE) -> tuple[str, list[str]]:

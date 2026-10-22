@@ -15,7 +15,7 @@ import json
 import math
 import zlib
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
@@ -178,14 +178,14 @@ def signals_for(strat, pre: Prepared, b: BoundariesV2) -> tuple[list[Signal], di
 
 
 def quarantined(symbol: str, t: int, tr: TradeV2, sessions: pd.DatetimeIndex, q: dict[str, list[pd.Timestamp]],
-                valid: int) -> bool:
+                valid: int, horizon: int | None = None) -> bool:
     """A corporate-action ex-date inside the trade's FIXED label window [t, t + valid + horizon] (extended to a later,
     delayed exit) excludes it. The window does not depend on how the trade turned out, so the quarantine never selects
     on the outcome (an early stop would otherwise escape a spin-off that a full hold catches)."""
     dates = q.get(symbol)
     if not dates:
         return False
-    fixed = t + valid + P["execution"]["horizon_sessions"]
+    fixed = t + valid + (horizon if horizon is not None else P["execution"]["horizon_sessions"])
     held = max(tr.pess.exit_index, tr.opt.exit_index) if tr.filled and tr.pess and tr.opt else fixed  # both legs
     end = min(len(sessions) - 1, max(fixed, held))
     a, z = sessions[t], sessions[end]
@@ -199,9 +199,18 @@ class ArmRun:
 
 
 def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: BoundariesV2, q: dict, pools: dict | None = None,
-            stop_k: float | None = None, controls: bool = True, self_check: bool = False) -> ArmRun:
-    """Simulate, quarantine, de-dup and pair one strategy arm. `pools` = {name: bool matrix} of mechanism pools."""
-    pol, pol_tt = arm_policy(arm), arm_policy(arm, P["execution"]["touch_fill_sensitivity_trade_through_ticks"])
+            stop_k: float | None = None, controls: bool = True, self_check: bool = False,
+            policy: ExecutionPolicy | None = None) -> ArmRun:
+    """Simulate, quarantine, de-dup and pair one strategy arm. `pools` = {name: bool matrix} of mechanism pools.
+    `policy` (Discovery V3 only; None in every protocol-2 call) replaces the arm's registered execution policy, e.g. a
+    different horizon; signals and controls then share that policy exactly as they share the registered one."""
+    tt_ticks = P["execution"]["touch_fill_sensitivity_trade_through_ticks"]
+    if policy is None:
+        pol, pol_tt = arm_policy(arm), arm_policy(arm, tt_ticks)
+    else:
+        pol = policy
+        pol_tt = ExecutionPolicy(replace(policy.entry, trade_through_ticks=tt_ticks), policy.exit, policy.costs)
+    horizon = pol.exit.horizon_sessions
     valid = P["execution"]["entry_valid_sessions"]
     m, sessions = pre.market, pre.sessions
     same_day: dict[int, set[str]] = {}
@@ -218,7 +227,7 @@ def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: Boundarie
         return segment_of(t, b) == "PRESAMPLE" and tr.filled and max(tr.pess.exit_index, tr.opt.exit_index) >= dev0
 
     def accept(sym: str, tr: TradeV2, t: int) -> bool:
-        return not quarantined(sym, t, tr, sessions, q, valid) and not crosses(tr, t)
+        return not quarantined(sym, t, tr, sessions, q, valid, horizon) and not crosses(tr, t)
 
     for g in sigs:
         fs = funnel[segment_of(g.t, b)]
@@ -233,7 +242,7 @@ def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: Boundarie
                 fs["rejected_at_25_passing_at_10"] += 1
             continue
         tr = res.trade
-        if quarantined(g.symbol, g.t, tr, sessions, q, valid):
+        if quarantined(g.symbol, g.t, tr, sessions, q, valid, horizon):
             fs["quarantined"] += 1
             continue
         if crosses(tr, g.t):
