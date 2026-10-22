@@ -26,6 +26,8 @@ The coding agent's execution contract is [Phase 14 — Real Equity Validation](.
 
 Attempted runs, including blocked ones, are listed in [real-equities/EXECUTION_STATUS.md](real-equities/EXECUTION_STATUS.md).
 
+For independent scrutiny, [real-equities/ADVERSARIAL_REVIEW_BRIEF.md](real-equities/ADVERSARIAL_REVIEW_BRIEF.md) gathers every strategy result, test and known weakness in one place, for an adversarial reviewer. Its tables are generated from the committed files.
+
 ## Pending run
 
 - None. Follow-up experiments need a new pre-registered protocol version. See the reviewer recommendations in the experiment's REVIEW.md.
