@@ -1,3 +1,5 @@
+> **NEW — October 22, 2026:** [APEX Quant V2 methodology remediation and five replacement strategy experiments](quant-v2-2026-10-22/README.md) — comprehensive 15-document follow-up to the *actual Alpaca SIP real-equity backtest*; read [agent handoff](quant-v2-2026-10-22/13_COPY_READY_AGENT_HANDOFF.md). This supersedes outdated PR #1 research snapshots in this amendment program when addressing real-equity profitability, but not the original safety controls.
+
 # APEX — Versioned Amendment and Independent Audit Program
 
 ## Quant V2 research and application remediation — October 22, 2026
