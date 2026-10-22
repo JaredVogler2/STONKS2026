@@ -287,6 +287,9 @@ def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: Boundarie
                         row[f"ctrl_value_opt_{c}"] = float(np.mean(vals_o)) if vals_o else None
                     row["ctrl_symbols"] = cs.symbols
                     row["ctrl_trades"] = cs.trades
+                    fills_c = [x for x in cs.trades if x.filled]
+                    row["ctrl_ambiguous_share"] = (sum(x.ambiguity != "NONE" for x in fills_c) / len(fills_c)
+                                                   if fills_c else None)
                     tt_vals, tt_vals_o = [], []
                     for s2 in cs.symbols:
                         r2 = simulate_signal(m, s2, g.t, pol_tt, LEVELS, stop_distance_atr=k_atr)
@@ -313,11 +316,11 @@ def block_decision(values, idx, sessions: int, n_boot: int | None = None) -> dic
     inf = P["inference"]
     nb = n_boot or inf["n_boot"]
     res = INF.block_tests(values, idx, sessions, lengths=tuple(inf["block_lengths"]), n_boot=nb, seed=inf["seed"],
-                          min_blocks=inf["min_blocks"])
+                          min_blocks=inf["min_blocks"], t_floor=inf["small_sample_t_floor"])
     ups = [res[f"L{L}"]["ci90"][1] for L in inf["block_lengths"] if res[f"L{L}"]["ci90"]]
     res["summary"]["upper_95_max"] = max(ups) if len(ups) == len(inf["block_lengths"]) else None
     sens = INF.block_test(values, idx, sessions, block_len=inf["sensitivity_block_length"], n_boot=nb, seed=inf["seed"],
-                          min_blocks=inf["min_blocks"])
+                          min_blocks=inf["min_blocks"], t_floor=inf["small_sample_t_floor"])
     res["sensitivity"] = {f"L{inf['sensitivity_block_length']}": sens.to_dict()}
     return res
 
@@ -475,6 +478,13 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
             out[f"mean_paired_{cst}bps_optimistic"] = _f((part[f"value_opt_{cst}"] - part[f"ctrl_value_opt_{cst}"]).mean())
     if "value_opt" in part and "ctrl_value_opt" in part:
         out["mean_paired_optimistic"] = _f((part["value_opt"] - part["ctrl_value_opt"]).mean())
+        out["paired_bracket_daily_bars"] = {
+            "low": _f((part["value"] - part["ctrl_value_opt"]).mean()),
+            "high": _f((part["value_opt"] - part["ctrl_value"]).mean()),
+            "note": "what daily bars can bound: [strategy pessimistic - controls optimistic, strategy optimistic - "
+            "controls pessimistic]; the decision statistic is both legs pessimistic"}
+    if "ctrl_ambiguous_share" in part:
+        out["control_ambiguous_share_of_fills"] = _f(part["ctrl_ambiguous_share"].mean(), 4)
     if "value_tt" in part and "ctrl_value_tt" in part:
         out["mean_paired_touch_fill_sensitivity"] = _f((part["value_tt"] - part["ctrl_value_tt"]).mean())
     if "value_tt_opt" in part and "ctrl_value_tt_opt" in part:
@@ -1041,10 +1051,11 @@ def run_study(pre: Prepared, b: BoundariesV2, quarantine: dict[str, list[pd.Time
     # ---- engine self-checks ------------------------------------------------------------------------------------------
     checks = self_checks(pre, b, quarantine)
     engine_ok = checks["lookahead_trap"]["detected"]
-    if not engine_ok:
-        for sid in fam:
-            strategies[sid]["disposition"] = "RESEARCH_ENGINE_INVALID"
-            strategies[sid]["disposition_reasons"] = ["the look-ahead trap was not detected: the engine cannot be trusted"]
+    if not engine_ok:  # no strategy status at all: the primary family and the legacy comparators alike
+        for row in [*(strategies[sid] for sid in fam), *(v for v in legacy.values()
+                                                          if v["disposition"] != "NOT_EVALUABLE_MISSING_INPUT")]:
+            row["disposition"] = "RESEARCH_ENGINE_INVALID"
+            row["disposition_reasons"] = ["the look-ahead trap was not detected: the engine cannot be trusted"]
     validated = [sid for sid in fam if strategies[sid]["disposition"] == "RULE_VALIDATED_RESEARCH_OOS"]
     aggregate = {
         "conclusion": "RESEARCH_CANDIDATES_FORWARD_SHADOW_REQUIRED" if validated else "NO_TRADE",

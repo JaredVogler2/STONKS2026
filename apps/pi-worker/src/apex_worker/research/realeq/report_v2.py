@@ -98,7 +98,9 @@ def comparisons_md_v2(m: dict) -> str:
                      _p(st.get("holm_adjusted_p")), f"**{st['disposition']}**"])
     out += _t(["", "Strategy", "Arm (DEV)", "Signals", "Per-signal net", "Control", "Paired mean", "p (cons.)", "Holm p",
                "Disposition"], rows)
-    out += ["", "S5 columns: sessions, total return, exposure-matched SPY/cash total return, mean daily active return.", "",
+    out += ["", "**S5 row:** the columns read sessions | S5 total return | exposure-matched SPY/cash total return | mean "
+            "daily active return (S5 is an allocation, not a per-signal rule; its benchmark is SPY/cash, not a matched "
+            "control).", "",
             "## Reasons", ""]
     for sid in ("S1", "S2", "S3", "S4", "S5"):
         st = m["strategies"][sid]
@@ -120,7 +122,9 @@ def comparisons_md_v2(m: dict) -> str:
     out += _t(["", "n", "Clusters", "Mean (paired; S5 daily active)", "90% CI low", "90% CI high", "p (cons.)",
                "Holm p (family of 4)", "p optimistic leg"], rows)
     out += ["", "The 90% interval is the two-sided studentized block interval (one-sided 95% bounds), widest over the "
-            "decision block lengths. A p-value exists only with >= 12 non-empty blocks at every decision length.",
+            "decision block lengths, with the A1 Student-t floor. A p-value exists only with >= 12 non-empty blocks at "
+            "every decision length. On production-shaped synthetic nulls this rule still rejects about 1.2-1.5x "
+            "nominal, so a Holm p between 0.03 and 0.05 is borderline evidence, not a clean pass.",
             "", "## DEV diagnostics per arm (CONTAMINATED; selection only)", ""]
     rows = []
     for sid in ("S1", "S2", "S3"):
@@ -246,7 +250,10 @@ def comparisons_md_v2(m: dict) -> str:
                          num(bk.get("information_ratio_vs_exposure_matched_spy"), 2),
                          pct(bk.get("control_mean_total_return"), 2), _p(act.get("p_one_sided_max"))])
     out += _t(["", "Segment", "Trades", "Total return", "Max DD", "Avg exposure", "Turnover", "Sharpe",
-               "Exp.-matched SPY", "IR vs SPY/cash", "Control books", "p vs controls"], rows)
+               "Exp.-matched SPY*", "IR vs SPY/cash*", "Control books", "p vs controls (descriptive)"], rows)
+    out += ["", "*The books' SPY/cash curve holds SPY close-to-close at the previous close's exposure; intraday entries "
+            "and exits are not timed. 'p vs controls' is an unregistered, unadjusted descriptive test of the daily book "
+            "difference; it never enters a disposition."]
     s5p = m["strategies"]["S5"]["primary"].get("describe") or {}
     grid = s5p.get("cost_grid") or {}
     out += ["", "## S5 sector-ETF allocation (PRESAMPLE, selected arm)", "",
@@ -312,9 +319,14 @@ def recommendations_md_v2(m: dict) -> str:
     for sid in ("S1", "S2", "S3", "S4", "S5"):
         st = m["strategies"][sid]
         out.append(f"* **{sid} — {st['title']}**: {st['disposition']} → {ACTION.get(st['disposition'], 'REVIEW')}")
-    out += ["", "Legacy comparators:", ""]
+    out += ["", "Legacy comparators (a second Holm family: across both families the chance of at least one false "
+            "positive can approach 2α, so a legacy status is never confirmatory and never promotes anything):", ""]
     for sid, v in m["legacy"].items():
-        out.append(f"* {sid}: {v['disposition']} → {ACTION.get(v['disposition'], 'REVIEW')}")
+        act = ("LEGACY COMPARATOR ONLY — not a registered S hypothesis; at most a candidate for its own future "
+               "registration" if v["disposition"] in ("RULE_VALIDATED_RESEARCH_OOS",
+                                                      "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD")
+               else ACTION.get(v["disposition"], "REVIEW"))
+        out.append(f"* {sid}: {v['disposition']} → {act}")
     out += ["", "Next experiments (each needs its own registration):", "",
             f"* Forward shadow from {PROTOCOL_V2['chronology']['forward_shadow']['decisions_from']} under this protocol; "
             f"earliest evaluation {PROTOCOL_V2['chronology']['forward_shadow']['earliest_evaluation']}.",

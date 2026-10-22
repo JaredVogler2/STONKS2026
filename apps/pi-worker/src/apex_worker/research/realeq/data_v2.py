@@ -51,6 +51,12 @@ BIAS_WARNINGS_V2 = (
     "untouched; read every PRESAMPLE result with that in mind (PROTOCOL_V2.md section 12)",
     "SURVIVORSHIP-LIMITED UNIVERSE: U1 is not an unbiased all-market sample; results do not generalise to delisted or "
     "smaller stocks",
+    "INFERENCE SIZE: on production-shaped synthetic nulls the decision rule (with the A1 Student-t floor) rejects "
+    "5.8-6.6% at nominal 5% and 1.6-1.9% at the Holm first step (nominal 1.25%); dependence beyond the block length "
+    "(slowly varying factor premia) is not fully covered, so a Holm p between 0.03 and 0.05 is borderline evidence",
+    "LARGE MINIMUM DETECTABLE EFFECT: on production-shaped synthetic panels the PRESAMPLE window detects only about "
+    "+1.5-2 pp per signal at 80% power (5-7x the +0.30 pp economic minimum); a true edge at the economic minimum will "
+    "most likely read INCONCLUSIVE, and any VALIDATED effect size is likely inflated (winner's curse)",
 )
 
 

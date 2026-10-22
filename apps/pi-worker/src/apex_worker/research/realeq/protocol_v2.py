@@ -46,9 +46,12 @@ PROTOCOL_V2: dict = {
         "S1-S3 PRESAMPLE summaries in its job log, SAVED them in its artifact and DISPLAYED the primary table in its job "
         "summary. Whether anyone viewed them cannot be determined from the GitHub API. PRESAMPLE is therefore recorded as "
         "EXPOSED (outcomes published, unread by the analyst), not as untouched",
-        "cause": "pre-run adversarial review: unselected arms simulated on PRESAMPLE before being discarded (S1-S3) or "
-        "published (S5); S5 benchmark mis-timed on rebalance days; Holm dropped members without a p-value; the "
-        "UNCERTAINTY rule differed between the copies; "
+        "cause": "pre-run adversarial reviews (the analyst's, then three independent reviews of execution/controls/"
+        "book, statistics/protocol and data): unselected arms simulated on PRESAMPLE before being discarded (S1-S3) or "
+        "published (S5); the decision rule over-rejected on production-shaped nulls; missing bars could hide stops; "
+        "corporate actions could silently be unavailable and mis-adjusted splits went undetected; S5 benchmark "
+        "mis-timed on rebalance days; Holm dropped members without a p-value; the UNCERTAINTY rule differed between "
+        "the copies; "
         "FAILED_WITH_POWER ignored the optimistic leg; touch-fill sensitivity covered buy limits only; a delayed PRESAMPLE "
         "time exit could reach DEV; the S3 retest of an older breakout could be hidden by a newer one; S5 had no cost, "
         "regime or MDE gates",
@@ -190,13 +193,15 @@ PROTOCOL_V2: dict = {
                       "vs the generic matched control; the smaller t of L = 20 and 40); arms whose DEV test is not OK "
                       "are not eligible; none eligible -> the default arm; ties -> earlier in the arm list",
                       "presample": "only the selected arm decides; other arms are not used for any status",
+                      "s5_criterion": "S5 has no matched control: its arms are ranked by the smaller DEV t (L = 20 and "
+                      "40) of the daily active return vs exposure-matched SPY/cash (A1, registering what the code does)",
                       "isolation": "A1: (1) signals from causal features; (2) every registered S1-S5 arm evaluated on DEV "
                       "only; (3) the frozen rule picks one arm per strategy and the choice is hashed (selection lock, "
                       "logged before any PRESAMPLE outcome); (4) PRESAMPLE is simulated for the locked arms only. An "
                       "unselected arm is never simulated on PRESAMPLE, so no PRESAMPLE outcome of it exists to reach a "
                       "metric, log or artifact. S5 simulates each segment from the rebalance row preceding it. Legacy "
                       "rules, baselines and engine self-checks are single configurations and run after the lock"},
-    "inference": {"method": "inference-v2.0: studentized, null-centred circular block bootstrap on the session index",
+    "inference": {"method": "inference-v2.1: studentized, null-centred circular block bootstrap on the session index",
                   "block_lengths": [20, 40], "sensitivity_block_length": 60, "n_boot": 4999, "seed": 11,
                   "min_blocks": 12,
                   "decision_statistic": "conservative: largest p and smallest lower bound over L = 20 and 40 (the "
@@ -205,6 +210,14 @@ PROTOCOL_V2: dict = {
                   "time_axis": "per segment, the sessions on which the live gates admit at least one stock (the "
                   "market-wide risk-off breaker closes all stocks; a closed market is not missing evidence); S5 uses "
                   "every session",
+                  "small_sample_t_floor": True,
+                  "small_sample_t_floor_rule": "A1: at each block length the p-value is the larger of the bootstrap-t p "
+                  "and the Student-t p with df = non-empty blocks - 1, and the bounds use the wider quantile. Reason: on "
+                  "production-shaped synthetic nulls (bench/qv2_a1_production_null_battery.py, 3,000 replicates each: "
+                  "K = 10 same-session controls, residual style/beta exposure, clustered signals) the A0 rule rejected "
+                  "5.9-7.9% at nominal 5% and 1.7-2.4% at the Holm first-step level 1.25%; with the floor 5.8-6.6% and "
+                  "1.6-1.9%. The residual over-size (about 1.2-1.5x nominal) is DISCLOSED, not fixed: alpha is "
+                  "unchanged, and a Holm p between 0.03 and 0.05 is reported as borderline",
                   "alpha_one_sided": 0.05, "primary_family": ["S1", "S2", "S3", "S5"], "multiplicity": "Holm",
                   "multiplicity_missing_p": "a family member without a p-value enters Holm with p = 1, so the family "
                   "size stays 4 (the same rule applies to the legacy family)",
@@ -225,6 +238,12 @@ PROTOCOL_V2: dict = {
         "when the legs differ, the optimistic leg must meet the same two conditions (A1)",
         "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD": "clusters OK, paired mean > 0 and absolute mean > 0, not validated",
         "INCONCLUSIVE": "everything else, including INSUFFICIENT_CLUSTERS",
+        "order": "A1: the first rule that holds, in this order: clusters not OK -> INCONCLUSIVE; every gate -> VALIDATED; "
+        "ambiguous > 25% -> UNCERTAINTY; optimistic leg passes every gate -> UNCERTAINTY; FAILED_WITH_POWER; "
+        "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD; INCONCLUSIVE",
+        "decision_legs": "the decision value is strategy pessimistic minus controls pessimistic ('both legs "
+        "pessimistic'); what daily bars can bound, [strategy pessimistic - controls optimistic, strategy optimistic - "
+        "controls pessimistic], and the controls' ambiguous share are reported descriptively (A1)",
         "NOT_EVALUABLE_MISSING_INPUT": "required point-in-time input does not exist (S4, H3, H7)",
         "RESEARCH_ENGINE_INVALID": "an engine self-check failed; no strategy status is reported",
         "aggregate": "NO_TRADE unless at least one RULE_VALIDATED_RESEARCH_OOS; even then RESEARCH_ONLY with live alerts "
@@ -246,7 +265,7 @@ PROTOCOL_V2: dict = {
     "reporting": "descriptive economics (win/loss distribution, exit shares, gross and net per fill, net per initial "
     "signal, books, concentration, independent counts) never change a disposition; values on fewer than 30 trades are "
     "flagged small_sample",
-    "versions": {"execution": "exec-v2.1", "inference": "inference-v2.0", "features": "qv2-features-1",
+    "versions": {"execution": "exec-v2.1", "inference": "inference-v2.1", "features": "qv2-features-1",
                  "strategies": "0.1.1", "levels": "levels-1"},
 }
 

@@ -370,6 +370,39 @@ def test_a1_s5_gates_cost_regimes_and_absolute_return(desc, want):
     assert SV.classify_v2(_primary(mean=0.0002), 0.01, desc, 0.0001, [0.0001, 0.0002], None, kind="s5")[0] == want
 
 
+@pytest.mark.parametrize(("t", "df", "want"), [  # reference values from scipy.stats.t.sf
+    (2.0, 10, 0.03669401738537018), (1.0, 3, 0.19550110947788524), (-0.5, 17, 0.6882573967171444),
+    (3.5, 34, 0.0006604577837727128), (0.0, 12, 0.5), (5.0, 11, 0.0002012649090622598)])
+def test_a1_student_t_tail_matches_reference(t, df, want):
+    from apex_worker.research.inference import student_t_isf, student_t_sf
+
+    assert student_t_sf(t, df) == pytest.approx(want, rel=1e-10)
+    if 0 < want < 1:
+        assert student_t_isf(want, df) == pytest.approx(t, abs=1e-6)  # flat within ~3e-8 of the median (float x->1)
+
+
+def test_a1_t_floor_never_lowers_p_and_binds_with_few_clusters():
+    """The protocol-2 decision statistic takes max(bootstrap-t p, Student-t p with df = blocks - 1) at every length."""
+    from apex_worker.research.inference import block_test, student_t_sf
+
+    assert PROTOCOL_V2["inference"]["small_sample_t_floor"] is True
+    rng = np.random.default_rng(3)
+    bound = 0
+    for r in range(40):
+        idx = np.sort(rng.integers(0, 300, 60))
+        v = rng.standard_t(3, 60) * 0.03 + 0.008
+        a = block_test(v, idx, 300, block_len=20, n_boot=499, seed=r, min_blocks=12)
+        f = block_test(v, idx, 300, block_len=20, n_boot=499, seed=r, min_blocks=12, t_floor=True)
+        if a.status != "OK":
+            continue
+        assert f.p_one_sided >= a.p_one_sided and f.lower_95 <= a.lower_95 + 1e-15
+        assert f.p_one_sided == pytest.approx(max(a.p_one_sided, student_t_sf(a.t, a.nonempty_blocks - 1)))
+        bound += f.p_one_sided > a.p_one_sided
+    assert bound > 0  # with 15 blocks and t3 tails the floor is not idle
+    dec = SV.block_decision(v, idx, 300, n_boot=499)
+    assert dec["L20"]["p_one_sided"] >= block_test(v, idx, 300, block_len=20, n_boot=499, seed=11).p_one_sided
+
+
 def test_a1_holm_counts_members_without_a_p_value_as_one():
     full, shown = SV._holm_full({"S1": 0.01, "S2": None, "S3": 0.02, "S5": 0.04})
     assert full == pytest.approx({"S1": 0.04, "S3": 0.06, "S5": 0.08, "S2": 1.0})  # A0 used m = 3: S1 0.03
