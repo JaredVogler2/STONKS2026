@@ -27,6 +27,7 @@ INDEX = {
     "baselines": "raw momentum, basic breakout, SPY, flat",
     "engine_self_checks": "look-ahead trap and placebo",
     "multiplicity": "family, raw and Holm-adjusted p",
+    "selection_lock": "the DEV-only arm choice, hashed before any PRESAMPLE outcome existed (A1 isolation)",
     "configurations_attempted": "every strategy x arm x segment evaluated (search ledger)",
 }
 
@@ -58,8 +59,10 @@ def comparisons_md_v2(m: dict) -> str:
         return "\n".join(out) + "\n"
     b, agg = m["boundaries"], m["aggregate"]
     out += [f"**Aggregate: {agg['conclusion']}.** Live alerts, promotion and orders stay disabled.", "",
-            f"* PRESAMPLE (untouched, earlier in time): decisions {b['presample_start']} → {b['presample_end']}. "
-            "Evidence type: **backward-time historical robustness, not forward out-of-sample**",
+            f"* PRESAMPLE (earlier in time than the design data): decisions {b['presample_start']} → {b['presample_end']}. "
+            "Evidence type: **backward-time historical robustness, not forward out-of-sample**. Integrity: **exposed** — "
+            "the cancelled A0 run 39829472789 computed and published PRESAMPLE outcomes (log, job summary, artifact); "
+            "the analyst never read them and the design was not changed in response (PROTOCOL_V2.md §12)",
             f"* DEV (contaminated: design and diagnostics only): decisions {b['dev_start']} → {b['dev_end']}",
             f"* Universe: U1 {PROTOCOL_V2['universe']['classification']} (snapshot {PROTOCOL_V2['universe']['snapshot']}); "
             f"costs {PROTOCOL_V2['primary_cost_bps']} bps per side; pessimistic leg; protocol sha256 `{m['protocol_sha256'][:16]}…`",
@@ -89,7 +92,25 @@ def comparisons_md_v2(m: dict) -> str:
     for sid in ("S1", "S2", "S3", "S4", "S5"):
         st = m["strategies"][sid]
         out.append(f"* **{sid}** {st['disposition']}: {'; '.join(st.get('disposition_reasons') or [])}")
-    out += ["", "## DEV diagnostics per arm (CONTAMINATED; selection only)", ""]
+    out += ["", "## Decision statistics (PRESAMPLE, locked arm; conservative over L = 20 and 40)", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3", "S5"):
+        st = m["strategies"][sid]
+        t = st["primary"]["test"]
+        s = t["summary"]
+        cis = [((t.get(f"L{L}") or {}).get("ci90") or [None, None]) for L in (20, 40)]
+        lo95 = min((c[0] for c in cis if c[0] is not None), default=None)
+        def fmt(x, s5=sid == "S5"):
+            return num(x, 6) if s5 else pct(x, 3)
+
+        rows.append([sid, str(t.get("n", "—")), str(s.get("status")), fmt(s.get("mean")), fmt(lo95),
+                     fmt(s.get("upper_95_max")), _p(s.get("p_one_sided_max")), _p(st.get("holm_adjusted_p")),
+                     _p((st["primary"].get("optimistic_leg") or {}).get("summary", {}).get("p_one_sided_max"))])
+    out += _t(["", "n", "Clusters", "Mean (paired; S5 daily active)", "90% CI low", "90% CI high", "p (cons.)",
+               "Holm p (family of 4)", "p optimistic leg"], rows)
+    out += ["", "The 90% interval is the two-sided studentized block interval (one-sided 95% bounds), widest over the "
+            "decision block lengths. A p-value exists only with >= 12 non-empty blocks at every decision length.",
+            "", "## DEV diagnostics per arm (CONTAMINATED; selection only)", ""]
     rows = []
     for sid in ("S1", "S2", "S3"):
         for arm, v in m["strategies"][sid]["arms"].items():
@@ -106,8 +127,9 @@ def comparisons_md_v2(m: dict) -> str:
     for sid in ("S1", "S2", "S3"):
         mech = m["strategies"][sid].get("mechanism") or {}
         ps = mech.get("PRESAMPLE") or {}
-        out.append(f"* {sid}: PRESAMPLE mean {pct(ps.get('mean'), 3)}, p {_p(ps.get('p_one_sided_max'))} ({ps.get('status')}); "
-                   f"DEV mean {pct((mech.get('DEV') or {}).get('mean'), 3)}")
+        pres_txt = (f"PRESAMPLE {ps['withheld']}" if "withheld" in ps else
+                    f"PRESAMPLE mean {pct(ps.get('mean'), 3)}, p {_p(ps.get('p_one_sided_max'))} ({ps.get('status')})")
+        out.append(f"* {sid}: {pres_txt}; DEV mean {pct((mech.get('DEV') or {}).get('mean'), 3)} (DEV is contaminated)")
     s5 = m["strategies"]["S5"]["primary"]["describe"]
     out.append(f"* S5 vs equal-weight sectors: mean daily {num(s5.get('mean_daily_vs_equal_weight'), 6)}")
     out += ["", "## Sensitivities of the primary arm (PRESAMPLE)", ""]
@@ -139,9 +161,39 @@ def comparisons_md_v2(m: dict) -> str:
     out += _t(["", "Initial signals", "Kept", "Fill rate", "Net / initial signal", "Gross / fill", "Net / fill",
                "Median net / fill", "Win rate", "Avg win", "Avg loss", "Payoff", "Stop", "Target", "Time", "No fill",
                "Small sample"], rows)
+    rows = []
+    for sid in ("S1", "S2", "S3"):
+        pr = m["strategies"][sid]["primary"]
+        d = pr.get("describe") or {}
+        res = d.get("exit_outcomes_resolved") or {}
+        mfe, mae = d.get("mfe_bounds_mean") or [None, None], d.get("mae_bounds_mean") or [None, None]
+        mx = pr.get("market_exposure") or {}
+        rows.append([sid, str(res.get("STOP", 0)), str(res.get("TARGET", 0)), str(res.get("TIME", 0)),
+                     str(res.get("UNRESOLVED_DAILY_BAR_AMBIGUITY", 0)), f"{pct(mfe[0], 2)} … {pct(mfe[1], 2)}",
+                     f"{pct(mae[0], 2)} … {pct(mae[1], 2)}", num(d.get("mean_sessions_held"), 1),
+                     num(mx.get("beta"), 2), pct(mx.get("alpha_per_trade"), 3),
+                     pct(mx.get("signals_on_top_5pct_sessions_share"), 1)])
     out += ["", "Kept = after the levels screen, quarantine, the DEV-crossing exclusion and de-duplication. Exit shares "
-            "are of fills on the pessimistic leg; the optimistic leg and the ambiguity types are in strategy_metrics.json.",
-            "", "## Sample size, power and concentration (PRESAMPLE)", ""]
+            "are of fills on the pessimistic leg (an ambiguous bar counts as a stop there); the next table separates "
+            "the exits daily bars resolve from the ones they cannot.",
+            "", "Exits that daily bars resolve, the unresolvable ones, excursion bounds and market exposure:", ""]
+    out += _t(["", "Stop (resolved)", "Target (resolved)", "Time", "Unresolved (daily-bar ambiguity)",
+               "MFE bounds (mean)", "MAE bounds (mean)", "Sessions held", "Beta to SPY (trade window)",
+               "Alpha / trade", "Signals on top 5% sessions"], rows)
+    out += ["", "MFE/MAE are bounds, not observations: daily bars cannot order the high and low around the fill. Beta "
+            "and alpha regress each trade's net return on SPY's return from the decision close to the exit close "
+            "(approximate, descriptive).", "", "## Stability by calendar year (paired mean, locked arm)", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3"):
+        st = m["strategies"][sid]
+        for seg, br in (("PRESAMPLE", (st["primary"].get("breakdowns") or {}).get("year") or {}),
+                        ("DEV", (st.get("dev_breakdowns") or {}).get("year") or {})):
+            cells = ", ".join(f"{y}: {pct(v.get('mean_paired'), 2)} (n={v.get('n')}{'*' if v.get('small_sample') else ''})"
+                              for y, v in sorted(br.items()))
+            rows.append([sid, seg, cells or "—"])
+    out += _t(["", "Segment", "Per year (n < 30 marked *)"], rows)
+    out += ["", "DEV years are contaminated diagnostics (the design data), shown only for stability context."]
+    out += ["", "## Sample size, power and concentration (PRESAMPLE)", ""]
     rows = []
     for sid in ("S1", "S2", "S3", "S5"):
         pr = m["strategies"][sid]["primary"]
@@ -190,7 +242,13 @@ def comparisons_md_v2(m: dict) -> str:
             d = (m.get("baselines") or {}).get(name, {}).get(seg) or {}
             rows.append([name, seg, str(d.get("signals", 0)), pct(d.get("mean_per_signal_net"), 3),
                          pct(d.get("control_mean_per_signal_net"), 3), pct(d.get("mean_paired"), 3)])
+    pl = ((m.get("engine_self_checks") or {}).get("placebo") or {}).get("describe") or {}
+    rows.append(["matched-random (placebo: one random eligible member per session)", "PRESAMPLE",
+                 str(pl.get("signals", 0)), pct(pl.get("mean_per_signal_net"), 3),
+                 pct(pl.get("control_mean_per_signal_net"), 3), pct(pl.get("mean_paired"), 3)])
     out += _t(["Baseline", "Segment", "Signals", "Per-signal net", "Control", "Paired mean"], rows)
+    out += ["", "Every strategy's matched control is itself a matched-random selection (same session, sector and "
+            "volatility stratum, same stop geometry), so the 'Control' columns are the matched-random benchmark."]
     out += ["", "## Legacy comparators (same engine; own Holm family)", ""]
     rows = []
     for sid, v in m["legacy"].items():

@@ -43,8 +43,13 @@ BIAS_WARNINGS_V2 = (
     "EARNINGS UNKNOWN: no point-in-time earnings calendar; S4 is NOT_EVALUABLE and earnings vetoes are not modelled",
     "PRICE-ONLY RETURNS: split-adjusted bars, dividends not modelled (affects absolute, much less paired, returns)",
     "DAILY BARS: intraday order is unknown; ambiguous outcomes carry pessimistic and optimistic legs (exec-v2.0)",
-    "PRESAMPLE IS EARLIER, NOT LATER: the untouched evaluation window precedes the design data; forward evidence is "
-    "still required",
+    "PRESAMPLE IS EARLIER, NOT LATER: the evaluation window precedes the design data (backward-time historical "
+    "robustness, not forward out-of-sample); forward evidence is still required",
+    "PRESAMPLE EXPOSURE: the cancelled A0 run 39829472789 computed and published PRESAMPLE outcomes (job log, job "
+    "summary, artifact). The analyst never read them and no design choice responded to them, but the window is not "
+    "untouched; read every PRESAMPLE result with that in mind (PROTOCOL_V2.md section 12)",
+    "SURVIVORSHIP-LIMITED UNIVERSE: U1 is not an unbiased all-market sample; results do not generalise to delisted or "
+    "smaller stocks",
 )
 
 

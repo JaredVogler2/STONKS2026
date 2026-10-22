@@ -39,10 +39,16 @@ PROTOCOL_V2: dict = {
     "registered": "2026-10-22, before any protocol-2 outcome was computed on market data",
     "amendment": {
         "id": "A1", "date": "2026-10-22", "supersedes_sha256": PROTOCOL_V2_A0_SHA256,
-        "timing": "issued before any protocol-2 outcome informed it: the one A0 output (Actions run 39829472789, "
-        "cancelled after its study step had finished) is sealed; only its file names, sizes and hash were listed",
-        "cause": "pre-run adversarial review: S5 benchmark mis-timed on rebalance days; unselected S5 arm evaluated on "
-        "PRESAMPLE; Holm dropped members without a p-value; the UNCERTAINTY rule differed between the copies; "
+        "timing": "issued before any protocol-2 outcome informed it. The analyst never saw an A0 outcome value: of the A0 "
+        "run (Actions run 39829472789, cancelled after its study step had finished) only file names, sizes, hashes and a "
+        "redacted structural scan (line counts, key presence) were examined",
+        "a0_exposure": "the A0 run COMPUTED PRESAMPLE outcomes (selected arms of S1/S2/S3 and both S5 arms), PRINTED the "
+        "S1-S3 PRESAMPLE summaries in its job log, SAVED them in its artifact and DISPLAYED the primary table in its job "
+        "summary. Whether anyone viewed them cannot be determined from the GitHub API. PRESAMPLE is therefore recorded as "
+        "EXPOSED (outcomes published, unread by the analyst), not as untouched",
+        "cause": "pre-run adversarial review: unselected arms simulated on PRESAMPLE before being discarded (S1-S3) or "
+        "published (S5); S5 benchmark mis-timed on rebalance days; Holm dropped members without a p-value; the "
+        "UNCERTAINTY rule differed between the copies; "
         "FAILED_WITH_POWER ignored the optimistic leg; touch-fill sensitivity covered buy limits only; a delayed PRESAMPLE "
         "time exit could reach DEV; the S3 retest of an older breakout could be hidden by a newer one; S5 had no cost, "
         "regime or MDE gates",
@@ -95,9 +101,10 @@ PROTOCOL_V2: dict = {
     "chronology": {
         "warmup_sessions": 252,
         "label_sessions": 22,
-        "presample": {"role": "FRESH_EVALUATION_PRESAMPLE_UNTOUCHED",
+        "presample": {"role": "EVALUATION_PRESAMPLE_EXPOSED_A0_UNREAD_BY_ANALYST (untouched by protocol-1 and by design; "
+                      "A0 run 39829472789 published outcomes on 2026-10-22, see amendment.a0_exposure)",
                       "evidence_type": "PRESAMPLE_BACKWARD_TIME_HISTORICAL_ROBUSTNESS (earlier in time than the design "
-                      "data; not forward out-of-sample)",
+                      "data; not forward out-of-sample; A0 outcomes published unread)",
                       "decisions": "from the first session with 252 prior sessions to the last whose decision + 22 "
                       f"sessions is before {PRESAMPLE_LABEL_END}",
                       "label_exclusion": f"a PRESAMPLE trade or control whose exit session (either leg) is on or after "
@@ -137,9 +144,10 @@ PROTOCOL_V2: dict = {
                "default_arm": "A_X0", "mechanism": "per opportunity: retest arm minus immediate arm, same exit",
                "retest_rule": "each qualified breakout b is judged on its own window b+1..b+3 (first qualifying "
                "session); when two opportunities retest on one session the signal carries the more recent breakout",
-               "mechanism_exception": "the contrast values both entry arms per opportunity on PRESAMPLE too (registered "
-               "mechanism, descriptive, never a gate); an opportunity whose retest lies outside the breakout's segment "
-               "or whose trade is quarantined or label-incomplete is excluded, not counted as a miss"},
+               "mechanism_scope": "DEV only (A1 isolation): the contrast needs both entry arms, so its PRESAMPLE half "
+               "would evaluate an unselected arm and is withheld; descriptive, never a gate; an opportunity whose retest "
+               "lies outside the breakout's segment or whose trade is quarantined or label-incomplete is excluded, not "
+               "counted as a miss"},
         "S4": {"title": "First-publication earnings/guidance continuation", "status": "NOT_EVALUABLE_MISSING_INPUT",
                "reason": "no verified point-in-time first-publication earnings source; nothing is backdated"},
         "S5": {"title": "Sector-ETF trend allocation with cash abstention", "arms": ["R10", "R5"], "default_arm": "R10",
@@ -165,7 +173,13 @@ PROTOCOL_V2: dict = {
     "arm_selection": {"segment": "DEV", "criterion": "largest DEV studentized paired difference (pessimistic, 25 bps, "
                       "vs the generic matched control; the smaller t of L = 20 and 40); arms whose DEV test is not OK "
                       "are not eligible; none eligible -> the default arm; ties -> earlier in the arm list",
-                      "presample": "only the selected arm decides; other arms are not used for any status"},
+                      "presample": "only the selected arm decides; other arms are not used for any status",
+                      "isolation": "A1: (1) signals from causal features; (2) every registered S1-S5 arm evaluated on DEV "
+                      "only; (3) the frozen rule picks one arm per strategy and the choice is hashed (selection lock, "
+                      "logged before any PRESAMPLE outcome); (4) PRESAMPLE is simulated for the locked arms only. An "
+                      "unselected arm is never simulated on PRESAMPLE, so no PRESAMPLE outcome of it exists to reach a "
+                      "metric, log or artifact. S5 simulates each segment from the rebalance row preceding it. Legacy "
+                      "rules, baselines and engine self-checks are single configurations and run after the lock"},
     "inference": {"method": "inference-v2.0: studentized, null-centred circular block bootstrap on the session index",
                   "block_lengths": [20, 40], "sensitivity_block_length": 60, "n_boot": 4999, "seed": 11,
                   "min_blocks": 12,

@@ -167,7 +167,12 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
         from apex_worker.research.realeq.study_v2 import prepare, run_study
 
         pre = prepare(usable, cfg.progress)
-        res2 = run_study(pre, b, quarantine_dates(loaded.actions), cfg.progress)
+
+        def on_lock(lock: dict) -> None:
+            step("lock the DEV-only arm selection (before any PRESAMPLE outcome)", "ok",
+                 f"{lock['chosen_arms']}; lock sha256 {lock['lock_sha256'][:16]}; manifest {m['manifest_sha256'][:12]}")
+
+        res2 = run_study(pre, b, quarantine_dates(loaded.actions), cfg.progress, on_lock, m["manifest_sha256"])
         step("evaluate S1-S5, legacy H rules, baselines, controls, self-checks", "ok",
              f"{len(res2.configurations)} configurations; aggregate {res2.aggregate['conclusion']}")
         m |= {"run_status": STATUS_COMPLETED, "strategies": res2.strategies, "legacy": res2.legacy,
@@ -178,6 +183,7 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
             "protocol_sha256": m["protocol_sha256"], "index": R.INDEX, "aggregate": res2.aggregate,
             "strategies": res2.strategies, "legacy": res2.legacy, "baselines": res2.baselines,
             "engine_self_checks": res2.self_checks, "multiplicity": res2.multiplicity, "coverage": res2.coverage,
+            "selection_lock": res2.selection_lock,
             "configurations_attempted": res2.configurations,
         }
         R.write_json(out / "strategy_metrics.json", metrics)

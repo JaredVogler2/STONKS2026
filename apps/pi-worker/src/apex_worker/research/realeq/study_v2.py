@@ -10,6 +10,8 @@ Pipeline (every rule is a value in protocol_v2.PROTOCOL_V2):
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import zlib
 from collections.abc import Callable
@@ -411,6 +413,10 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
         "exit_shares_of_fills": {"pessimistic": _shares(filled["outcome"], len(filled)),
                                  "optimistic": _shares(filled["outcome_opt"], len(filled))} if len(filled) else {},
         "no_fill_share_of_signals": _f((part["outcome"] == "NO_FILL").mean(), 4),
+        "exit_outcomes_resolved": ({**{str(k): int(v) for k, v in
+                                       filled.loc[filled["ambiguity"] == "NONE", "outcome"].value_counts().items()},
+                                    "UNRESOLVED_DAILY_BAR_AMBIGUITY": int((filled["ambiguity"] != "NONE").sum())}
+                                   if len(filled) else {}),
         "mean_sessions_held": _f(filled["held"].astype(float).mean(), 2) if len(filled) else None,
         "mfe_bounds_mean": [_f(filled["mfe_lo"].mean()), _f(filled["mfe_hi"].mean())] if len(filled) else None,
         "mae_bounds_mean": [_f(filled["mae_lo"].mean()), _f(filled["mae_hi"].mean())] if len(filled) else None,
@@ -446,6 +452,32 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
         out["u0_subset"] = {"signals": len(u0), "mean_paired": _f((u0[a] - u0[c]).mean()) if len(u0) else None,
                             "small_sample": len(u0) < SMALL_N}
     return out
+
+
+def market_exposure(df: pd.DataFrame, pre: Prepared, seg: str) -> dict:
+    """Descriptive market exposure of filled trades: OLS of the trade's net return on SPY's close-to-close return over
+    the same window (decision close to exit close), plus how concentrated signals are in time. The window is an
+    approximation (entries and exits are intraday); it never enters a gate."""
+    part = df[(df["segment"] == seg) & df["filled"].astype(bool)] if len(df) else df
+    out: dict = {"segment": seg, "note": "approximate window (decision close to exit close); descriptive"}
+    if len(df) and (df["segment"] == seg).any():
+        per = df[df["segment"] == seg]["t"].value_counts()
+        k = max(1, math.ceil(0.05 * len(per)))
+        out["signals_on_top_5pct_sessions_share"] = _f(per.sort_values(ascending=False).iloc[:k].sum() / per.sum(), 4)
+        out["max_signals_one_session"] = int(per.max())
+    if len(part) < 10:
+        return out | {"beta": None, "value": "INSUFFICIENT_TRADES" if len(part) else "UNAVAILABLE_NO_TRADES"}
+    spy = pre.bars[BENCHMARK]["close"].reindex(pre.sessions).ffill().to_numpy(float)
+    t, e = part["t"].to_numpy(int), part["exit_index"].astype(int).to_numpy()
+    m = spy[e] / spy[t] - 1
+    y = part["value"].to_numpy(float)
+    ok = np.isfinite(m) & np.isfinite(y)
+    if ok.sum() < 10 or float(np.var(m[ok])) <= 0:
+        return out | {"beta": None, "value": "INSUFFICIENT_TRADES"}
+    beta = float(np.cov(m[ok], y[ok], ddof=1)[0, 1] / np.var(m[ok], ddof=1))
+    alpha = float(y[ok].mean() - beta * m[ok].mean())
+    return out | {"trades": int(ok.sum()), "beta": _f(beta, 3), "alpha_per_trade": _f(alpha),
+                  "mean_spy_window_return": _f(m[ok].mean()), "corr": _f(float(np.corrcoef(m[ok], y[ok])[0, 1]), 3)}
 
 
 def independent_counts(desc: dict, test: dict) -> dict:
@@ -582,23 +614,36 @@ class S5Data:
         self.spy_day = (c / o - 1).fillna(0.0)
         self.spy_ret = c.pct_change().fillna(0.0)
 
-    def series(self, pre: Prepared, arm: str, cost: float, equal_weight: bool = False):
+    def series(self, pre: Prepared, arm: str, cost: float, equal_weight: bool = False, start: int = 0):
         """(net return, end-of-day exposure, post-open exposure, exposure-matched SPY/cash). The benchmark holds SPY
         overnight with the prior close's exposure and from the open to the close with the post-rebalance exposure (A1);
-        it pays no cost."""
+        it pays no cost. Decision rows before `start` are dropped: the book starts from cash at the rebalance row
+        `start`, so no return before start + 1 is ever computed (A1 isolation; see s5_start)."""
         cfg = S5Config(rebalance=int(arm[1:]), top_n=P["strategies"]["S5"]["top_n"])
         w = s5_weights(self.etf, pre.regime, pre.sessions, cfg, equal_weight=equal_weight)
+        if start > 0:
+            w.iloc[:start] = np.nan
         r, x, xo = allocation_returns(w, self.opens, self.closes, cost, with_open_exposure=True)
         bench = (1 + x.shift(1).fillna(0.0) * self.spy_night) * (1 + xo * self.spy_day) - 1
         return r, x, xo, bench
 
 
+def s5_start(arm: str, lo: int) -> int:
+    """The last rebalance row before the segment's first evaluated return (lo + 1). Weights are decided only on rows
+    t % R == 0 and fully replace the book, so a book started from cash at this row is identical to the full-history
+    book from row start + 1 on (the only difference, the first rebalance's traded weight, falls on start + 1 <= lo)."""
+    r = int(arm[1:])
+    return max(0, (lo - 1) // r * r)
+
+
 def s5_segment(pre: Prepared, b: BoundariesV2, data: S5Data, arm: str, seg: str, full: bool) -> dict:
-    """One S5 arm on one segment. `full` adds the cost grid, regimes, mechanism and benchmark comparisons; it is only
-    computed for the DEV-selected arm on PRESAMPLE (and for every arm on DEV)."""
+    """One S5 arm on one segment. `full` adds the cost grid, regimes, mechanism and benchmark comparisons. Only the
+    segment's own sessions (from the preceding rebalance row) are simulated, so evaluating an arm on DEV computes no
+    PRESAMPLE return, and PRESAMPLE is simulated only for the locked arm."""
     lo, hi = seg_range(b, seg)
     sl = slice(lo + 1, hi + 1)
-    r, x, xo, bench = data.series(pre, arm, C)
+    st = s5_start(arm, lo)
+    r, x, xo, bench = data.series(pre, arm, C, start=st)
     act = (r.iloc[sl] - bench.iloc[sl]).to_numpy(float)
     test = block_decision(act, np.arange(len(act)), len(act))
     test["n"] = len(act)
@@ -615,7 +660,7 @@ def s5_segment(pre: Prepared, b: BoundariesV2, data: S5Data, arm: str, seg: str,
         return out
     grid = {}
     for cst in COSTS:
-        rc = r if cst == C else data.series(pre, arm, cst)[0]
+        rc = r if cst == C else data.series(pre, arm, cst, start=st)[0]
         a = (rc.iloc[sl] - bench.iloc[sl]).to_numpy(float)
         grid[f"{cst}bps"] = {"mean_daily_active": _f(a.mean(), 7), "mean_daily_net": _f(rc.iloc[sl].mean(), 7),
                              "total_return": _f(np.prod(1 + rc.iloc[sl].to_numpy(float)) - 1)}
@@ -628,9 +673,9 @@ def s5_segment(pre: Prepared, b: BoundariesV2, data: S5Data, arm: str, seg: str,
     turnover_w = s5_weights(data.etf, pre.regime, pre.sessions,
                             S5Config(rebalance=int(arm[1:]), top_n=P["strategies"]["S5"]["top_n"]))
     out["rebalance_sessions"] = int((~turnover_w.iloc[lo : hi + 1].isna().all(axis=1)).sum())
-    ew = data.series(pre, arm, C, equal_weight=True)[0]
+    ew = data.series(pre, arm, C, equal_weight=True, start=st)[0]
     eweq = np.cumprod(1 + ew.iloc[sl].to_numpy(float))
-    spyeq = np.cumprod(1 + data.spy_ret.iloc[sl].to_numpy(float))
+    spyeq = np.cumprod(1 + data.spy_ret.iloc[sl].to_numpy(float))  # SPY's own path (a reference, not an outcome)
     out |= {"equal_weight_sectors_total_return": _f(eweq[-1] - 1) if len(eweq) else None,
             "equal_weight_sectors_max_drawdown": _dd(eweq), "spy_total_return": _f(spyeq[-1] - 1) if len(spyeq) else None,
             "spy_max_drawdown": _dd(spyeq), "mean_daily_vs_equal_weight": _f((r.iloc[sl] - ew.iloc[sl]).mean(), 7)}
@@ -649,6 +694,7 @@ class StudyResult:
     configurations: list[dict]
     summary_rows: list[dict]
     coverage: dict
+    selection_lock: dict = field(default_factory=dict)
 
 
 def _pool_matrix(fn, pre: Prepared) -> np.ndarray:
@@ -735,79 +781,134 @@ def _withhold(funnel: dict) -> dict:
     return {"DEV": funnel["DEV"], "PRESAMPLE": "withheld: not the DEV-selected arm"}
 
 
+def _merge_runs(dev: ArmRun, pres: ArmRun) -> ArmRun:
+    """The locked arm's DEV run and its later PRESAMPLE run as one ArmRun (identical to a single run over both: every
+    PRESAMPLE trade exits before DEV starts, so de-duplication never links the segments)."""
+    parts = [x for x in (pres.rows, dev.rows) if len(x)]
+    rows = pd.concat(parts, ignore_index=True).sort_values(["t", "symbol"], kind="stable").reset_index(drop=True) \
+        if parts else dev.rows
+    return ArmRun(rows, {"PRESAMPLE": pres.funnel["PRESAMPLE"], "DEV": dev.funnel["DEV"]})
+
+
+def selection_lock(chosen: dict[str, str], dev_scores: dict[str, dict], manifest_sha256: str | None) -> dict:
+    """The DEV-only arm choice, hashed BEFORE any PRESAMPLE outcome of any S strategy exists (A1 isolation)."""
+    from datetime import UTC, datetime
+
+    from apex_worker.research.realeq.protocol_v2 import protocol_v2_sha256
+
+    body = {"segment": "DEV", "rule": P["arm_selection"]["criterion"], "chosen_arms": dict(chosen),
+            "dev_selection_t": {sid: {a: _f(v, 6) for a, v in sc.items()} for sid, sc in dev_scores.items()},
+            "protocol_sha256": protocol_v2_sha256(), "manifest_sha256": manifest_sha256}
+    canon = json.dumps(body, sort_keys=True, separators=(",", ":"))
+    return body | {"lock_sha256": hashlib.sha256(canon.encode()).hexdigest(),
+                   "locked_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "guarantee": "computed from DEV outcomes only; no PRESAMPLE outcome of any S1-S5 arm existed when "
+                   "it was taken, and PRESAMPLE is then evaluated for these arms only"}
+
+
+def _choose(scores: dict[str, float], order: list[str], default: str) -> str:
+    return max(scores, key=lambda a: (scores[a], -order.index(a))) if scores else default
+
+
+WITHHELD = {"withheld": "not the DEV-selected arm: never evaluated on PRESAMPLE"}
+
+
 def run_study(pre: Prepared, b: BoundariesV2, quarantine: dict[str, list[pd.Timestamp]],
-              progress: Callable[[str], None] = lambda _m: None) -> StudyResult:
+              progress: Callable[[str], None] = lambda _m: None, on_lock: Callable[[dict], None] = lambda _l: None,
+              manifest_sha256: str | None = None) -> StudyResult:
+    """Three phases (A1 isolation): (1) signals from causal features only; (2) every registered arm on DEV, the frozen
+    selection rule, and the selection LOCK; (3) PRESAMPLE for the locked arms only, then legacy rules, baselines and
+    engine self-checks (single configurations, nothing to select)."""
     global OPEN  # noqa: PLW0603 - one study at a time; the axis is reset on every call
     OPEN = pre.open_sessions
     configs: list[dict] = []
     summary_rows: list[dict] = []
     strategies: dict[str, dict] = {}
-    runs: dict[str, dict[str, ArmRun]] = {}
     spec = P["strategies"]
 
     def log_cfg(name, arm, seg, role):
         configs.append({"name": name, "arm": arm, "segment": seg, "cost_bps": C, "role": role})
 
-    # ---- S1, S2, S3 --------------------------------------------------------------------------------------------
+    # ---- phase 1: signals (features only; no outcome is simulated here) -------------------------------------------
     plan = {
         "S1": [("s1_leader_pullback", spec["S1"]["arms"])],
         "S2": [("s2_residual_momentum", spec["S2"]["arms"])],
         "S3": [("s3a_breakout_immediate", [a for a in spec["S3"]["arms"] if a.startswith("A_")]),
                ("s3c_breakout_retest", [a for a in spec["S3"]["arms"] if a.startswith("C_")])],
     }
+    inputs: dict[str, dict[str, tuple]] = {sid: {} for sid in plan}
     for sid, parts in plan.items():
-        runs[sid] = {}
-        counts_by_arm = {}
         for plugin, arms in parts:
             strat = QV2_STRATEGIES[plugin]
             sigs, counts = signals_for(strat, pre, b)
-            pools = None
-            if sid in ("S1", "S2"):
-                pools = {"mechanism": _pool_matrix(strat.mechanism_pool, pre)}
+            by_seg = {seg: [g for g in sigs if segment_of(g.t, b) == seg] for seg in SEGMENTS}
+            pools = {"mechanism": _pool_matrix(strat.mechanism_pool, pre)} if sid in ("S1", "S2") else None
             for arm in arms:
-                r = run_arm(sid, arm, sigs, pre, b, quarantine, pools)
-                for seg in SEGMENTS:
-                    r.funnel[seg] |= {"triggered": counts["triggered"][seg],
-                                      "eligible_in_window": counts["eligible_in_window"][seg]}
-                runs[sid][arm] = r
-                counts_by_arm[arm] = counts
-                log_cfg(sid, arm, "DEV", "arm")
-                progress(f"{sid} {arm}: DEV kept {r.funnel['DEV']['kept']} of {r.funnel['DEV']['signals']} signals")
-        # DEV-only arm selection; PRESAMPLE rows of every other arm are discarded unseen
-        default = spec[sid]["default_arm"]
-        dev = {arm: paired_test(r.rows, b, "DEV") for arm, r in runs[sid].items()}
-        ok = {a: dev_t(t) for a, t in dev.items() if dev_t(t) is not None}
-        order = spec[sid]["arms"]
-        chosen = max(ok, key=lambda a: (ok[a], -order.index(a))) if ok else default
+                inputs[sid][arm] = (by_seg, counts, pools)
+    # ---- phase 2: DEV only, every registered arm; then the frozen selection rule and the lock --------------------
+    dev_runs: dict[str, dict[str, ArmRun]] = {sid: {} for sid in plan}
+    dev_tests: dict[str, dict[str, dict]] = {sid: {} for sid in plan}
+    scores: dict[str, dict[str, float]] = {}
+    chosen: dict[str, str] = {}
+    for sid in plan:
+        for arm, (by_seg, counts, pools) in inputs[sid].items():
+            r = run_arm(sid, arm, by_seg["DEV"], pre, b, quarantine, pools)
+            r.funnel["DEV"] |= {"triggered": counts["triggered"]["DEV"], "eligible_in_window": counts["eligible_in_window"]["DEV"]}
+            dev_runs[sid][arm] = r
+            dev_tests[sid][arm] = paired_test(r.rows, b, "DEV")
+            log_cfg(sid, arm, "DEV", "arm")
+            progress(f"{sid} {arm}: DEV kept {r.funnel['DEV']['kept']} of {r.funnel['DEV']['signals']} signals")
+        scores[sid] = {a: dev_t(t) for a, t in dev_tests[sid].items() if dev_t(t) is not None}
+        chosen[sid] = _choose(scores[sid], spec[sid]["arms"], spec[sid]["default_arm"])
+    data5 = S5Data(pre)
+    order5 = spec["S5"]["arms"]
+    dev5 = {a: s5_segment(pre, b, data5, a, "DEV", full=False) for a in order5}
+    for a in order5:
+        log_cfg("S5", a, "DEV", "arm")
+    scores["S5"] = {a: dev_t(v["test"]) for a, v in dev5.items() if dev_t(v["test"]) is not None}
+    chosen["S5"] = _choose(scores["S5"], order5, spec["S5"]["default_arm"])
+    lock = selection_lock(chosen, scores, manifest_sha256)
+    on_lock(lock)
+    progress(f"DEV-only selection locked before any PRESAMPLE outcome: {lock['chosen_arms']} "
+             f"(lock sha256 {lock['lock_sha256'][:12]})")
+    # ---- phase 3: PRESAMPLE, locked arms only -----------------------------------------------------------------------
+    for sid in plan:
+        ch = chosen[sid]
+        by_seg, counts, pools = inputs[sid][ch]
+        pres = run_arm(sid, ch, by_seg["PRESAMPLE"], pre, b, quarantine, pools)
+        pres.funnel["PRESAMPLE"] |= {"triggered": counts["triggered"]["PRESAMPLE"],
+                                     "eligible_in_window": counts["eligible_in_window"]["PRESAMPLE"]}
+        r = _merge_runs(dev_runs[sid][ch], pres)
+        dev = dev_tests[sid]
         strategies[sid] = {"title": spec[sid]["title"], "arms": {},
-                           "funnel": {a: (r.funnel if a == chosen else _withhold(r.funnel)) for a, r in runs[sid].items()}}
-        for arm, r in runs[sid].items():
-            if arm != chosen and len(r.rows):
-                r.rows = r.rows[r.rows["segment"] == "DEV"]
-            strategies[sid]["arms"][arm] = {"DEV": describe(r.rows, "DEV", initial=r.funnel["DEV"]["signals"]) | {
+                           "funnel": {a: (r.funnel if a == ch else _withhold(x.funnel)) for a, x in dev_runs[sid].items()}}
+        for arm, x in dev_runs[sid].items():
+            rows = r.rows if arm == ch else x.rows
+            strategies[sid]["arms"][arm] = {"DEV": describe(rows, "DEV", initial=x.funnel["DEV"]["signals"]) | {
                 "test": dev[arm], "role": "DEV_CONTAMINATED diagnostic"},
-                                            "PRESAMPLE": describe(r.rows, "PRESAMPLE") if arm == chosen else
-                                            {"withheld": "not the DEV-selected arm: never evaluated on PRESAMPLE"}}
-            summary_rows += [x for x in _summary_rows(sid, arm, r.rows) if arm == chosen or x["segment"] == "DEV"]
-        strategies[sid]["selection"] = {"segment": "DEV", "chosen_arm": chosen, "dev_t": {a: _f(v, 4) for a, v in ok.items()},
+                                            "PRESAMPLE": describe(rows, "PRESAMPLE") if arm == ch else WITHHELD}
+            summary_rows += [y for y in _summary_rows(sid, arm, rows) if arm == ch or y["segment"] == "DEV"]
+        strategies[sid]["selection"] = {"segment": "DEV", "chosen_arm": ch, "dev_t": {a: _f(v, 4) for a, v in scores[sid].items()},
                                         "dev_means": {a: _f(t["summary"]["mean"]) for a, t in dev.items()},
-                                        "rule": P["arm_selection"]["criterion"], "fallback_to_default": not ok}
-        r = runs[sid][chosen]
+                                        "rule": P["arm_selection"]["criterion"], "fallback_to_default": not scores[sid],
+                                        "lock_sha256": lock["lock_sha256"]}
         prim = paired_test(r.rows, b, "PRESAMPLE")
         prim_opt = paired_test(r.rows, b, "PRESAMPLE", "value_opt", "ctrl_value_opt")
-        log_cfg(sid, chosen, "PRESAMPLE", "primary")
+        log_cfg(sid, ch, "PRESAMPLE", "primary")
         desc = describe(r.rows, "PRESAMPLE", initial=r.funnel["PRESAMPLE"]["signals"])
-        dev_desc = strategies[sid]["arms"][chosen]["DEV"]
-        strategies[sid]["primary"] = {"arm": chosen, "segment": "PRESAMPLE", "evidence_type": EVIDENCE["PRESAMPLE"],
+        dev_desc = strategies[sid]["arms"][ch]["DEV"]
+        strategies[sid]["primary"] = {"arm": ch, "segment": "PRESAMPLE", "evidence_type": EVIDENCE["PRESAMPLE"],
                                       "test": prim, "optimistic_leg": prim_opt, "describe": desc,
                                       "halves": halves(r.rows, b),
                                       "halves_optimistic": halves(r.rows, b, "value_opt", "ctrl_value_opt"),
                                       "breakdowns": breakdowns(r.rows, "PRESAMPLE", pre.sessions),
-                                      "dev_mean_paired": dev[chosen]["summary"]["mean"],
+                                      "dev_mean_paired": dev[ch]["summary"]["mean"],
                                       "dev_mean_paired_optimistic": dev_desc.get("mean_paired_optimistic"),
                                       "independent_counts": independent_counts(desc, prim),
-                                      "power": power_report(dev[chosen], prim)}
+                                      "market_exposure": market_exposure(r.rows, pre, "PRESAMPLE"),
+                                      "power": power_report(dev[ch], prim)}
         strategies[sid]["dev_breakdowns"] = breakdowns(r.rows, "DEV", pre.sessions)
+        strategies[sid]["dev_market_exposure"] = market_exposure(r.rows, pre, "DEV")
         strategies[sid]["books"] = books(r.rows, pre, b)
         # mechanism contrasts (secondary, descriptive)
         mech = {}
@@ -816,35 +917,29 @@ def run_study(pre: Prepared, b: BoundariesV2, quarantine: dict[str, list[pd.Time
                 mech[seg] = paired_test(r.rows, b, seg, "value", "mech_mechanism_value")["summary"] | {
                     "pool": spec[sid]["mechanism_pool"]}
         if sid == "S3":
-            mech = s3_opportunity_contrast(pre, b, quarantine, chosen.split("_")[-1])
+            mech = s3_opportunity_contrast(pre, b, quarantine, ch.split("_")[-1])
         strategies[sid]["mechanism"] = mech
-        progress(f"{sid}: chose {chosen} on DEV; PRESAMPLE evaluated once")
+        progress(f"{sid}: PRESAMPLE evaluated once, for the locked arm only")
     # ---- S4 -------------------------------------------------------------------------------------------------------
     strategies["S4"] = {"title": spec["S4"]["title"], "disposition": "NOT_EVALUABLE_MISSING_INPUT",
                         "disposition_reasons": [spec["S4"]["reason"]], "signals": 0}
-    # ---- S5: DEV for every arm, then PRESAMPLE for the selected arm only ----------------------------------------------
-    data5 = S5Data(pre)
-    order5 = spec["S5"]["arms"]
-    dev5 = {a: s5_segment(pre, b, data5, a, "DEV", full=False) for a in order5}
-    for a in order5:
-        log_cfg("S5", a, "DEV", "arm")
-    ok5 = {a: dev_t(v["test"]) for a, v in dev5.items() if dev_t(v["test"]) is not None}
-    chosen5 = max(ok5, key=lambda a: (ok5[a], -order5.index(a))) if ok5 else spec["S5"]["default_arm"]
+    # ---- S5: PRESAMPLE for the locked arm only ------------------------------------------------------------------------
+    chosen5 = chosen["S5"]
     dev5[chosen5] = s5_segment(pre, b, data5, chosen5, "DEV", full=True)
     pres5 = s5_segment(pre, b, data5, chosen5, "PRESAMPLE", full=True)
     log_cfg("S5", chosen5, "PRESAMPLE", "primary")
     strategies["S5"] = {"title": spec["S5"]["title"],
-                        "arms": {a: {"DEV": dev5[a], "PRESAMPLE": pres5 if a == chosen5 else
-                                     {"withheld": "not the DEV-selected arm: never evaluated on PRESAMPLE"}}
-                                 for a in order5},
-                        "selection": {"segment": "DEV", "chosen_arm": chosen5, "dev_t": {a: _f(v, 4) for a, v in ok5.items()},
-                                      "rule": P["arm_selection"]["criterion"], "fallback_to_default": not ok5},
+                        "arms": {a: {"DEV": dev5[a], "PRESAMPLE": pres5 if a == chosen5 else WITHHELD} for a in order5},
+                        "selection": {"segment": "DEV", "chosen_arm": chosen5,
+                                      "dev_t": {a: _f(v, 4) for a, v in scores["S5"].items()},
+                                      "rule": P["arm_selection"]["criterion"], "fallback_to_default": not scores["S5"],
+                                      "lock_sha256": lock["lock_sha256"]},
                         "primary": {"arm": chosen5, "segment": "PRESAMPLE", "evidence_type": EVIDENCE["PRESAMPLE"],
                                     "test": pres5["test"], "describe": {k: v for k, v in pres5.items() if k != "test"},
                                     "halves": pres5["halves"], "dev_mean": dev5[chosen5]["test"]["summary"]["mean"],
                                     "power": power_report(dev5[chosen5]["test"], pres5["test"],
                                                           P["economic_min_effect"]["s5_daily_active"])}}
-    progress(f"S5: chose {chosen5} on DEV; PRESAMPLE evaluated once")
+    progress("S5: PRESAMPLE evaluated once, for the locked arm only")
     # ---- multiplicity and dispositions ------------------------------------------------------------------------------
     fam = P["inference"]["primary_family"]
     pv = {sid: strategies[sid]["primary"]["test"]["summary"]["p_one_sided_max"] for sid in fam}
@@ -934,19 +1029,19 @@ def run_study(pre: Prepared, b: BoundariesV2, quarantine: dict[str, list[pd.Time
             "legacy_family": {k: _f(v, 5) for k, v in ladj.items()},
             "note": "arms were selected on DEV only; PRESAMPLE was looked at once, for the selected arms"}
     return StudyResult(strategies, legacy, baselines, checks, aggregate, mult, configs, summary_rows,
-                       {"eligible_stocks_by_year": pre.member_counts})
+                       {"eligible_stocks_by_year": pre.member_counts}, lock)
 
 
 def s3_opportunity_contrast(pre: Prepared, b: BoundariesV2, q: dict, exit_arm: str) -> dict:
     """Per qualified breakout b (an arm-A signal): the retest-arm value minus the immediate-arm value, same exit.
 
-    Registered mechanism contrast (A1 wording): both entry arms are valued per opportunity on each segment, which is
-    the one place where the unselected S3 entry arm enters a PRESAMPLE number; it is descriptive and never a gate. A
-    missed retest counts 0. An opportunity is EXCLUDED, not counted as a miss, when its retest session lies outside the
-    breakout's segment, or when either arm's trade is quarantined or has an incomplete label. No de-duplication: every
-    qualified breakout is its own opportunity."""
+    DEV only (A1 isolation): the contrast needs both entry arms, and one of them is not the locked arm, so its
+    PRESAMPLE half is withheld rather than computed. Descriptive, never a gate. A missed retest counts 0. An
+    opportunity is EXCLUDED, not counted as a miss, when its retest session lies outside the breakout's segment, or
+    when either arm's trade is quarantined or has an incomplete label. No de-duplication: every qualified breakout is
+    its own opportunity."""
     strat_c = QV2_STRATEGIES["s3c_breakout_retest"]
-    a_sigs, _ = signals_for(QV2_STRATEGIES["s3a_breakout_immediate"], pre, b)
+    a_sigs = [g for g in signals_for(QV2_STRATEGIES["s3a_breakout_immediate"], pre, b)[0] if segment_of(g.t, b) == "DEV"]
     pol = arm_policy(f"E0{exit_arm}")
     valid = P["execution"]["entry_valid_sessions"]
     dev0 = b.dev_range[0]
@@ -988,11 +1083,11 @@ def s3_opportunity_contrast(pre: Prepared, b: BoundariesV2, q: dict, exit_arm: s
         rows.append({"t": g.t, "segment": segment_of(g.t, b), "value": vc, "ctrl_value": va, "retested": retested})
     df = pd.DataFrame(rows)
     out = {"exit_arm": exit_arm, "definition": "retest arm minus immediate arm per opportunity; no retest = 0",
-           "excluded": excluded}
-    for seg in SEGMENTS:
-        part = df[df["segment"] == seg] if len(df) else df
-        out[seg] = paired_test(df, b, seg)["summary"] | {
-            "opportunities": len(part), "retest_share": _f(part["retested"].mean(), 4) if len(part) else None}
+           "excluded": excluded, "segment_evidence": EVIDENCE["DEV"],
+           "PRESAMPLE": {"withheld": "needs the unselected entry arm on PRESAMPLE; not computed (A1 isolation)"}}
+    part = df[df["segment"] == "DEV"] if len(df) else df
+    out["DEV"] = paired_test(df, b, "DEV")["summary"] | {
+        "opportunities": len(part), "retest_share": _f(part["retested"].mean(), 4) if len(part) else None}
     return out
 
 
@@ -1050,6 +1145,8 @@ def self_checks(pre: Prepared, b: BoundariesV2, q: dict) -> dict:
         r = run_arm(f"selfcheck_{name}", "E0X1", sigs, pre, b, q, stop_k=2.0, self_check=True)
         test = paired_test(r.rows, b, "PRESAMPLE")["summary"]
         out[name] = {"signals": len(sigs), "kept": _kept(r.funnel), "test": test}
+        if name == "placebo":  # a random eligible member per session: the matched-random selection baseline
+            out[name]["describe"] = describe(r.rows, "PRESAMPLE", initial=r.funnel["PRESAMPLE"]["signals"])
     p_trap = out["lookahead_trap"]["test"]["p_one_sided_max"]
     out["lookahead_trap"]["detected"] = p_trap is not None and p_trap < 0.001
     p_pl = out["placebo"]["test"]["p_one_sided_max"]

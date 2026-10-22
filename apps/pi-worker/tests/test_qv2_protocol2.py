@@ -470,6 +470,94 @@ def test_a1_presample_trade_reaching_dev_is_excluded(small, monkeypatch):
     assert r.funnel["PRESAMPLE"]["label_crosses_dev"] == 0 and r.funnel["PRESAMPLE"]["kept"] == 1
 
 
+def test_a1_selection_is_locked_before_any_presample_outcome_and_unselected_arms_never_see_presample(small, monkeypatch):
+    """A1 isolation. Every simulation of a PRESAMPLE decision raises until the DEV-only selection lock exists, so no
+    PRESAMPLE outcome can influence the choice; afterwards only the locked arm of each S strategy reaches PRESAMPLE,
+    and nothing about an unselected arm's PRESAMPLE appears in the result."""
+    from apex_worker.research import controls as CT
+
+    _bars, b, pre = small
+    lo, hi = b.presample_range
+    events, state = [], {"locked": False}
+
+    def guard(fn):
+        def wrapped(m, symbol, t, *a, **k):
+            if lo <= t <= hi and not state["locked"]:
+                raise AssertionError(f"PRESAMPLE outcome simulated before the lock: {symbol} t={t}")
+            return fn(m, symbol, t, *a, **k)
+        return wrapped
+
+    monkeypatch.setattr(SV, "simulate_signal", guard(SV.simulate_signal))
+    monkeypatch.setattr(CT, "simulate_signal", guard(CT.simulate_signal))
+    real_arm, real_s5 = SV.run_arm, SV.s5_segment
+
+    def arm_spy(name, arm, sigs, *a, **k):
+        events.append(("arm", name, arm, {SV.segment_of(g.t, b) for g in sigs}))
+        return real_arm(name, arm, sigs, *a, **k)
+
+    def s5_spy(pre_, b_, data, arm, seg, full):
+        if seg == "PRESAMPLE" and not state["locked"]:
+            raise AssertionError("S5 PRESAMPLE before the lock")
+        events.append(("s5", "S5", arm, {seg}))
+        return real_s5(pre_, b_, data, arm, seg, full)
+
+    def on_lock(lock):
+        state["locked"] = True
+        events.append(("lock", lock["chosen_arms"]))
+
+    monkeypatch.setattr(SV, "run_arm", arm_spy)
+    monkeypatch.setattr(SV, "s5_segment", s5_spy)
+    res = SV.run_study(pre, b, {}, on_lock=on_lock, manifest_sha256="m" * 64)
+    k = next(i for i, e in enumerate(events) if e[0] == "lock")
+    chosen = events[k][1]
+    assert all("PRESAMPLE" not in e[3] for e in events[:k])  # before the lock: DEV only, every registered arm
+    assert {(e[1], e[2]) for e in events[:k] if e[1] in chosen} == {
+        (sid, a) for sid in ("S1", "S2", "S3", "S5") for a in PROTOCOL_V2["strategies"][sid]["arms"]}
+    after = [(e[1], e[2]) for e in events[k + 1:] if "PRESAMPLE" in e[3] and e[1] in chosen]
+    assert sorted(after) == sorted(chosen.items())  # each locked arm exactly once, nothing else
+    assert res.selection_lock["chosen_arms"] == chosen and len(res.selection_lock["lock_sha256"]) == 64
+    for sid in ("S1", "S2", "S3", "S5"):
+        st = res.strategies[sid]
+        for arm, v in st["arms"].items():
+            if arm != chosen[sid]:
+                assert v["PRESAMPLE"] == SV.WITHHELD
+        assert st["selection"]["lock_sha256"] == res.selection_lock["lock_sha256"]
+    assert "withheld" in res.strategies["S3"]["mechanism"]["PRESAMPLE"]
+    pres_rows = {(r["name"], r["arm"]) for r in res.summary_rows if r["segment"] == "PRESAMPLE" and r["name"] in chosen}
+    assert pres_rows <= set(chosen.items())
+    pres_cfg = {(c["name"], c["arm"]) for c in res.configurations if c["segment"] == "PRESAMPLE" and c["name"] in chosen}
+    assert pres_cfg == set(chosen.items())
+
+
+def test_a1_split_dev_then_presample_runs_equal_one_run_over_both(small):
+    """Running DEV first and PRESAMPLE later (the isolation order) changes no number: same rows, values and controls."""
+    _bars, b, pre = small
+    SV.OPEN = pre.open_sessions
+    sigs, _ = SV.signals_for(QV2_STRATEGIES["s2_residual_momentum"], pre, b)
+    one = SV.run_arm("S2", "E0X1", sigs, pre, b, {})
+    dev = SV.run_arm("S2", "E0X1", [g for g in sigs if SV.segment_of(g.t, b) == "DEV"], pre, b, {})
+    pres = SV.run_arm("S2", "E0X1", [g for g in sigs if SV.segment_of(g.t, b) == "PRESAMPLE"], pre, b, {})
+    both = SV._merge_runs(dev, pres)
+    cols = ["symbol", "t", "segment", "value", "value_opt", "ctrl_value", "ctrl_value_opt", "value_tt", "ctrl_value_tt"]
+    assert len(one.rows) > 20
+    pd.testing.assert_frame_equal(one.rows[cols].reset_index(drop=True), both.rows[cols].reset_index(drop=True))
+    assert one.funnel == both.funnel
+
+
+def test_a1_s5_segment_simulation_matches_full_history_and_computes_nothing_earlier(small):
+    _bars, b, pre = small
+    data = SV.S5Data(pre)
+    for arm in PROTOCOL_V2["strategies"]["S5"]["arms"]:
+        for seg in ("DEV", "PRESAMPLE"):
+            lo, hi = SV.seg_range(b, seg)
+            st = SV.s5_start(arm, lo)
+            full = data.series(pre, arm, 25.0)
+            loc = data.series(pre, arm, 25.0, start=st)
+            for f_, l_ in zip(full, loc, strict=True):
+                np.testing.assert_allclose(f_.iloc[lo + 1 : hi + 1], l_.iloc[lo + 1 : hi + 1], rtol=0, atol=1e-12)
+            assert (loc[0].iloc[: st + 1] == 0).all() and st < lo  # no return before the segment's own book exists
+
+
 def test_v25_lookahead_trap_detected_and_placebo_quiet():
     bars = factor_frames_v2(per_sector=10, seed=5)
     b = compute_boundaries_v2(bars["SPY"].index)

@@ -4,7 +4,7 @@
 |---|---|
 | Milestones | M2 (data and universe), M3 (preregistration), M4 (S1–S5) of [Issue #12](https://github.com/JaredVogler2/STONKS2026/issues/12) |
 | Builds on | [M0_AUDIT.md](M0_AUDIT.md), [M1_ENGINE.md](M1_ENGINE.md) |
-| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md). A1 (binding) sha256 `71adc9b9…7e70`; A0 `a15b4e92…4c9f`, superseded before evaluation (§9) |
+| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md). A1 (binding) sha256 `2fe2c2a2…b7c5`; A0 `a15b4e92…4c9f`, superseded before evaluation (§9) |
 | Market data used | none: every number below comes from seeded synthetic fixtures |
 | Trading | none; research-only plugins, disabled by default; no promotion, alerts or orders |
 
