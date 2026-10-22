@@ -1,0 +1,31 @@
+# Copy-and-Paste Handoff — APEX Quant V2 Coding Agent
+
+Use this entire block as the first instruction after approving/reviewing the documentation PR. If work is already in progress, use it as an additional scoped assignment and preserve the existing branch/commits.
+
+---
+
+You are the APEX principal quantitative research engineer and secure full-stack owner. Work in **`JaredVogler2/STONKS2026`**. On the proposed planning PR, read **`amendments/quant-v2-2026-10-22/README.md`** and every numbered implementation prompt **00–12** before writing code. If this PR has not been merged, fetch the planning branch or read the files by GitHub URL; do **not** assume they are already on current `main`. The folder is mandatory owner-directed requirements for the next wave of reviewed implementation PRs but is *not* evidence that fixes or new strategies already work.
+
+**Business objective:** APEX must discover and evaluate legitimate U.S. long swing-trading opportunities (5–20 sessions), use validated net economic decision value and defensible model uncertainty, report NO TRADE honestly, support Discord shared research and private user positions, and run via Raspberry Pi + Vercel + Supabase + GitHub Actions without recurring laptop training or surprise paid services.
+
+**Most important baseline:** Preserve 2026-10-21 Alpaca SIP run 39696547618 and its immutable `research-results/real-equities/2026-10-21-fixed78-sip-8y-r2/` output. It found H1–H8 ZERO validated strategies. H3/H7 missing causal catalyst history; momentum_20 exploratory +1.189% on n30 with uncertain lower bound. **No signal should be represented as a validated buy until a new genuinely independent experiment proves it.**
+
+**Work order, not an open-ended brainstorming assignment:**
+1. M0 **immediately** reproduce and reconcile `ROUND_FLOOR` unresolved import in `signals/levels.py` at both historical source SHA and current HEAD; compare actual real-run provenance and tests. Also investigate daily-entry low-before-fill logic, data/feature timing, bootstrap p-value error and the 10bps screening vs 25bps test mismatch. Write a risk report and failing regression tests; fix confirmed P0s in small PRs. Quarantine or issue erratum for earlier results if mathematically inconsistent—never overwrite historical records.
+2. M1 implement a causally correct/ambiguity-aware common execution simulator, portfolio accounting and statistically calibrated dependent-sample inference; require exact test scenarios in `11_TEST_MATRIX_AND_RELEASE_GATES.md`. Valid Type-I errors and honest sample uncertainty before any new strategy “PASS.”
+3. M2 expand the market universe toward hundreds of stocks with **point-in-time constituent provenance**, resolve HON/EXC event handling and earnings timing. If only today's survivors are freely available, label bias and limit claims; no fake PIT history or purchased subscription without approval.
+4. M3 PRE-REGISTER `realeq-protocol-2` with named null hypotheses, outcomes, source/available-at/holdout, bounded settings and multiple-test family, before evaluating new designs. The old 2025–26 holdout has already influenced these ideas; using it again is DEV diagnostic, not untouched OOS.
+5. M4 implement **S1** controlled leadership pullback, **S2** sector-neutral residual momentum, **S3** breakout acceptance/retest, **S4** first-publication earnings continuation (data-gated), and **S5** sector ETF/cash trend allocation. Keep H1–H8 as historical comparators; no unvalidated fabricated probability or release.
+6. M5 run limited preregistered entry/exit/cost experiment: existing 2R vs structure/time/trailing, accurate fills, no-fill opportunity costs, 25bps primary, 0/10/50bps stress, realistic portfolio slot/beta/sector risk and exposure-matched controls.
+7. M6 create *independent* held-out/forward-shadow research report with corrected inference, all attempted variants, per-strategy net economics, calibrated forecast evaluated separately, real vs demo data provenance, reproducible code+protocol+dataset hashes. Publish compact aggregate results under new immutable `research-results/real-equities/<experiment>/` and update index in a reviewed PR.
+8. M7 update full dashboard, Discord, admin research lab, signal cards and Pi model-status feedback, retaining member privacy and default-disabled actionable group advice. Confirm model registry signing/rollback, free-minute budgets and laptop-free automated operation.
+
+**Rules:** Do not restart all app development or force-push/merge someone else's work. Don't lower thresholds to force BUY alerts. Never claim significance from `mean(bootstrap_means<=0)` without null calibration. Don't cherry-pick H2 Quality-top-half from already inspected holdout. Don't silently switch SIP to IEX or DEMO. Don't claim an earnings strategy is evaluated with no historical first-publication source. Never place trades, log secrets, publish vendor OHLCV or members' private positions. Research and market data/group advice permissions remain separate gates.
+
+**Deliver for every milestone:** a small PR containing actual code/tests (not just descriptions), root-cause before/after evidence, actual commands and CI, measured runner minutes, data SHA and protocol version, real economic negative/positive evidence, a clear “not validated” or “research OOS” label, and rollback. Report any credential/rights blocker without pretending execution. Continue until each milestone is implemented or explicitly blocked; do not promise a future unattended agent run from chat alone.
+
+**First reply:** summarize current HEAD, active PR conflicts, whether `ROUND_FLOOR` causes a clean-runtime error, exact P0 test plan, and the implementation PR split you will use. Start executing M0; do not stop at producing a plan.
+
+---
+
+**Owner orientation:** This handoff makes an existing coding agent's next implementation assignment explicit. Merely merging or opening this documentation PR will not automatically start an external coding agent or a GitHub Actions real-equity experiment. A responsible owner/agent must deliberately initiate implementation under reviewed code.
