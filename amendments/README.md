@@ -1,4 +1,13 @@
+> **NEW — October 22, 2026:** [APEX Quant V2 methodology remediation and five replacement strategy experiments](quant-v2-2026-10-22/README.md) — comprehensive 15-document follow-up to the *actual Alpaca SIP real-equity backtest*; read [agent handoff](quant-v2-2026-10-22/13_COPY_READY_AGENT_HANDOFF.md). This supersedes outdated PR #1 research snapshots in this amendment program when addressing real-equity profitability, but not the original safety controls.
+
 # APEX — Versioned Amendment and Independent Audit Program
+
+## Quant V2 research and application remediation — October 22, 2026
+
+**NEW OWNER-DIRECTED IMPLEMENTATION PACKAGE:** [Quant V2 — research correctness, 5 replacement strategies, economic decision engine and 60 adversarial tests](quant-v2-2026-10-22/README.md). Begin with [copy-ready coding-agent handoff](quant-v2-2026-10-22/13_COPY_READY_AGENT_HANDOFF.md) after reviewing the full folder.
+
+This package was created **after** the first actual Alpaca SIP experiment [2026-10-21-fixed78-sip-8y-r2](../research-results/real-equities/2026-10-21-fixed78-sip-8y-r2/), which returned NO_TRADE and no validated H1–H8. Do not restart app development, retroactively optimize or overwrite that immutable result. Its immediate priority is reconciling the `ROUND_FLOOR` source issue, fill-day sequencing, valid null-calibrated inference and cost parity, before testing S1–S5 with preregistered methodology and independent evidence.
+
 
 **Prepared:** 2026-10-20. **Target:** STONKS2026 PR #1, snapshot head `75679cbc5dfbf51bddc72487648a22e3bcbcd092` (active agent branch at review time).  
 **Status:** PROPOSED and CODE-REVIEW DRIVEN; not deployed, merged, or represented as a verified production incident.
