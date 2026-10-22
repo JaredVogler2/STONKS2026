@@ -10,7 +10,7 @@ Inputs: 25 streamed symbols, 300-symbol daily universe, 10 members, 3 signals/se
 | Alpaca IEX streamed symbols | 25 | 30 | 83.3% | https://docs.alpaca.markets/us/docs/about-market-data-api |
 | Supabase database size | ≈ 31.0 MB steady + 9.4 MB / month | 500 MB (warn 350, stop 450) | 34 months to 350 MB | https://supabase.com/docs/guides/platform/billing-on-supabase |
 | Discord messages | 44 / day | per-route rate limits (bot honours 429 retry-after) | n/a | https://discord.com/developers/docs/topics/rate-limits |
-| GitHub Actions minutes (max possible, model workflows) | 505 / month (455 with manual promotion), plus CI | 2,000 / month on Free, shared by ALL repos | 25.3% | https://docs.github.com/en/billing/concepts/product-billing/github-actions |
+| GitHub Actions minutes (max possible, model + forward-shadow workflows) | 1,117 / month (1,067 with manual promotion), plus CI | 2,000 / month on Free, shared by ALL repos | 55.9% | https://docs.github.com/en/billing/concepts/product-billing/github-actions |
 | SEC EDGAR | ≤ 2 requests / second (polite pacing) | 10 / second fair-access ceiling | ≤ 20% | https://www.sec.gov/os/accessing-edgar-data |
 
 Agent API calls per day (Pi → Vercel): heartbeat 1,440, outbox_poll 2,880, config_poll 96, model_manifest_poll 32, observations_upload 28, scan_run 1, signals_and_events 12, assessments 26, catalysts 24; total ≈ 4,539.
@@ -20,6 +20,10 @@ Network egress (Pi): ≈ 12.6 MB/day, far below any home connection limit.
 Notes
 - Limits marked ASSUMED or "verify" change over time; check the linked page before relying on them. Nothing in APEX upgrades a plan automatically.
 - GitHub Actions minutes are shared with every private repository and workflow on the account; the weekly job skips optional work when the configured budget is low.
+- `apex-forward-shadow` (Discovery V3 PR-A) is REQUIRED work, reserved before optional drift: two weekday attempts and a
+  Saturday retry, at most 12 minutes each (612 in a 23-weekday, 5-Saturday month). Expected cost is ~4-6 minutes for a
+  decision run and ~1-2 minutes for a no-op retry, about 40-60 Alpaca requests per decision, and two GitHub issue
+  comments per session (decision, later outcome).
 - `apex-real-equities-research` (Phase 14) is manual-only and not part of the scheduled worst case above: each run costs
   at most 30 minutes (job timeout) and about 16–20 Alpaca requests for 8 years of fixed78 daily bars. Its pre-fetch
   checkpoint skips the run when the scheduled worst case plus 30 minutes would exceed `APEX_ACTIONS_MONTHLY_BUDGET`.

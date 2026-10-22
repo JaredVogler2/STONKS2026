@@ -100,6 +100,41 @@ jobs:
       - name: Pytest
         run: uv run --no-sync pytest -q -p no:cacheprovider
 
+  forward-shadow-smoke:
+    # DEMO only: the forward-shadow recorder end to end on the synthetic fixture over a simulated calendar (decisions,
+    # a pending source, a missed session, catch-up, maturity, chain verification). No secrets, no market data, no writes.
+    name: forward-shadow smoke (synthetic fixture, DEMO)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/pi-worker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Smoke (SYNTHETIC_FIXTURE_DEMO)
+        run: uv run --no-sync apex research forward-shadow smoke --out "$RUNNER_TEMP/forward-smoke"
+      - name: Job summary
+        if: always()
+        run: if [ -f "$RUNNER_TEMP/forward-smoke/summary.md" ]; then cat "$RUNNER_TEMP/forward-smoke/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload the DEMO ledger (synthetic; 7-day retention)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: forward-shadow-smoke-demo-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/forward-smoke/
+          retention-days: 7
+          if-no-files-found: ignore
+
   workflow-lint:
     name: workflow lint (actionlint)
     runs-on: ubuntu-24.04

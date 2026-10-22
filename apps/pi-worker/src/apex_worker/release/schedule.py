@@ -57,6 +57,12 @@ class Schedule:
 WEEKLY_TRAIN = Schedule("train_weekly", frozenset({0}), time(19, 17), timedelta(hours=24))
 WEEKDAY_DRIFT = Schedule("drift", frozenset({0, 1, 2, 3, 4}), time(20, 23), timedelta(hours=6))
 SCHEDULES = {s.workflow: s for s in (WEEKLY_TRAIN, WEEKDAY_DRIFT)}
+# Forward shadow (apex-forward-shadow.yml): two weekday attempts after the NYSE close. Not training runs, so not in
+# SCHEDULES (whose SLA reads training_runs); its missed-session alarm is the recorder's own MISSED_OBSERVATION record.
+FORWARD_SHADOW = Schedule("forward_shadow", frozenset({0, 1, 2, 3, 4}), time(18, 12), timedelta(hours=4))
+FORWARD_SHADOW_RETRY = Schedule("forward_shadow_retry", frozenset({0, 1, 2, 3, 4}), time(21, 52), timedelta(hours=4))
+# Saturday retry: a Friday session's window stays open until Monday's open, so one more attempt protects it
+FORWARD_SHADOW_WEEKEND = Schedule("forward_shadow_weekend", frozenset({5}), time(12, 12), timedelta(hours=4))
 
 
 def month_bounds(now: datetime) -> tuple[datetime, datetime]:

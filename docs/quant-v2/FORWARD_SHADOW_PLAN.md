@@ -2,10 +2,20 @@
 
 | | |
 |---|---|
-| Status | **Plan (Phase 6 of the M6 assignment).** Not implemented, and nothing runs yet. |
+| Status | **Plan (Phase 6 of the M6 assignment), implemented by Discovery V3 PR-A**: see [docs/discovery-v3/FORWARD_SHADOW.md](../discovery-v3/FORWARD_SHADOW.md). Nothing is recorded until that workflow runs on `main`. |
 | Registered window | Decisions from **2026-10-23** (`PROTOCOL_V2.chronology.forward_shadow`). Nothing earlier counts. |
 | Protocol | `realeq-protocol-2` as amended (A1), with the arms locked by the first A1 run (its `selection_lock`) |
 | Mode | Research only: no Discord signals, alerts, group recommendations, promotion or orders, whatever the result |
+
+> **Implementation note (PR-A).** Two details differ from this plan, for least privilege and durability:
+>
+> - **Storage.** The durable store is the anchor issue's comments themselves (each record as a payload, with GitHub's
+>   `created_at` as the anchor), not artifacts alone. Artifacts expire after 90 days, which would break the chain
+>   if a monthly PR were late. The job token is `contents: read` + `issues: write` and never pushes.
+> - **Controls.** Each decision freezes the ordered matched-control reserve (stratum, seeded draw order and each
+>   candidate's plan). The first K that survive quarantine become the controls at maturity, exactly as in the study.
+>
+> Everything else below holds.
 
 ## 1. Why a forward shadow is still required
 
