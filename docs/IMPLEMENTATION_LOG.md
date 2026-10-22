@@ -112,7 +112,8 @@ the GitHub budget to $0 so a quota overrun stops jobs instead of billing.
   It is research only: no signing, registry, promotion, Discord or orders.
 - Manual workflow `apex-real-equities-research.yml` (`main` only, `contents: read`, Alpaca market-data secrets only).
 - `apex release preflight` reports `PRODUCTION_REGISTRY_UNCONFIGURED` for drift and weekly training.
-- No real result exists yet: see [EXECUTION_STATUS.md](../research-results/real-equities/EXECUTION_STATUS.md).
+- First real experiment (run 39696547618, 2026-10-21): aggregate **NO_TRADE**. See
+  [`research-results/real-equities/2026-10-21-fixed78-sip-8y-r2/`](../research-results/real-equities/2026-10-21-fixed78-sip-8y-r2/).
 
 ## Deficiencies found and fixed
 
@@ -139,9 +140,6 @@ the GitHub budget to $0 so a quota overrun stops jobs instead of billing.
 These steps need accounts and cannot be done from the build container. Each is in
 [README_OPERATOR.md](README_OPERATOR.md) and [AUTONOMOUS_TRAINING.md](AUTONOMOUS_TRAINING.md).
 
-0. Phase 14 (no Supabase/Vercel needed): create the `real-equities-research` environment (main only) with
-   `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY`, then run *Actions → apex-real-equities-research* on `main`
-   ([PROTOCOL.md §8](../research-results/real-equities/PROTOCOL.md#8-owner-one-time-setup-github-ui-only-no-laptop-no-pi)).
 1. Create the Supabase project, then run `pnpm --filter @apex/web db:migrate`.
 2. Create the Vercel project with Vercel Authentication on all deployments, then run `scripts/smoke-deployment.mjs`.
 3. Create the GitHub `model-release` environment (main only), add its secrets and set the $0 Actions budget.

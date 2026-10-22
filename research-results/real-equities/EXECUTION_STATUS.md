@@ -1,13 +1,15 @@
 # Real-equity execution status (Phase 14 / Issue #6)
 
-**Status (2026-10-21 11:09Z): BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING.** The first real run was dispatched on `main` and
-stopped before any download, because the Alpaca secrets are not configured. No real-equity backtest has been completed, and
-none is claimed.
+**Status (2026-10-21 23:57Z): FIRST REAL EXPERIMENT COMPLETED. The aggregate result is NO_TRADE.**
+
+- Results: [`2026-10-21-fixed78-sip-8y-r2/`](2026-10-21-fixed78-sip-8y-r2/), with reviewer notes in [REVIEW.md](2026-10-21-fixed78-sip-8y-r2/REVIEW.md).
+- No hypothesis is validated. Live alerts, promotion and orders stay disabled.
 
 ## Attempted real runs (every attempt is recorded, including blocked ones)
 
 | Run | Commit | Experiment id | Outcome | Details |
 |---|---|---|---|---|
+| [39696547618](https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618) (job 119555196116), 2026-10-21 23:55:54–23:57:22Z | `2acad29` (main, PR #8 merge) | `2026-10-21-fixed78-sip-8y-r2` (alpaca, 8 years, fixed78) | **COMPLETED**: aggregate NO_TRADE | 16 SIP requests, 78/78 symbols usable, 156,773 raw rows, 0 invalid. Holdout 2025-05-02 → 2026-09-21. Dispositions: H8 FAILED_REAL_OOS; H5 UNVALIDATED; H1/H2/H4/H6 INSUFFICIENT_HISTORY; H3/H7 NOT_EVALUABLE_MISSING_INPUT. Artifact id 12390019748, sha256 `270c8895…`. |
 | [39589850123](https://github.com/JaredVogler2/STONKS2026/actions/runs/39589850123) (job 119187791407), 2026-10-21 11:09:25–11:09:47Z | `7ee224c` (main, PR #7 merge) | `2026-10-21-fixed78-sip-8y` (alpaca, 8 years, fixed78) | **BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING**, exit 2 | Minutes checkpoint passed: 480 of 1500 minutes worst case, measured usage unknown. `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` were empty, so no provider request was made, no data was downloaded, no synthetic fallback ran and no strategy was evaluated. Artifact `apex-realeq-39589850123-1` (id 12341355551, sha256 `ac2b17f1…`, 7 days) holds the seven BLOCKED-status files only. |
 
 ## Ready, verified offline
@@ -19,10 +21,10 @@ none is claimed.
 | Workflow `apex-real-equities-research.yml` | actionlint clean. Static tests check: manual dispatch on `main` only, `contents: read`, no `id-token`, only the two Alpaca secrets in two steps, no cache, pinned actions, a 7-day artifact of exactly the seven files, and a minutes checkpoint before the fetch. |
 | DEMO smoke run (fixture, **not market data**) | Full pipeline with 8 years × 78 symbols through the Alpaca wire-format emulation: 16 requests, about 70 s locally, all seven files written and labelled DEMO, aggregate `NO_TRADE`. Its output is deliberately **not** committed here: synthetic results never enter `research-results/`. |
 
-## Not yet run (blockers)
+## Former blockers (resolved)
 
 1. ~~The workflow is not on the default branch yet.~~ Resolved: PR #7 merged at `7ee224c`, and the workflow dispatches from `main`.
-2. **The Alpaca secrets are not configured.** Run 39589850123 confirmed this: both values were empty in the `real-equities-research` job.
+2. ~~The Alpaca secrets are not configured.~~ Resolved: the owner added them, and run 39696547618 completed. Run 39589850123 had stopped BLOCKED with both values empty.
    - The coding agent cannot read repository secrets and has no Alpaca credentials in its container.
    - By policy it did not use, and will not use, any connected-tool (e.g. ChatGPT Alpaca connector) credential.
    - Without the secrets the run stops with **BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING**, as run 39589850123 did. It runs no synthetic fallback, and its execution log and job summary say so.
@@ -30,7 +32,7 @@ none is claimed.
      `real-equities-research` is restricted to `main` before you add the secrets.
    - One-time setup: [PROTOCOL.md §8](PROTOCOL.md#8-owner-one-time-setup-github-ui-only-no-laptop-no-pi).
 
-Steps NOT run: the real SIP download, the real data-quality inventory, the real H1–H8 and baseline evaluation, the portfolio, the dispositions, and publication of a real experiment directory.
+All protocol steps ran in run 39696547618. Data download, data-quality inventory, frozen manifest, H1–H8 and baselines, portfolio, robustness and dispositions are published in the experiment directory above.
 
 ## Production drift failure (separate from research)
 
