@@ -15,7 +15,7 @@ import pandas as pd
 
 from apex_worker.signals.strategies.library import Strategy, StrategySpec, _col
 
-QV2_STRATEGY_VERSION = "0.1.0"
+QV2_STRATEGY_VERSION = "0.1.1"  # 0.1.1 (A1): S3C judges each breakout's retest window on its own
 
 
 @dataclass(frozen=True)
@@ -112,24 +112,34 @@ class BreakoutImmediate(Strategy):
         return _frame(q, _col(f, "rel_volume_1"), hint, f, opportunity=opp)
 
 
+def retest_sessions(f: pd.DataFrame) -> dict[int, tuple[int, float]]:
+    """Per qualified breakout b: the FIRST session t in b+1..b+3 whose low revisits pivot_b + 0.5 ATR_b and whose close
+    is back above pivot_b, with its stop hint min(low_t, pivot_b) - 0.5 ATR_t. Breakouts that never retest are absent.
+    Each opportunity is judged on its own, so a newer breakout never hides an older one's retest (amendment A1)."""
+    q = _qualified_breakout(f).to_numpy(bool)
+    piv, atr = _col(f, "pivot_high_20").to_numpy(float), _col(f, "atr_14").to_numpy(float)
+    low, close = _col(f, "v2_low").to_numpy(float), _col(f, "close").to_numpy(float)
+    out: dict[int, tuple[int, float]] = {}
+    for b in np.flatnonzero(q):
+        if not (math.isfinite(piv[b]) and math.isfinite(atr[b])):
+            continue
+        for t in range(b + 1, min(len(f), b + 4)):
+            if low[t] <= piv[b] + 0.5 * atr[b] and close[t] > piv[b]:
+                out[int(b)] = (t, float(min(low[t], piv[b]) - 0.5 * atr[t]))
+                break
+    return out
+
+
 class BreakoutRetest(Strategy):
     """S3 arm C: within 1-3 sessions after a qualified breakout b, the FIRST session whose low revisits pivot_b +
-    0.5 ATR_b and closes back above pivot_b. Missed retests are recorded against the opportunity (value 0)."""
+    0.5 ATR_b and closes back above pivot_b. Missed retests are recorded against the opportunity (value 0). When two
+    opportunities retest on the same session, the signal carries the more recent breakout (one signal per session)."""
 
     def trigger_frame(self, f: pd.DataFrame) -> pd.DataFrame:
-        q = _qualified_breakout(f).to_numpy(bool)
-        piv, atr = _col(f, "pivot_high_20").to_numpy(float), _col(f, "atr_14").to_numpy(float)
-        low, close = _col(f, "v2_low").to_numpy(float), _col(f, "close").to_numpy(float)
         n = len(f)
         trig, opp, hint = np.zeros(n, bool), np.full(n, -1), np.full(n, np.nan)
-        done: set[int] = set()
-        for t in range(1, n):
-            b = next((b for b in (t - 1, t - 2, t - 3) if b >= 0 and q[b]), None)  # most recent qualified breakout
-            if b is None or b in done or not (math.isfinite(piv[b]) and math.isfinite(atr[b])):
-                continue
-            if low[t] <= piv[b] + 0.5 * atr[b] and close[t] > piv[b]:
-                trig[t], opp[t], hint[t] = True, b, min(low[t], piv[b]) - 0.5 * atr[t]
-                done.add(b)
+        for b, (t, h) in sorted(retest_sessions(f).items()):  # ascending b: a more recent breakout overwrites
+            trig[t], opp[t], hint[t] = True, b, h
         return _frame(pd.Series(trig, index=f.index), _col(f, "rel_volume_1"), pd.Series(hint, index=f.index), f,
                       opportunity=pd.Series(opp, index=f.index))
 
@@ -210,7 +220,8 @@ S3C = BreakoutRetest(_spec(
     deps=["S3 arm A conditions", "v2_low", "pivot_high_20", "atr_14"],
     rules=["first session in b+1..b+3 with low <= pivot + 0.5 ATR_b and close > pivot"],
     fails=["runaway breakouts never retest (missed winners)"], economic_mechanism="acceptance above the pivot",
-    null_hypothesis="per opportunity, retest arm minus immediate arm <= 0", entry_trigger="retest close",
+    null_hypothesis="paired per-signal net vs same-session matched control <= 0 (mechanism contrast: per opportunity, "
+    "retest arm minus immediate arm <= 0)", entry_trigger="retest close",
     planned_order="E0 zone limit", risk_stop_hypothesis="min(retest low, pivot) - 0.5 ATR",
     candidate_exit_policies=("X0", "X2"), disconfirming_evidence="waiting loses more in missed moves than it saves"))
 S4 = EarningsContinuation(_spec(
@@ -273,11 +284,14 @@ def s5_weights(etf: dict[str, pd.DataFrame], regime_label: pd.Series, index: pd.
 
 
 def allocation_returns(weights: pd.DataFrame, opens: dict[str, pd.Series], closes: dict[str, pd.Series],
-                       cost_bps: float) -> tuple[pd.Series, pd.Series]:
-    """(daily net return, end-of-day exposure). Rebalance at the open after a decision row; costs on traded weight.
+                       cost_bps: float, with_open_exposure: bool = False):
+    """(daily net return, end-of-day exposure[, post-open exposure]). Rebalance at the open after a decision row; costs
+    on traded weight.
 
     Day d return = sum_i w_prev,i (open_d / close_{d-1} - 1) (overnight on the old book) then re-weight at the open
-    (cost x |traded weight|) and sum_i w_new,i (close_d / open_d - 1). Weights drift with prices between rebalances."""
+    (cost x |traded weight|) and sum_i w_new,i (close_d / open_d - 1). Weights drift with prices between rebalances.
+    The post-open exposure (after any rebalance, before the session's drift) is what an exposure-matched benchmark
+    must hold from the open to the close of d; the prior end-of-day exposure is what it holds overnight."""
     cols = list(weights.columns)
     idx = weights.index
     c = pd.DataFrame({s: closes[s].reindex(idx) for s in cols}).astype(float).ffill()
@@ -287,7 +301,7 @@ def allocation_returns(weights: pd.DataFrame, opens: dict[str, pd.Series], close
     has = ~np.all(np.isnan(w), axis=1)
     cst = cost_bps / 1e4
     cur = np.zeros(len(cols))
-    rets, expo = np.zeros(len(idx)), np.zeros(len(idx))
+    rets, expo, expo_open = np.zeros(len(idx)), np.zeros(len(idx)), np.zeros(len(idx))
     pending = np.nan_to_num(w[0]) if has[0] else None
     for i in range(1, len(idx)):
         gap = np.nan_to_num(o[i] / c[i - 1] - 1)
@@ -299,6 +313,7 @@ def allocation_returns(weights: pd.DataFrame, opens: dict[str, pd.Series], close
         if pending is not None:
             traded = float(np.abs(pending - cur).sum())
             cur, pending = pending.copy(), None
+        expo_open[i] = float(cur.sum())
         day = np.nan_to_num(c[i] / o[i] - 1)
         r_day = float(cur @ day)
         rets[i] = (1 + r_night) * (1 - cst * traded) * (1 + r_day) - 1
@@ -307,4 +322,6 @@ def allocation_returns(weights: pd.DataFrame, opens: dict[str, pd.Series], close
         expo[i] = float(cur.sum())
         if has[i]:
             pending = np.nan_to_num(w[i])
+    if with_open_exposure:
+        return pd.Series(rets, index=idx), pd.Series(expo, index=idx), pd.Series(expo_open, index=idx)
     return pd.Series(rets, index=idx), pd.Series(expo, index=idx)

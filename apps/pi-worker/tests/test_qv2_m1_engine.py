@@ -174,6 +174,14 @@ def test_v09_prefill_high_is_not_certain_mfe():
     assert v1.mfe == pytest.approx(105.5 / 101.0 - 1, abs=1e-6)  # protocol-1 reported the bound as an observation
 
 
+def test_a1_touch_fill_sensitivity_also_requires_the_target_to_trade_through():
+    """A high exactly at the target fills the resting sell at 0 ticks but not when one tick of trade-through is required."""
+    o, h, low, c = bars([[100, 101, 99, 100], [100, 101, 99.5, 100.5], [101, 106, 100, 102]] + [[100, 101, 99, 100]] * 25)
+    touch, through = simulate_v2(o, h, low, c, 0, PLAN, pol()), simulate_v2(o, h, low, c, 0, PLAN, pol(through=1))
+    assert (touch.pess.outcome, touch.pess.exit_index, touch.pess.exit_price) == ("TARGET", 2, 106.0)
+    assert through.fill_kind == "OPEN" and through.pess.outcome == "TIME"
+
+
 def test_v14_limit_expires_after_exactly_two_sessions():
     o, h, low, c = bars([[100, 101, 99, 100], [103, 104, 102, 103], [103, 104, 101.5, 103], [103, 104, 100, 103]] + [[103] * 4] * 25)
     assert simulate_v2(o, h, low, c, 0, PLAN, pol()).status == "NO_FILL"
@@ -336,11 +344,14 @@ def test_controls_same_session_matched_stratum_same_geometry_and_seeded(market):
 
 
 def test_per_signal_value_counts_no_fill_as_zero_and_incomplete_as_missing():
-    from apex_worker.research.execution_v2 import TradeV2
+    from apex_worker.research.execution_v2 import Leg, TradeV2
 
     p = ExecutionPolicy()
     assert per_signal_net(TradeV2(False, "NO_FILL"), p) == 0.0
     assert per_signal_net(TradeV2(False, "DATA_END"), p) is None
+    leg = Leg("DATA_END", 5, 101.0)
+    short = TradeV2(True, "FILLED", 1, 100.0, "OPEN", leg, leg, flags=("ENDED_BEFORE_HORIZON",))
+    assert per_signal_net(short, p) is None  # a label cut short by the data end is incomplete, not a 5-session trade
 
 
 # ---- book accounting (V16) -----------------------------------------------------------------------------------------------

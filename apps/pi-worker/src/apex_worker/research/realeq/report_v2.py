@@ -58,7 +58,8 @@ def comparisons_md_v2(m: dict) -> str:
         return "\n".join(out) + "\n"
     b, agg = m["boundaries"], m["aggregate"]
     out += [f"**Aggregate: {agg['conclusion']}.** Live alerts, promotion and orders stay disabled.", "",
-            f"* PRESAMPLE (untouched, earlier in time): decisions {b['presample_start']} → {b['presample_end']}",
+            f"* PRESAMPLE (untouched, earlier in time): decisions {b['presample_start']} → {b['presample_end']}. "
+            "Evidence type: **backward-time historical robustness, not forward out-of-sample**",
             f"* DEV (contaminated: design and diagnostics only): decisions {b['dev_start']} → {b['dev_end']}",
             f"* Universe: U1 {PROTOCOL_V2['universe']['classification']} (snapshot {PROTOCOL_V2['universe']['snapshot']}); "
             f"costs {PROTOCOL_V2['primary_cost_bps']} bps per side; pessimistic leg; protocol sha256 `{m['protocol_sha256'][:16]}…`",
@@ -115,9 +116,81 @@ def comparisons_md_v2(m: dict) -> str:
         d = m["strategies"][sid]["primary"].get("describe") or {}
         sens = m["strategies"][sid]["primary"]["test"].get("sensitivity", {}).get("L60", {})
         rows.append([sid, *(pct(d.get(f"mean_paired_{c}bps"), 3) for c in PROTOCOL_V2["costs_bps_per_side"]),
+                     pct(d.get("mean_per_signal_net_0bps"), 3), pct(d.get("mean_per_signal_net_50bps"), 3),
                      pct(d.get("mean_paired_optimistic"), 3), pct(d.get("mean_paired_touch_fill_sensitivity"), 3),
                      pct(d.get("ambiguous_share_of_fills"), 1), _p(sens.get("p_one_sided"))])
-    out += _t(["", "0 bps", "10 bps", "25 bps", "50 bps", "Optimistic leg", "Touch-fill", "Ambiguous fills", "p (L=60)"], rows)
+    out += _t(["", "Paired 0 bps", "Paired 10 bps", "Paired 25 bps", "Paired 50 bps", "Net/signal 0 bps",
+               "Net/signal 50 bps", "Optimistic leg (paired)", "Touch-fill (paired)", "Ambiguous fills", "p (L=60)"], rows)
+    out += ["", "Paired differences barely move with cost because the strategy and its controls pay the same cost per "
+            "fill; the absolute per-signal net shows the cost drag."]
+    out += ["", "## Trade economics of the primary arm (PRESAMPLE, pessimistic leg, 25 bps)", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3"):
+        d = m["strategies"][sid]["primary"].get("describe") or {}
+        net = (d.get("per_filled_trade") or {}).get("net_25bps") or {}
+        gross = (d.get("per_filled_trade") or {}).get("gross_0bps") or {}
+        ex = (d.get("exit_shares_of_fills") or {}).get("pessimistic") or {}
+        rows.append([sid, str(d.get("initial_signals", "—")), str(d.get("signals", 0)), pct(d.get("fill_rate"), 1),
+                     pct(d.get("net_per_initial_signal"), 3), pct(gross.get("mean"), 3), pct(net.get("mean"), 3),
+                     pct(net.get("median"), 3), pct(net.get("win_rate"), 1), pct(net.get("avg_win"), 2),
+                     pct(net.get("avg_loss"), 2), num(net.get("payoff_ratio"), 2),
+                     *(pct((ex.get(k) or {}).get("share"), 1) for k in ("STOP", "TARGET", "TIME")),
+                     pct(d.get("no_fill_share_of_signals"), 1), "yes" if net.get("small_sample") else ""])
+    out += _t(["", "Initial signals", "Kept", "Fill rate", "Net / initial signal", "Gross / fill", "Net / fill",
+               "Median net / fill", "Win rate", "Avg win", "Avg loss", "Payoff", "Stop", "Target", "Time", "No fill",
+               "Small sample"], rows)
+    out += ["", "Kept = after the levels screen, quarantine, the DEV-crossing exclusion and de-duplication. Exit shares "
+            "are of fills on the pessimistic leg; the optimistic leg and the ambiguity types are in strategy_metrics.json.",
+            "", "## Sample size, power and concentration (PRESAMPLE)", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3", "S5"):
+        pr = m["strategies"][sid]["primary"]
+        ic, pw = pr.get("independent_counts") or {}, pr.get("power") or {}
+        blocks = ic.get("non_empty_blocks") or {}
+        sc = (pr.get("describe") or {}).get("sector_concentration") or {}
+        rows.append([sid, str(ic.get("distinct_sessions", pr.get("describe", {}).get("sessions", "—"))),
+                     " / ".join(str(blocks.get(k, "—")) for k in ("L20", "L40", "L60")) if blocks else
+                     " / ".join(str((pr["test"].get(k) or {}).get("nonempty_blocks", "—")) for k in ("L20", "L40")),
+                     str(ic.get("sectors", "—")), num(sc.get("hhi"), 3), pct(sc.get("top_share"), 1),
+                     num(pw.get("mde_presample_realised"), 5), num(pw.get("economic_minimum"), 5),
+                     "yes" if pw.get("underpowered_for_economic_minimum") else "no"])
+    out += _t(["", "Distinct sessions", "Blocks L20 / L40 / L60", "Sectors", "Sector HHI", "Top sector", "MDE",
+               "Economic min.", "Underpowered"], rows)
+    out += ["", "MDE = (z(1 − 0.05/4) + z(0.8)) × the largest realised PRESAMPLE SE (per signal; S5 per day). "
+            "Underpowered means a true edge at the economic minimum would most likely read INCONCLUSIVE.", "",
+            "## Capital-constrained books (10 slots, 30% sector cap, 25 bps; descriptive)", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3"):
+        for seg in ("PRESAMPLE", "DEV"):
+            bk = (m["strategies"][sid].get("books") or {}).get(seg) or {}
+            act = bk.get("daily_active_vs_control_books") or {}
+            rows.append([sid, seg, str(bk.get("trades_taken", 0)), pct(bk.get("total_return"), 2),
+                         pct(bk.get("max_drawdown"), 2), pct(bk.get("avg_exposure"), 1), num(bk.get("turnover"), 1),
+                         num(bk.get("sharpe_annualised"), 2), pct(bk.get("exposure_matched_spy_total_return"), 2),
+                         num(bk.get("information_ratio_vs_exposure_matched_spy"), 2),
+                         pct(bk.get("control_mean_total_return"), 2), _p(act.get("p_one_sided_max"))])
+    out += _t(["", "Segment", "Trades", "Total return", "Max DD", "Avg exposure", "Turnover", "Sharpe",
+               "Exp.-matched SPY", "IR vs SPY/cash", "Control books", "p vs controls"], rows)
+    s5p = m["strategies"]["S5"]["primary"].get("describe") or {}
+    grid = s5p.get("cost_grid") or {}
+    out += ["", "## S5 sector-ETF allocation (PRESAMPLE, selected arm)", "",
+            f"* Mean daily net {num(s5p.get('mean_daily_net'), 6)}; active vs exposure-matched SPY/cash "
+            f"{num(s5p.get('mean_daily_active_vs_exposure_matched_spy'), 6)}; total {pct(s5p.get('total_return'), 2)} vs "
+            f"{pct(s5p.get('exposure_matched_spy_total_return'), 2)} (SPY 100%: {pct(s5p.get('spy_total_return'), 2)})",
+            f"* Max drawdown {pct(s5p.get('max_drawdown'), 2)} (SPY {pct(s5p.get('spy_max_drawdown'), 2)}); average "
+            f"exposure {pct(s5p.get('avg_exposure'), 1)}; Sharpe {num(s5p.get('sharpe_annualised'), 2)}; IR "
+            f"{num(s5p.get('information_ratio_vs_exposure_matched_spy'), 2)}",
+            "* Mean daily active by cost: " + ", ".join(f"{k} {num((v or {}).get('mean_daily_active'), 6)}"
+                                                        for k, v in grid.items()),
+            f"* Invested sessions by regime: {s5p.get('invested_sessions_by_regime')}", ""]
+    out += ["## Descriptive baselines (same engine; not registered hypotheses)", ""]
+    rows = []
+    for name in ("momentum_20", "breakout_basic"):
+        for seg in ("PRESAMPLE", "DEV"):
+            d = (m.get("baselines") or {}).get(name, {}).get(seg) or {}
+            rows.append([name, seg, str(d.get("signals", 0)), pct(d.get("mean_per_signal_net"), 3),
+                         pct(d.get("control_mean_per_signal_net"), 3), pct(d.get("mean_paired"), 3)])
+    out += _t(["Baseline", "Segment", "Signals", "Per-signal net", "Control", "Paired mean"], rows)
     out += ["", "## Legacy comparators (same engine; own Holm family)", ""]
     rows = []
     for sid, v in m["legacy"].items():

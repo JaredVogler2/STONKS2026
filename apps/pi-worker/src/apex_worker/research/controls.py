@@ -115,9 +115,12 @@ def simulate_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, lev
 
 
 def per_signal_net(tr: TradeV2, policy: ExecutionPolicy, which: str = "pess") -> float | None:
-    """Per-signal net return: no fill = 0 (no capital deployed); an incomplete label (DATA_END before entry) = None."""
+    """Per-signal net return: no fill = 0 (no capital deployed). An incomplete label is None and excluded: data ending
+    before the entry window, or a filled trade whose bars end before the horizon (ENDED_BEFORE_HORIZON)."""
     if not tr.filled:
         return 0.0 if tr.status == "NO_FILL" else None
+    if "ENDED_BEFORE_HORIZON" in tr.flags:
+        return None
     return tr.net(policy.costs, which)
 
 

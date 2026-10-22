@@ -35,8 +35,8 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 
 **Execution:**
 - `simulate_v2` only, under a versioned `ExecutionPolicy` (`exec-v2.0`).
-- The **pessimistic leg** is primary. The optimistic leg and the `trade_through_ticks = 1` touch-fill sensitivity are reported.
-- A verdict that holds only on the optimistic leg is `UNCERTAINTY_TOO_HIGH`.
+- The **pessimistic leg** is primary. The optimistic leg and the `trade_through_ticks = 1` touch-fill sensitivity (buy and target-sell limits, A1) are reported.
+- A verdict that holds only on the optimistic leg is `UNCERTAINTY_TOO_HIGH`. A FAILED verdict must hold on both legs when they differ (A1).
 
 **Costs:**
 - The primary cost is 25 bps per side, with 0, 10 and 50 bps as stress levels. Stress levels are descriptive and never a separate winner election.
@@ -46,7 +46,7 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 **Statistics:**
 - **Primary estimand:** the per-signal paired difference in net return against a same-session matched control. A no-fill counts as 0 for both legs.
 - **Test:** the conservative block test (largest p over L = 20/40/60).
-- **Multiplicity:** Holm over every preregistered primary hypothesis.
+- **Multiplicity:** Holm over every preregistered primary hypothesis; a member without a p-value enters with p = 1 (A1).
 - **No p-value without clusters:** fewer than 12 non-empty blocks at any length means no p-value.
 - **Descriptive only:** percentile bootstrap tails and Quality ranks are never confidence measures.
 
@@ -64,7 +64,7 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 | Item | Status |
 |---|---|
 | Engineering on the engine, S1–S5 plugins behind research-only flags, protocol-2 drafting (M2–M4) | **Allowed** |
-| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md), sha256 `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. |
+| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 as amended pre-evaluation by A1 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md) §12, sha256 `71adc9b993356670d2623437a5480cfdcbe064b00dfcf2f4f55bc39586b97e70`; A0 was `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. The cancelled A0 run 39829472789 is sealed (§12 there). |
 | Re-using the 2025–26 holdout as untouched OOS | **Blocked** permanently: DEV diagnostic only |
 | S4 earnings continuation evaluation | **Blocked** (`NOT_EVALUABLE_MISSING_INPUT`) until a verified point-in-time first-publication source exists |
 | Any live, group or high-conviction release; any order placement | **Blocked** (unchanged; independent of research results) |

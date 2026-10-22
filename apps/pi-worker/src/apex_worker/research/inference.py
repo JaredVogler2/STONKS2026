@@ -7,9 +7,9 @@ rejection rate of true nulls at nominal 5% for H8- and H5-shaped samples. This m
   session index of its decision date. All values of one session move together, so cross-sectional correlation is kept.
 * Statistic: the trade-weighted mean, studentized with a block-cluster (batch-means) standard error that includes a
   Bartlett lag-1 term for adjacent blocks (20-session holds straddle block borders).
-* Null distribution: a circular block bootstrap of the session index with block length L sessions (L at least the label
-  length, e.g. 20/40/60), CENTRED at the estimate. So p = P*(t* >= t_hat) tests H0: mean <= 0, and the percentile-t
-  bounds are intervals for the mean.
+* Null distribution: a circular block bootstrap of the session index with block length L sessions (about the label
+  length or longer, e.g. 20/40/60; the Bartlett term covers adjacent-block overlap), CENTRED at the estimate. So
+  p = P*(t* >= t_hat) tests H0: mean <= 0, and the percentile-t bounds are intervals for the mean.
 * Fewer than `min_blocks` non-empty, non-overlapping L-blocks gives INSUFFICIENT_CLUSTERS and no p-value. The rule
   applies to a FAILED reading as much as to a VALIDATED one.
 
@@ -124,6 +124,8 @@ def block_test(
     draws = rng.integers(0, sessions, size=(n_boot, k))
     m_star, se_star = _studentize(_block(ps, draws, block_len, sessions), _block(pn, draws, block_len, sessions))
     good = np.isfinite(m_star) & (se_star > 0)
+    if good.sum() < max(100, n_boot // 10):  # degenerate resampling: no reliable null distribution
+        return BlockTest("INSUFFICIENT_CLUSTERS", nonempty_blocks=nonempty, mean=mean, se=se, design_effect=deff, **base)
     t_star = (m_star[good] - mean) / se_star[good]
     t_hat = mean / se
     p = float((1 + np.sum(t_star >= t_hat)) / (1 + len(t_star)))

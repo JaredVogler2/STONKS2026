@@ -73,8 +73,8 @@ def truth(ps, t, limit, min_open, stop, target, valid=2, horizon=20, trail_atr=N
             x = float(raw)
             if x <= s:
                 return _r("STOP", s, px, fd, d, hi, min(lo, s))
-            if target is not None and x >= target:
-                return _r("TARGET", target, px, fd, d, target, lo)
+            if target is not None and x >= target + through:  # a resting sell limit needs the same trade-through
+                return _r("TARGET", target, px, fd, d, max(hi, target), lo)
             hi, lo = max(hi, x), min(lo, x)
         if d == fd + horizon:
             return _r("TIME", float(p[-1]), px, fd, d, hi, lo)

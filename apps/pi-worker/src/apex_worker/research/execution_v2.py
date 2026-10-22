@@ -7,7 +7,8 @@ and reports the optimistic one as a sensitivity.
 
 Path model (the only assumption): within a session the price moves continuously from the open to the close and
 touches the high and the low; gaps occur only between sessions. A resting limit fills at its price when first touched
-("touch fill"; `trade_through_ticks=1` requires the low to go one tick through the limit). No partial fills, queue or
+("touch fill"; `trade_through_ticks=1` requires the price to trade one tick through a resting limit: the low below a
+buy limit, the high above the target sell limit; an open beyond either is marketable). No partial fills, queue or
 spread are modelled: costs are a proportional charge per side (`Costs`), applied once, in `TradeV2.net`.
 
 Entry (buy limit, valid `valid_sessions` sessions from t+1; t is the decision session, after its close):
@@ -172,14 +173,14 @@ def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy, ok: np.ndar
 
 
 def _segment(o, h, low, c, d: int, start: float, start_is_open: bool, low_after_start: bool, end_kind: str | None,
-             end_px: float | None, stop_d: float) -> tuple[float, float, float, float]:
+             end_px: float | None, stop_d: float, over: float = 0.0) -> tuple[float, float, float, float]:
     """(max_known, max_possible, min_known, min_possible) of the price over one session's held segment."""
     if end_kind == "GAP":
         return end_px, end_px, end_px, end_px
     end = c[d] if end_kind is None else end_px
     to_close = end_kind is None
     max_known = max(start, end, h[d] if start_is_open and to_close else -math.inf)
-    max_possible = end_px if end_kind == "TARGET" else h[d]
+    max_possible = end_px + over if end_kind == "TARGET" else h[d]  # a trade-through target sells above its price
     min_known = min(start, end, low[d] if low_after_start and to_close else math.inf)
     min_possible = stop_d if end_kind == "STOP" else low[d]
     return max_known, max(max_possible, max_known), min_known, min(min_possible, min_known)
@@ -207,6 +208,7 @@ def simulate_v2(
     fi, px, kind, flags = got
     xp = policy.exit
     tgt = plan.target if xp.uses_target else None
+    tt = policy.entry.trade_through_ticks * TICK  # touch-fill sensitivity: resting buy AND sell limits need a trade-through
     if xp.arm == "X2" and atr is None:
         raise ValueError("X2 trailing exit needs the causal ATR series")
     last = min(n - 1, fi + xp.horizon_sessions)
@@ -236,7 +238,7 @@ def simulate_v2(
             if tgt is not None and o[d] >= tgt:
                 leg = Leg("TARGET", d, float(o[d]), True)
                 return leg, leg, "NONE"
-            hit_s, hit_t = low[d] <= s, tgt is not None and h[d] >= tgt
+            hit_s, hit_t = low[d] <= s, tgt is not None and h[d] >= tgt + tt
             if hit_s and hit_t:
                 return Leg("STOP", d, s), Leg("TARGET", d, tgt), "SAME_BAR_STOP_TARGET"
             if hit_s:
@@ -263,7 +265,7 @@ def simulate_v2(
     # ---- fill session ------------------------------------------------------------------------------------------
     s0 = plan.stop
     hit_s = low[fi] <= s0
-    hit_t = tgt is not None and h[fi] >= tgt
+    hit_t = tgt is not None and h[fi] >= tgt + tt
     if kind == OPEN:
         if hit_s and hit_t:
             pess, opt, amb = Leg("STOP", fi, s0), Leg("TARGET", fi, tgt), "SAME_BAR_STOP_TARGET"
@@ -276,7 +278,7 @@ def simulate_v2(
         else:
             pess, opt, amb = walk(fi + 1)
     else:  # LIMIT: approached from above; the low and any stop touch are after the fill, the high may be before it
-        post_target = tgt is not None and c[fi] >= tgt
+        post_target = tgt is not None and c[fi] >= tgt + tt
         if hit_s and hit_t:
             pess, opt, amb = Leg("STOP", fi, s0), Leg("TARGET", fi, tgt), "SAME_BAR_STOP_TARGET"
         elif hit_s:
@@ -310,9 +312,9 @@ def simulate_v2(
         if d == ex and (pess.gap or pess.outcome in ("STOP", "TARGET")):
             end_kind, end_px = ("GAP" if pess.gap else pess.outcome), pess.exit_price
         if d == fi:
-            seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0)
+            seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0, tt)
         else:
-            seg = _segment(o, h, low, c, d, float(o[d]), True, True, end_kind, end_px, stop_on(d))
+            seg = _segment(o, h, low, c, d, float(o[d]), True, True, end_kind, end_px, stop_on(d), tt)
         mx_k, mx_p, mn_k, mn_p = max(mx_k, seg[0]), max(mx_p, seg[1]), min(mn_k, seg[2]), min(mn_p, seg[3])
     mfe = (round(mx_k / px - 1, 6), round(mx_p / px - 1, 6))
     mae = (round(mn_p / px - 1, 6), round(mn_k / px - 1, 6))

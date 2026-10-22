@@ -4,7 +4,7 @@
 |---|---|
 | Milestones | M2 (data and universe), M3 (preregistration), M4 (S1–S5) of [Issue #12](https://github.com/JaredVogler2/STONKS2026/issues/12) |
 | Builds on | [M0_AUDIT.md](M0_AUDIT.md), [M1_ENGINE.md](M1_ENGINE.md) |
-| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md), sha256 `a15b4e92…4c9f` |
+| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md). A1 (binding) sha256 `71adc9b9…7e70`; A0 `a15b4e92…4c9f`, superseded before evaluation (§9) |
 | Market data used | none: every number below comes from seeded synthetic fixtures |
 | Trading | none; research-only plugins, disabled by default; no promotion, alerts or orders |
 
@@ -181,3 +181,33 @@ APEX_DEMO_PER_SECTOR=46 uv run apex research real-equities --protocol realeq-pro
 - **Intraday replay of ambiguous trades:** not needed for the decision (pessimistic leg); a possible later refinement.
 - **Forward shadow:** registered from 2026-10-23, earliest evaluation 2027-04-30.
 - **M7** (UI/Discord) is out of scope for this request.
+
+## 9. Amendment A1 (pre-evaluation)
+
+A pre-run adversarial review of the merged A0 code found 12 defects, listed in [PROTOCOL_V2.md §12](../../research-results/real-equities/PROTOCOL_V2.md). The material ones:
+- **S5 benchmark timing:** the exposure-matched SPY/cash benchmark was mis-timed on rebalance days.
+- **S5 second look:** the unselected S5 arm was evaluated on PRESAMPLE.
+- **Holm:** members without a p-value were dropped.
+- **UNCERTAINTY:** the rule differed between the code and the two protocol copies.
+- **FAILED_WITH_POWER:** it ignored the optimistic leg.
+- **S5 gates:** S5 had no cost, regime or absolute-return gates.
+
+Smaller fixes:
+- touch-fill now covers target sells;
+- the DEV-crossing exclusion;
+- S3C judges each breakout's retest window on its own;
+- the S3 contrast excludes ineligible opportunities;
+- control-book windows run to the latest exit;
+- funnels are per segment, with PRESAMPLE withheld for unselected arms.
+
+**What did not change:** every threshold.
+
+**Status of the cancelled A0 run 39829472789:**
+- It produced outcomes that remain sealed: only file names, sizes and the hash were listed.
+- It is opened once, after the A1 results are published, as a reproducibility check.
+
+**Measured costs (DEMO, synthetic, 12 stocks per sector):**
+- The full A1 pipeline runs in 2 min 24 s locally.
+- The extra cost of A1 (an optimistic leg at every cost, re-quarantined touch-fill re-simulations, baseline books, the S5 cost grid) is small next to the matched-control simulation.
+
+**Tests:** `tests/test_qv2_protocol2.py` has 61 tests (48 under A0); `tests/test_qv2_m1_engine.py` adds the target trade-through and incomplete-label cases.
