@@ -2,7 +2,7 @@
 
 - **Status:** registered 2026-10-22, before any protocol-2 outcome was computed on market data. **Amended (A1) on 2026-10-22, before any protocol-2 outcome informed the protocol** (§12).
 - **Machine copy:** `PROTOCOL_V2` in [`apps/pi-worker/src/apex_worker/research/realeq/protocol_v2.py`](../../apps/pi-worker/src/apex_worker/research/realeq/protocol_v2.py). Where the two copies differ, the machine copy governs.
-- **Hash (A1, binding):** sha256 `2fe2c2a27ae652ba0020374694999babc541e3887948a298404a02c6cf4eb7c5` of its canonical JSON, which includes the universe snapshot's sha256. A test fails if the code and this document disagree.
+- **Hash (A1, binding):** sha256 `746436ee3440e8e70d371905dd34f5e33399f18c45d6454653abc34f6d15503e` of its canonical JSON, which includes the universe snapshot's sha256. A test fails if the code and this document disagree.
 - **Hash as first frozen (A0, superseded, kept on record):** `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`.
 - **Changing it:** any change is a new protocol version and a new experiment. `realeq-protocol-1` ([PROTOCOL.md](PROTOCOL.md)) is unchanged and stays the runner's default.
 - **Mandate:** [Issue #12](https://github.com/JaredVogler2/STONKS2026/issues/12) and [`amendments/quant-v2-2026-10-22/`](../../amendments/quant-v2-2026-10-22/) (milestone M3: preregistration before execution).
@@ -60,7 +60,7 @@ Protocol-2 therefore separates three windows:
   - A trade, strategy or control alike, whose window [decision, exit] contains a **spin-off ex-date** of its symbol is excluded. The registered known events are also excluded: HON 2026-06-29 and EXC 2022-02-02.
   - An unavailable endpoint is recorded as `UNAVAILABLE`, never guessed.
 
-## 3. Execution and costs (`exec-v2.0`, [M1_ENGINE.md](../../docs/quant-v2/M1_ENGINE.md) §1)
+## 3. Execution and costs (`exec-v2.1` under A1, [M1_ENGINE.md](../../docs/quant-v2/M1_ENGINE.md) §1)
 
 - **Decision and timing:** the decision is at the close of t. Orders are valid t+1..t+2. The horizon is 20 sessions.
 - **Entry arms:**
@@ -261,7 +261,7 @@ uncertainty: {resampling: "null-centred studentized circular blocks on gate-open
               type_i_validation: "bench/qv2_p2_inference_battery.py: 3.6-5.0% at nominal 5%"}
 multiplicity: {family: [S1, S2, S3, S5], correction: Holm}
 research_budget: {github_runner_minutes_max: 45, alpaca_requests_max: 300, grid_arms_max: 12}
-protocol_sha256: 2fe2c2a27ae652ba0020374694999babc541e3887948a298404a02c6cf4eb7c5   # A1; A0 was a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f
+protocol_sha256: 746436ee3440e8e70d371905dd34f5e33399f18c45d6454653abc34f6d15503e   # A1; A0 was a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f
 mode: RESEARCH_ONLY
 production_promotion_allowed: false
 group_actionable_allowed: false
@@ -288,7 +288,7 @@ group_actionable_allowed: false
 | | |
 |---|---|
 | Supersedes | A0, sha256 `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f` |
-| Binding hash | `2fe2c2a27ae652ba0020374694999babc541e3887948a298404a02c6cf4eb7c5` (machine copy field `amendment`) |
+| Binding hash | `746436ee3440e8e70d371905dd34f5e33399f18c45d6454653abc34f6d15503e` (machine copy field `amendment`) |
 | Cause | Pre-run adversarial review of the merged A0 implementation: execution, statistics, data and protocol, each checked against the frozen text and against deterministic intraday paths |
 | Thresholds changed | **None.** Unchanged: α, the block lengths (20/40 decision, 60 sensitivity), the 12-block minimum, both economic minimums, the costs, the arms, the arm-selection rule, K = 10, the stratum minimum, every date and the universe. |
 

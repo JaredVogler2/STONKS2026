@@ -94,8 +94,10 @@ PROTOCOL_V2: dict = {
     "symbol_exclusion": {"min_sessions": 260, "max_missing_session_fraction": 0.02, "max_stale_sessions": 3,
                          "large_move_flag_abs_return": 0.25},
     "quarantine": {
-        "rule": "a trade (strategy or control) whose window [decision session, exit session] contains a spin-off ex-date "
-        "of its symbol is excluded; a control is replaced by the next candidate",
+        "rule": "a trade (strategy or control) whose FIXED label window [decision session, decision + 2 + 20 sessions] "
+        "(extended to a later, delayed exit) contains a spin-off ex-date of its symbol is excluded; a control is replaced "
+        "by the next candidate. A1: the window no longer depends on the realised exit, so the quarantine never selects on "
+        "the outcome",
         "known_events": {"HON": ["2026-06-29"], "EXC": ["2022-02-02"]},
     },
     "chronology": {
@@ -116,7 +118,12 @@ PROTOCOL_V2: dict = {
                            "status": "REGISTERED_NOT_RUN"},
     },
     "execution": {
-        "engine": "exec-v2.0 (research.execution_v2)",
+        "engine": "exec-v2.1 (research.execution_v2; A1)",
+        "missing_bars": "A1: a missing session while held is ambiguity MISSING_BAR (legs: the worst and best of stop that "
+        "day at min(stop, next valid open), target that day for X0, or continue); an entry window without any bar is "
+        "NO_DATA_IN_ENTRY_WINDOW (an incomplete label, excluded), not a no-fill; MISSING_BAR counts in the ambiguous share",
+        "price_grid": "derived prices (limit - trade-through, target + trade-through, stop + one tick) are compared on the "
+        "cent grid",
         "primary_leg": "pessimistic",
         "entry_valid_sessions": 2,
         "horizon_sessions": 20,
@@ -216,7 +223,8 @@ PROTOCOL_V2: dict = {
     },
     "books": {"slots": 10, "sector_cap": 0.30, "cost_bps": 25, "benchmark": "exposure-matched SPY/cash (cash yield 0)",
               "benchmark_approximation": "SPY close-to-close with the previous close's exposure; intraday entries and "
-              "exits are not timed (descriptive only)", "control_book_window": "every book runs to the latest exit of "
+              "exits are not timed (descriptive only)", "sector_cap_basis": "open positions at their previous-close "
+              "mark (A1; A0 used entry cost)", "control_book_window": "every book runs to the latest exit of "
               "the strategy and control trades of the segment"},
     "engine_self_checks": {
         "lookahead_trap": "a deliberately cheating rule (each session, the eligible member with the top realized forward "
@@ -229,7 +237,7 @@ PROTOCOL_V2: dict = {
     "reporting": "descriptive economics (win/loss distribution, exit shares, gross and net per fill, net per initial "
     "signal, books, concentration, independent counts) never change a disposition; values on fewer than 30 trades are "
     "flagged small_sample",
-    "versions": {"execution": "exec-v2.0", "inference": "inference-v2.0", "features": "qv2-features-1",
+    "versions": {"execution": "exec-v2.1", "inference": "inference-v2.0", "features": "qv2-features-1",
                  "strategies": "0.1.1", "levels": "levels-1"},
 }
 

@@ -558,6 +558,28 @@ def test_a1_s5_segment_simulation_matches_full_history_and_computes_nothing_earl
             assert (loc[0].iloc[: st + 1] == 0).all() and st < lo  # no return before the segment's own book exists
 
 
+def test_a1_quarantine_uses_the_fixed_label_window_not_the_realised_exit():
+    """A spin-off 15 sessions after the decision quarantines the trade whether it stopped out early or held to the
+    horizon; A0 used the realised exit, so an early stop escaped the quarantine (selection on the outcome)."""
+    from apex_worker.research.execution_v2 import Leg, TradeV2
+
+    idx = pd.bdate_range("2020-01-01", periods=60)
+    q = {"XYZ": [idx[25]]}
+    early = Leg("STOP", 16, 97.0)
+    tr = TradeV2(True, "FILLED", 11, 100.0, "OPEN", early, early)
+    assert SV.quarantined("XYZ", 10, tr, idx, q, 2)
+    assert not SV.quarantined("XYZ", 40, tr, idx, q, 2)
+
+
+def test_a1_fill_rate_decomposition_sums_to_the_paired_mean():
+    """Identical +0.5% per fill, 60% vs 90% fill rates: the paired mean (-0.15 pp) is all fill-rate term."""
+    part = pd.DataFrame({"filled": [True] * 6 + [False] * 4, "value": [0.005] * 6 + [0.0] * 4,
+                         "ctrl_value": [0.9 * 0.005] * 10, "ctrl_fill_rate": [0.9] * 10})
+    dec = SV.fill_decomposition(part, part[part["filled"]], "value")["paired_decomposition"]
+    assert dec["per_fill_term"] == pytest.approx(0.0, abs=1e-12)
+    assert dec["fill_rate_term"] + dec["per_fill_term"] == pytest.approx((part["value"] - part["ctrl_value"]).mean())
+
+
 def test_v25_lookahead_trap_detected_and_placebo_quiet():
     bars = factor_frames_v2(per_sector=10, seed=5)
     b = compute_boundaries_v2(bars["SPY"].index)

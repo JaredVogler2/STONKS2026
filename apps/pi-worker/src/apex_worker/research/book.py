@@ -6,7 +6,8 @@ priority). Rules, chosen to be conservative and free of loop-order artefacts:
   (which may happen intraday, after the open) are credited after that session's entries, so no same-day cash is
   created by loop order;
 * an entry needs a free slot, no open position in the same symbol, and sector exposure after entry <= `sector_cap` of
-  equity; the size is min(cash, equity at the previous close / slots). Below half a slot it is skipped. Every skip is
+  equity, where open positions count at their previous-close MARK (not their entry cost, which understates a sector
+  whose holdings rose); the size is min(cash, equity at the previous close / slots). Below half a slot it is skipped. Every skip is
   counted by reason. Same-session entries are taken in `priority` order (higher first; ties by a seeded shuffle, never
   alphabetical);
 * proportional costs per side, once: units = alloc / (entry (1 + c)); proceeds = units x exit x (1 - c);
@@ -58,6 +59,11 @@ class BookResult:
         return out
 
 
+def _mark(series: np.ndarray, d: int, fallback: float) -> float:
+    v = series[d] if d >= 0 else math.nan
+    return float(v) if math.isfinite(v) else fallback
+
+
 def run_book(trades: pd.DataFrame, closes: dict[str, np.ndarray], n_sessions: int, cost_bps: float = 25.0,
              slots: int = 10, sector_cap: float = 0.30, spy_close: np.ndarray | None = None, start: int | None = None,
              end: int | None = None, seed: int = 7) -> BookResult:
@@ -93,7 +99,8 @@ def run_book(trades: pd.DataFrame, closes: dict[str, np.ndarray], n_sessions: in
             if alloc < 0.5 * prev_eq / slots:
                 skipped["insufficient_cash"] += 1
                 continue
-            sec_val = sum(p["units"] * p["entry"] for p in pos.values() if p["sector"] == tr["sector"])
+            sec_val = sum(p["units"] * _mark(marks[p["symbol"]], d - 1, p["entry"]) for p in pos.values()
+                          if p["sector"] == tr["sector"])
             if tr["sector"] is not None and (sec_val + alloc) > sector_cap * prev_eq + 1e-12:
                 skipped["sector_cap"] += 1
                 continue

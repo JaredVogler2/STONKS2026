@@ -182,7 +182,20 @@ def comparisons_md_v2(m: dict) -> str:
                "Alpha / trade", "Signals on top 5% sessions"], rows)
     out += ["", "MFE/MAE are bounds, not observations: daily bars cannot order the high and low around the fill. Beta "
             "and alpha regress each trade's net return on SPY's return from the decision close to the exit close "
-            "(approximate, descriptive).", "", "## Stability by calendar year (paired mean, locked arm)", ""]
+            "(approximate, descriptive).", "",
+            "Where the paired mean comes from: paired = p_s (r_s − r_c) + (p_s − p_c) r_c, with p the fill rate and r the "
+            "net per fill (no-fill = 0 for both legs):", ""]
+    rows = []
+    for sid in ("S1", "S2", "S3"):
+        d = m["strategies"][sid]["primary"].get("describe") or {}
+        dec = d.get("paired_decomposition") or {}
+        rows.append([sid, pct(dec.get("strategy_fill_rate"), 1), pct(d.get("control_fill_rate"), 1),
+                     pct(dec.get("strategy_net_per_fill"), 3), pct(dec.get("control_net_per_fill"), 3),
+                     pct(dec.get("per_fill_term"), 3), pct(dec.get("fill_rate_term"), 3),
+                     ", ".join(f"{k} {v}" for k, v in (d.get("trade_flags") or {}).items()) or "none"])
+    out += _t(["", "Strategy fill rate", "Control fill rate", "Net / fill (strategy)", "Net / fill (controls)",
+               "Per-fill term (selection + exits)", "Fill-rate term", "Data flags (missing bars etc.)"], rows)
+    out += ["", "## Stability by calendar year (paired mean, locked arm)", ""]
     rows = []
     for sid in ("S1", "S2", "S3"):
         st = m["strategies"][sid]

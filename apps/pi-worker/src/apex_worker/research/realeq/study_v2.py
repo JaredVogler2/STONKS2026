@@ -179,10 +179,14 @@ def signals_for(strat, pre: Prepared, b: BoundariesV2) -> tuple[list[Signal], di
 
 def quarantined(symbol: str, t: int, tr: TradeV2, sessions: pd.DatetimeIndex, q: dict[str, list[pd.Timestamp]],
                 valid: int) -> bool:
+    """A corporate-action ex-date inside the trade's FIXED label window [t, t + valid + horizon] (extended to a later,
+    delayed exit) excludes it. The window does not depend on how the trade turned out, so the quarantine never selects
+    on the outcome (an early stop would otherwise escape a spin-off that a full hold catches)."""
     dates = q.get(symbol)
     if not dates:
         return False
-    end = tr.pess.exit_index if tr.filled and tr.pess else min(len(sessions) - 1, t + valid)
+    fixed = t + valid + P["execution"]["horizon_sessions"]
+    end = min(len(sessions) - 1, max(fixed, tr.pess.exit_index if tr.filled and tr.pess else fixed))
     a, z = sessions[t], sessions[end]
     return any(a <= d <= z for d in dates)
 
@@ -249,6 +253,7 @@ def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: Boundarie
                "regime": str(pre.frames[g.symbol]["regime_label"].iloc[g.t]), "priority": g.priority,
                "opportunity": g.opportunity, "u0": g.symbol in U0, "filled": tr.filled, "fill_kind": tr.fill_kind,
                "ambiguity": tr.ambiguity, "outcome": tr.pess.outcome if tr.filled else tr.status,
+               "flags": ",".join(tr.flags),
                "outcome_opt": tr.opt.outcome if tr.filled else tr.status, "k_atr": k_atr,
                "held": tr.sessions_held() if tr.filled else None, "value": v, "value_opt": per_signal_net(tr, pol, "opt"),
                "mfe_lo": tr.mfe_bounds[0] if tr.filled else None, "mfe_hi": tr.mfe_bounds[1] if tr.filled else None,
@@ -271,6 +276,7 @@ def run_arm(name: str, arm: str, sigs: list[Signal], pre: Prepared, b: Boundarie
                 pre_ = "ctrl" if pool_name == "generic" else f"mech_{pool_name}"
                 row[f"{pre_}_value"], row[f"{pre_}_value_opt"] = cs.value_pess, cs.value_opt
                 row[f"{pre_}_n"], row[f"{pre_}_match"] = cs.n, cs.match
+                row[f"{pre_}_fill_rate"] = cs.fills / cs.n if cs.n else None
                 if pool_name == "generic":
                     for c in COSTS:
                         cc = ExecutionPolicy(pol.entry, pol.exit, Costs(c))
@@ -389,6 +395,23 @@ def _shares(x: pd.Series, total: int) -> dict:
     return {str(k): {"n": int(v), "share": _f(v / total, 4)} for k, v in x.value_counts().items()} if total else {}
 
 
+def fill_decomposition(part: pd.DataFrame, filled: pd.DataFrame, a: str) -> dict:
+    """paired = p_s r_s - p_c r_c = p_s (r_s - r_c) + (p_s - p_c) r_c, with p the fill rate and r the mean net per fill
+    (no-fill = 0 for both legs). Splits the paired mean into a per-fill selection/exit term and a fill-rate term."""
+    ok = part["ctrl_fill_rate"].notna() & part["ctrl_value"].notna()
+    q = part[ok]
+    if q.empty:
+        return {"control_fill_rate": None}
+    p_s, p_c = float(q["filled"].astype(bool).mean()), float(q["ctrl_fill_rate"].mean())
+    r_s = float(q.loc[q["filled"].astype(bool), a].mean()) if q["filled"].astype(bool).any() else 0.0
+    r_c = float(q["ctrl_value"].mean()) / p_c if p_c > 0 else 0.0
+    return {"control_fill_rate": _f(p_c, 4),
+            "paired_decomposition": {"per_fill_term": _f(p_s * (r_s - r_c)), "fill_rate_term": _f((p_s - p_c) * r_c),
+                                     "strategy_fill_rate": _f(p_s, 4), "strategy_net_per_fill": _f(r_s),
+                                     "control_net_per_fill": _f(r_c),
+                                     "note": "p_s (r_s - r_c) + (p_s - p_c) r_c; the two terms sum to the paired mean"}}
+
+
 def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value", initial: int | None = None) -> dict:
     """Descriptive economics of one segment (never a gate except the fields classify_v2 names)."""
     part = df[df["segment"] == seg] if len(df) else df
@@ -398,6 +421,7 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
     ok = part[a].notna() & part[c].notna() if c in part else part[a].notna()
     d = (part.loc[ok, a] - part.loc[ok, c]) if c in part else pd.Series(dtype=float)
     sec = part["sector"].fillna("unknown").value_counts(normalize=True)
+    resolved = filled[filled["ambiguity"] == "NONE"]
     out = {
         "evidence_type": EVIDENCE[seg],
         "signals": len(part), "filled": len(filled), "fill_rate": _f(len(filled) / len(part), 4),
@@ -418,8 +442,13 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
                                     "UNRESOLVED_DAILY_BAR_AMBIGUITY": int((filled["ambiguity"] != "NONE").sum())}
                                    if len(filled) else {}),
         "mean_sessions_held": _f(filled["held"].astype(float).mean(), 2) if len(filled) else None,
-        "mfe_bounds_mean": [_f(filled["mfe_lo"].mean()), _f(filled["mfe_hi"].mean())] if len(filled) else None,
-        "mae_bounds_mean": [_f(filled["mae_lo"].mean()), _f(filled["mae_hi"].mean())] if len(filled) else None,
+        # bounds describe the pessimistic branch only for an ambiguous trade, so the means use resolved trades
+        "mfe_bounds_mean": [_f(resolved["mfe_lo"].mean()), _f(resolved["mfe_hi"].mean())] if len(resolved) else None,
+        "mae_bounds_mean": [_f(resolved["mae_lo"].mean()), _f(resolved["mae_hi"].mean())] if len(resolved) else None,
+        "excursion_bounds_over": {"resolved_fills": len(resolved), "ambiguous_fills_excluded": len(filled) - len(resolved)},
+        "trade_flags": {str(k): int(v) for k, v in pd.Series(
+            [f for x in part.get("flags", pd.Series(dtype=object)).dropna() for f in str(x).split(",") if f]
+        ).value_counts().items()},
         "per_filled_trade": {"net_25bps": _dist(filled[a]) if len(filled) else _dist(pd.Series(dtype=float)),
                              "gross_0bps": _dist(filled["value_0"]) if len(filled) and "value_0" in filled
                              else _dist(pd.Series(dtype=float))},
@@ -427,6 +456,8 @@ def describe(df: pd.DataFrame, seg: str, a: str = "value", c: str = "ctrl_value"
                                  "top_share": _f(sec.iloc[0], 4), "hhi": _f(float((sec**2).sum()), 4)},
         "small_sample": len(part) < SMALL_N,
     }
+    if "ctrl_fill_rate" in part and c == "ctrl_value":
+        out |= fill_decomposition(part, filled, a)
     if initial is not None:
         out["initial_signals"] = initial
         out["net_per_initial_signal"] = _f(part[a].sum() / initial) if initial else None

@@ -42,7 +42,8 @@ BIAS_WARNINGS_V2 = (
     "SECTOR LABELS: current GICS sectors applied to all history (the 2018 communication services reclassification)",
     "EARNINGS UNKNOWN: no point-in-time earnings calendar; S4 is NOT_EVALUABLE and earnings vetoes are not modelled",
     "PRICE-ONLY RETURNS: split-adjusted bars, dividends not modelled (affects absolute, much less paired, returns)",
-    "DAILY BARS: intraday order is unknown; ambiguous outcomes carry pessimistic and optimistic legs (exec-v2.0)",
+    "DAILY BARS: intraday order is unknown; ambiguous outcomes carry pessimistic and optimistic legs (exec-v2.1); a "
+    "missing session while held is an ambiguity too",
     "PRESAMPLE IS EARLIER, NOT LATER: the evaluation window precedes the design data (backward-time historical "
     "robustness, not forward out-of-sample); forward evidence is still required",
     "PRESAMPLE EXPOSURE: the cancelled A0 run 39829472789 computed and published PRESAMPLE outcomes (job log, job "

@@ -34,7 +34,7 @@ This is the global gate of [amendment 02 §E](../../amendments/quant-v2-2026-10-
 These are engine facts and constraints. The numeric study design is frozen in M3 and its hash recorded here before the run.
 
 **Execution:**
-- `simulate_v2` only, under a versioned `ExecutionPolicy` (`exec-v2.0`).
+- `simulate_v2` only, under a versioned `ExecutionPolicy` (`exec-v2.1` under A1; `exec-v2.0` under A0).
 - The **pessimistic leg** is primary. The optimistic leg and the `trade_through_ticks = 1` touch-fill sensitivity (buy and target-sell limits, A1) are reported.
 - A verdict that holds only on the optimistic leg is `UNCERTAINTY_TOO_HIGH`. A FAILED verdict must hold on both legs when they differ (A1).
 
@@ -64,7 +64,7 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 | Item | Status |
 |---|---|
 | Engineering on the engine, S1–S5 plugins behind research-only flags, protocol-2 drafting (M2–M4) | **Allowed** |
-| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 as amended pre-evaluation by A1 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md) §12, sha256 `2fe2c2a27ae652ba0020374694999babc541e3887948a298404a02c6cf4eb7c5`; A0 was `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. The cancelled A0 run 39829472789 is sealed (§12 there). |
+| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 as amended pre-evaluation by A1 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md) §12, sha256 `746436ee3440e8e70d371905dd34f5e33399f18c45d6454653abc34f6d15503e`; A0 was `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. The cancelled A0 run 39829472789 is sealed (§12 there). |
 | Re-using the 2025–26 holdout as untouched OOS | **Blocked** permanently: DEV diagnostic only |
 | S4 earnings continuation evaluation | **Blocked** (`NOT_EVALUABLE_MISSING_INPUT`) until a verified point-in-time first-publication source exists |
 | Any live, group or high-conviction release; any order placement | **Blocked** (unchanged; independent of research results) |
