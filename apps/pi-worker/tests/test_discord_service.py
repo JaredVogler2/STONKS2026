@@ -630,3 +630,24 @@ def test_payload_structure_snapshot(env):
     assert [f["name"] for f in r["embeds"][0]["fields"]] == [
         "Estimated notional", "Fill time", "Your position", "Signal plan / invalidation", "Market data"]
     assert r["embeds"][0]["footer"]["text"].startswith("DEMO MODE")
+
+
+def test_reduce_by_all_digit_id_prefix(env, monkeypatch):
+    """A position-id prefix made only of decimal digits (2.3% of UUIDs) is an id prefix, not a starter entry number.
+
+    Regression: _resolve routed every all-digit reference to the starter-bot lookup, so `pid[:8]` such as "12345678"
+    returned POSITION_NOT_FOUND (the intermittent failure of test_reduce_close_and_oversell_messages)."""
+    import uuid as _uuid
+
+    from apex_worker.storage import local as local_store
+
+    fixed = _uuid.UUID("12345678-9abc-4def-8123-456789abcdef")
+    real = _uuid.uuid4
+    monkeypatch.setattr(local_store.uuid, "uuid4", lambda: fixed)
+    svc = env["svc"]
+    svc.entry(actor(A), ticker="NVDA", price=180, shares=20)
+    monkeypatch.setattr(local_store.uuid, "uuid4", real)
+    pid = env["positions"].positions(A)[0]["position_id"]
+    assert pid.startswith("12345678")
+    assert svc.reduce(actor(A), position="12345678", price=190, shares=5).code == "PERSISTED"
+    assert svc.reduce(actor(A), position="999", price=190, shares=1).code == "POSITION_NOT_FOUND"  # neither kind
