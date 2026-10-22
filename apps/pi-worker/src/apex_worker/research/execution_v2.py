@@ -155,15 +155,11 @@ class TradeV2:
         return None if lg is None or self.entry_index is None else lg.exit_index - self.entry_index
 
 
-def _bad(*xs: float) -> bool:
-    return any(math.isnan(x) for x in xs)
-
-
-def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy) -> tuple[int, float, str, list[str]] | None:
+def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy, ok: np.ndarray) -> tuple[int, float, str, list[str]] | None:
     flags: list[str] = []
     through = entry.trade_through_ticks * TICK
     for d in range(t + 1, min(len(c), t + 1 + entry.valid_sessions)):
-        if _bad(o[d], h[d], low[d], c[d]):
+        if not ok[d]:
             flags.append("MISSING_BAR_IN_ENTRY_WINDOW")
             continue
         if o[d] < plan.min_open:
@@ -198,9 +194,13 @@ def simulate_v2(
     plan: OrderPlan,
     policy: ExecutionPolicy = ExecutionPolicy(),
     atr: np.ndarray | None = None,
+    valid: np.ndarray | None = None,
 ) -> TradeV2:
+    """`valid` (optional, precomputed by callers that simulate many trades): True where all four prices are finite."""
     n = len(c)
-    got = _fill(o, h, low, c, decision_index, plan, policy.entry)
+    ok = valid if valid is not None else (np.isfinite(o) & np.isfinite(h) & np.isfinite(low) & np.isfinite(c))
+
+    got = _fill(o, h, low, c, decision_index, plan, policy.entry, ok)
     if got is None:
         status = "NO_FILL" if decision_index + policy.entry.valid_sessions < n else "DATA_END"
         return TradeV2(False, status)
@@ -216,7 +216,7 @@ def simulate_v2(
         if d in stops:
             return stops[d]
         prev = stop_on(d - 1)
-        if xp.arm != "X2" or _bad(c[d - 1]) or atr is None or _bad(atr[d - 1]):
+        if xp.arm != "X2" or not math.isfinite(c[d - 1]) or atr is None or not math.isfinite(atr[d - 1]):
             stops[d] = prev
         else:
             hi_close = np.nanmax(c[fi : d])
@@ -226,7 +226,7 @@ def simulate_v2(
     def walk(start_day: int) -> tuple[Leg, Leg, str]:
         """Legs from `start_day` (> fill day) to the exit; terminal ambiguities only."""
         for d in range(start_day, last + 1):
-            if _bad(o[d], h[d], low[d], c[d]):
+            if not ok[d]:
                 flags.append("MISSING_BAR_WHILE_HELD")
                 continue
             s = stop_on(d)
@@ -250,12 +250,12 @@ def simulate_v2(
                 return leg, leg, "NONE"
         horizon_day = fi + xp.horizon_sessions
         if horizon_day <= n - 1:  # the horizon bar is missing: sell at the next session's open
-            k = next((k for k in range(horizon_day + 1, n) if not _bad(o[k], h[k], low[k], c[k])), None)
+            k = next((k for k in range(horizon_day + 1, n) if ok[k]), None)
             if k is not None:
                 flags.append("TIME_EXIT_DELAYED_MISSING_BAR")
                 leg = Leg("TIME", k, float(o[k]), True)
                 return leg, leg, "NONE"
-        j = max((k for k in range(fi, n) if not _bad(c[k])), default=fi)
+        j = max((k for k in range(fi, n) if math.isfinite(c[k])), default=fi)
         flags.append("ENDED_BEFORE_HORIZON")
         leg = Leg("DATA_END", j, float(c[j]))
         return leg, leg, "NONE"
@@ -294,13 +294,20 @@ def simulate_v2(
         else:
             pess, opt, amb = walk(fi + 1)
 
-    # ---- excursion bounds over the pessimistic leg ---------------------------------------------------------------
+    # ---- excursion bounds over the pessimistic leg (interior sessions vectorised; fill and exit sessions exact) ---
+    ex = pess.exit_index
     mx_k, mx_p, mn_k, mn_p = -math.inf, -math.inf, math.inf, math.inf
-    for d in range(fi, pess.exit_index + 1):
-        if _bad(o[d], h[d], low[d], c[d]):
+    if ex - fi > 1:
+        inner = slice(fi + 1, ex)
+        m_ok = ok[inner]
+        if m_ok.any():
+            mx_k = mx_p = float(np.max(h[inner][m_ok]))
+            mn_k = mn_p = float(np.min(low[inner][m_ok]))
+    for d in sorted({fi, ex}):
+        if not ok[d]:
             continue
         end_kind, end_px = None, None
-        if d == pess.exit_index and (pess.gap or pess.outcome in ("STOP", "TARGET")):
+        if d == ex and (pess.gap or pess.outcome in ("STOP", "TARGET")):
             end_kind, end_px = ("GAP" if pess.gap else pess.outcome), pess.exit_price
         if d == fi:
             seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0)

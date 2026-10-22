@@ -72,15 +72,17 @@ def run_book(trades: pd.DataFrame, closes: dict[str, np.ndarray], n_sessions: in
         t["priority"] = 0.0
     lo = int(t["entry_index"].min()) if start is None and len(t) else (start or 0)
     hi = int(t["exit_index"].max()) if end is None and len(t) else (end if end is not None else n_sessions - 1)
-    by_entry = {d: g.sort_values(["priority", "_tie"], ascending=[False, True]) for d, g in t.groupby("entry_index")}
+    by_entry: dict[int, list[dict]] = {}
+    for rec in t.sort_values(["entry_index", "priority", "_tie"], ascending=[True, False, True]).to_dict("records"):
+        by_entry.setdefault(int(rec["entry_index"]), []).append(rec)
     marks = {s: pd.Series(v).ffill().to_numpy(float) for s, v in closes.items()}
     cash, prev_eq = 1.0, 1.0
-    pos: dict[int, dict] = {}
+    pos: dict[tuple[int, int], dict] = {}
     skipped = {"slots_full": 0, "duplicate_symbol": 0, "sector_cap": 0, "insufficient_cash": 0}
     eq_curve, expo, n_open, traded, taken = [], [], [], 0.0, 0
     for d in range(lo, hi + 1):
         start_cash = cash
-        for i, tr in (by_entry[d].iterrows() if d in by_entry else ()):
+        for i, tr in enumerate(by_entry.get(d, ())):
             if len(pos) >= slots:
                 skipped["slots_full"] += 1
                 continue
@@ -96,7 +98,7 @@ def run_book(trades: pd.DataFrame, closes: dict[str, np.ndarray], n_sessions: in
                 skipped["sector_cap"] += 1
                 continue
             units = alloc / (float(tr["entry_price"]) * (1 + c))
-            pos[i] = {"symbol": tr["symbol"], "sector": tr["sector"], "units": units, "entry": float(tr["entry_price"]),
+            pos[(d, i)] = {"symbol": tr["symbol"], "sector": tr["sector"], "units": units, "entry": float(tr["entry_price"]),
                       "exit_index": int(tr["exit_index"]), "exit_price": float(tr["exit_price"])}
             start_cash -= alloc
             cash -= alloc

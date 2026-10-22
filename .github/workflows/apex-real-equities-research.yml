@@ -1,8 +1,11 @@
-# Manual, research-only real-equity evaluation (build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md, Phase 14).
+# Manual, research-only real-equity evaluation (build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md, Phase 14;
+# Quant V2 protocol-2: research-results/real-equities/PROTOCOL_V2.md).
 #
 #   secrets preflight -> static minutes checkpoint (before any fetch) -> fresh bounded Alpaca historical SIP daily
-#   download (fixed78) into the runner's temp dir -> data-quality / bias inventory -> FROZEN manifest -> H1-H8 +
-#   baselines under realeq-protocol-1 -> seven compact report files -> 7-day artifact.
+#   download into the runner's temp dir -> data-quality / bias inventory -> FROZEN manifest -> evaluation under the
+#   chosen frozen protocol -> seven compact report files -> 7-day artifact.
+#   realeq-protocol-1 (default): fixed78, H1-H8 + baselines. realeq-protocol-2 (opt-in): U1 S&P 500 snapshot, S1-S5 +
+#   legacy comparators, matched controls, DEV-only arm selection and one untouched PRESAMPLE evaluation.
 #
 # * Research only: no model signing, no release/registry API, no promotion, no Discord, no orders, no id-token.
 # * Only the read-only market-data secrets ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY (environment
@@ -13,7 +16,8 @@
 #   cache. The artifact holds only the seven aggregate files listed below.
 # * Publishing is a reviewed PR that copies the artifact into research-results/real-equities/<experiment_id>/: this
 #   workflow has a read-only token and never commits, pushes or opens PRs.
-# * Max runtime: timeout-minutes 30 per manual run on a standard ubuntu runner (docs/COST_AND_QUOTAS.md).
+# * Max runtime: timeout-minutes 45 per manual run on a standard ubuntu runner (protocol-2 research budget; protocol-1
+#   finishes in about 2 minutes). docs/COST_AND_QUOTAS.md.
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-real-equities-research
 
@@ -36,11 +40,17 @@ on:
         required: true
         type: string
       universe:
-        description: "Universe (fixed78 only under realeq-protocol-1)"
+        description: "Universe: fixed78 (realeq-protocol-1) or u1-sp500 (realeq-protocol-2)"
         required: true
         default: fixed78
         type: choice
-        options: [fixed78]
+        options: [fixed78, u1-sp500]
+      protocol:
+        description: "Frozen protocol (protocol-2 is opt-in; it fixes its own window, so years/time_start are ignored or rejected)"
+        required: true
+        default: realeq-protocol-1
+        type: choice
+        options: [realeq-protocol-1, realeq-protocol-2]
       time_start:
         description: "Optional first decision date YYYY-MM-DD (blank = protocol default after warm-up)"
         required: false
@@ -66,7 +76,7 @@ jobs:
     # trusted default branch only (the environment's deployment-branch rule refuses the secrets elsewhere anyway)
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: real-equities-research
     permissions:
       contents: read
@@ -116,15 +126,15 @@ jobs:
         id: budget
         run: |
           set +e
-          uv run --no-sync apex research budget-check --timeout-minutes 30 --out "$APEX_OUT/budget.json"
+          uv run --no-sync apex research budget-check --timeout-minutes 45 --out "$APEX_OUT/budget.json"
           rc=$?
           set -e
           if [ "$rc" -eq 3 ]; then echo "::warning title=SKIPPED_BUDGET::worst-case Actions minutes exceed the configured budget; nothing was fetched"; fi
           if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
-      - name: Real-equity research (Alpaca historical SIP, fixed78, research only)
+      - name: Real-equity research (Alpaca historical SIP, research only)
         id: research
         if: steps.budget.outputs.proceed == 'true'
-        timeout-minutes: 25
+        timeout-minutes: 40
         env:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
@@ -132,13 +142,14 @@ jobs:
           YEARS: ${{ inputs.years }}
           EXPERIMENT_ID: ${{ inputs.experiment_id }}
           UNIVERSE: ${{ inputs.universe }}
+          PROTOCOL: ${{ inputs.protocol }}
           TIME_START: ${{ inputs.time_start }}
           TIME_END: ${{ inputs.time_end }}
         run: |
           if [ "$SOURCE" != "alpaca" ]; then echo "::error::source must be alpaca"; exit 5; fi
           if ! [[ "$YEARS" =~ ^[0-9]{1,2}$ ]]; then echo "::error::years must be an integer"; exit 5; fi
           args=(--source alpaca --years "$YEARS" --experiment-id "$EXPERIMENT_ID" --universe "$UNIVERSE"
-                --out "$APEX_OUT/report" --github-output)
+                --protocol "$PROTOCOL" --out "$APEX_OUT/report" --github-output)
           if [ -n "$TIME_START" ]; then args+=(--time-start "$TIME_START"); fi
           if [ -n "$TIME_END" ]; then args+=(--time-end "$TIME_END"); fi
           uv run --no-sync apex research real-equities "${args[@]}"

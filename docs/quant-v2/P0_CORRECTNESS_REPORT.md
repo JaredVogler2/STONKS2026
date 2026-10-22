@@ -64,7 +64,7 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 | Item | Status |
 |---|---|
 | Engineering on the engine, S1–S5 plugins behind research-only flags, protocol-2 drafting (M2–M4) | **Allowed** |
-| A `realeq-protocol-2` evaluation run | **Blocked** until M1 (this PR) and the frozen protocol-2 (M3) are merged to `main` and the protocol hash is recorded here |
+| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md), sha256 `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. |
 | Re-using the 2025–26 holdout as untouched OOS | **Blocked** permanently: DEV diagnostic only |
 | S4 earnings continuation evaluation | **Blocked** (`NOT_EVALUABLE_MISSING_INPUT`) until a verified point-in-time first-publication source exists |
 | Any live, group or high-conviction release; any order placement | **Blocked** (unchanged; independent of research results) |

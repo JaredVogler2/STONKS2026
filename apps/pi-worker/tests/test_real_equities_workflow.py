@@ -38,9 +38,12 @@ def test_manual_dispatch_only_with_bounded_inputs(wf):
     on = _on(wf)
     assert set(on) == {"workflow_dispatch"}, "no schedule, push or pull_request trigger"
     inputs = on["workflow_dispatch"]["inputs"]
-    assert set(inputs) == {"source", "years", "experiment_id", "universe", "time_start", "time_end"}
+    assert set(inputs) == {"source", "years", "experiment_id", "universe", "protocol", "time_start", "time_end"}
     assert inputs["source"]["options"] == ["alpaca"] and inputs["source"]["default"] == "alpaca"
-    assert inputs["universe"]["options"] == ["fixed78"]
+    assert inputs["universe"]["options"] == ["fixed78", "u1-sp500"]
+    # protocol-2 is opt-in: the default stays the published protocol-1 (no silent default migration)
+    assert inputs["protocol"]["options"] == ["realeq-protocol-1", "realeq-protocol-2"]
+    assert inputs["protocol"]["default"] == "realeq-protocol-1" and inputs["universe"]["default"] == "fixed78"
     assert inputs["years"]["default"] == "8" and inputs["experiment_id"]["required"] is True
     assert "research_only" not in inputs, "research_only is hard-coded, never an input"
 
@@ -58,7 +61,7 @@ def test_trusted_branch_environment_runner_timeout_concurrency(wf):
     job = _job(wf)
     assert job["if"] == "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
     assert job["environment"] == "real-equities-research"
-    assert job["runs-on"] == "ubuntu-24.04" and isinstance(job["timeout-minutes"], int) and job["timeout-minutes"] <= 30
+    assert job["runs-on"] == "ubuntu-24.04" and isinstance(job["timeout-minutes"], int) and job["timeout-minutes"] <= 45
     assert wf["concurrency"] == {"group": "apex-real-equities-research", "cancel-in-progress": False}
     research = next(s for s in job["steps"] if s.get("id") == "research")
     assert research["timeout-minutes"] < job["timeout-minutes"]

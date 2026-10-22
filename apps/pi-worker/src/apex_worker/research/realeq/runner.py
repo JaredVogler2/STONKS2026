@@ -72,6 +72,7 @@ class RunConfig:
     now: datetime | None = None
     adapter_factory: Callable[[], object] | None = None  # tests only (fake transport)
     progress: Callable[[str], None] = field(default=lambda _m: None)
+    protocol: str = PROTOCOL_VERSION  # realeq-protocol-2 is opt-in only (no silent default migration)
 
 
 @dataclass
@@ -115,6 +116,14 @@ def _is_inside(child: Path, parent: Path) -> bool:
 
 
 def run(cfg: RunConfig) -> RunOutcome:
+    if cfg.protocol != PROTOCOL_VERSION:
+        from apex_worker.research.realeq.protocol_v2 import PROTOCOL_V2_VERSION
+
+        if cfg.protocol != PROTOCOL_V2_VERSION:
+            return RunOutcome("INVALID_INPUT", EXIT["INVALID_INPUT"], cfg.out_dir, f"unknown protocol {cfg.protocol!r}")
+        from apex_worker.research.realeq.runner_v2 import run_v2
+
+        return run_v2(cfg)
     env = os.environ if cfg.env is None else cfg.env
     now = cfg.now or datetime.now(UTC)
     steps: list[dict] = []

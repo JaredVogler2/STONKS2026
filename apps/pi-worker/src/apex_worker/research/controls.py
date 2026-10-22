@@ -19,7 +19,9 @@ Matched controls (per signal: symbol s, decision session t, stop distance k ATR)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 
 import numpy as np
 import pandas as pd
@@ -46,6 +48,10 @@ class Market:
 
     def __post_init__(self) -> None:
         self._rows = {s: i for i, s in enumerate(self.symbols)}
+        self.valid = {s: np.isfinite(self.o[s]) & np.isfinite(self.h[s]) & np.isfinite(self.low[s]) & np.isfinite(self.c[s])
+                      for s in self.symbols}
+        sec_codes = {v: i for i, v in enumerate(sorted({x for x in self.sector.values() if x}))}
+        self.sector_code = np.array([sec_codes.get(self.sector.get(s), -1) for s in self.symbols])
 
     def row(self, symbol: str) -> int:
         return self._rows[symbol]
@@ -86,18 +92,25 @@ class SimResult:
 
 def simulate_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, level_cfg: LevelConfig,
                     invalidation_hint: float | None = None, stop_distance_atr: float | None = None) -> SimResult | None:
-    """Levels at the close of session t (causal) -> order plan -> v2 simulation on sessions after t. None = rejected."""
+    """Levels at the close of session t (causal) -> order plan -> v2 simulation on sessions after t. None = rejected.
+
+    Exit arms without a target (X1, X2) never use the target, so the target-based screens (resistance cap, minimum net
+    reward/risk) do not apply to them; the stop must still be valid. Signals and controls get the same treatment."""
     close, atr = float(m.c[symbol][t]), float(m.atr[symbol][t])
     if not (np.isfinite(close) and np.isfinite(atr)):
         return None
-    lv = compute_levels(close, atr, invalidation_hint, float(m.resistance[symbol][t]), level_cfg,
-                        stop_distance_atr=stop_distance_atr)
+    if policy.exit.uses_target:
+        lv = compute_levels(close, atr, invalidation_hint, float(m.resistance[symbol][t]), level_cfg,
+                            stop_distance_atr=stop_distance_atr)
+    else:
+        lv = compute_levels(close, atr, invalidation_hint, None, replace(level_cfg, min_net_rr=-math.inf),
+                            stop_distance_atr=stop_distance_atr)
     if not isinstance(lv, Levels):
         return None
     plan = plan_from_levels(lv.entry_min, lv.entry_max, lv.stop, lv.target, close, atr, policy.entry)
     if plan is None:
         return None
-    tr = simulate_v2(m.o[symbol], m.h[symbol], m.low[symbol], m.c[symbol], t, plan, policy, m.atr[symbol])
+    tr = simulate_v2(m.o[symbol], m.h[symbol], m.low[symbol], m.c[symbol], t, plan, policy, m.atr[symbol], m.valid[symbol])
     return SimResult(lv, tr)
 
 
@@ -125,8 +138,10 @@ class ControlSet:
 
 def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: ExecutionPolicy, level_cfg: LevelConfig,
                      rng: np.random.Generator, k: int = 20, pool: np.ndarray | None = None,
-                     exclude: frozenset[str] = frozenset(), min_stratum: int = 5) -> ControlSet:
-    """K same-session controls for one signal; see the module docstring for the matching hierarchy."""
+                     exclude: frozenset[str] = frozenset(), min_stratum: int = 5,
+                     accept: Callable[[str, TradeV2], bool] | None = None) -> ControlSet:
+    """K same-session controls for one signal; see the module docstring for the matching hierarchy. `accept` may reject
+    a simulated candidate (e.g. a quarantined corporate-action window); it is then replaced by the next candidate."""
     elig = m.eligible[:, t].copy()
     if pool is not None:
         elig &= pool[:, t]
@@ -135,7 +150,8 @@ def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: Execu
             elig[m.row(s)] = False
     cand = np.flatnonzero(elig)
     sec, terc = m.sector.get(symbol), int(m.vol_tercile[m.row(symbol), t]) if m.has(symbol) else -1
-    same_sec = np.array([m.sector[m.symbols[i]] == sec for i in cand], bool) if sec is not None else np.zeros(len(cand), bool)
+    code = m.sector_code[m.row(symbol)] if m.has(symbol) else -1
+    same_sec = (m.sector_code[cand] == code) if sec is not None and code >= 0 else np.zeros(len(cand), bool)
     same_vol = m.vol_tercile[cand, t] == terc if terc >= 0 else np.zeros(len(cand), bool)
     match, chosen = "none", np.array([], int)
     for name, mask in zip(MATCH_LEVELS, (same_sec & same_vol, same_sec, same_vol, np.ones(len(cand), bool)), strict=True):
@@ -148,7 +164,7 @@ def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: Execu
             break
         s = m.symbols[chosen[j]]
         res = simulate_signal(m, s, t, policy, level_cfg, stop_distance_atr=k_atr)
-        if res is None:
+        if res is None or (accept is not None and not accept(s, res.trade)):
             continue
         vp = per_signal_net(res.trade, policy, "pess")
         if vp is None:

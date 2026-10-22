@@ -279,6 +279,47 @@ class AlpacaAdapter:
                 actions.append({"type": kind, **r})
         return actions
 
+    async def get_corporate_actions_paged(
+        self, symbols: list[str], start: date, end: date, types: str = "forward_split,reverse_split,spin_off"
+    ) -> list[dict] | None:
+        """Every symbol (batches of BATCH) and every page. A batch whose long window is rejected (400/422) is retried in
+        calendar-year windows. None = endpoint unsupported for this plan (403/404) or still rejected per year."""
+        actions: list[dict] = []
+
+        async def window(chunk: list[str], a: date, b: date) -> list[dict]:
+            got, token = [], None
+            while True:
+                params = {"symbols": ",".join(chunk), "start": a.isoformat(), "end": b.isoformat(), "types": types,
+                          "limit": 1000}
+                if token:
+                    params["page_token"] = token
+                data = await self._get(f"{DATA_BASE}/v1beta1/corporate-actions", params, Priority.OPTIONAL)
+                for kind, rows in (data.get("corporate_actions") or {}).items():  # type: ignore[union-attr]
+                    got += [{"type": kind, **r} for r in rows]
+                token = data.get("next_page_token")  # type: ignore[union-attr]
+                if not token:
+                    return got
+
+        for i in range(0, len(symbols), BATCH):
+            chunk = symbols[i : i + BATCH]
+            try:
+                actions += await window(chunk, start, end)
+                continue
+            except AlpacaError as exc:
+                if exc.status in (403, 404):
+                    return None
+                if exc.status not in (400, 422):
+                    raise
+            for year in range(start.year, end.year + 1):
+                a, b = max(start, date(year, 1, 1)), min(end, date(year, 12, 31))
+                try:
+                    actions += await window(chunk, a, b)
+                except AlpacaError as exc:
+                    if exc.status in (400, 403, 404, 422):
+                        return None
+                    raise
+        return actions
+
     def health(self) -> ProviderHealth:
         status = "OK" if self._last_ok and not self._last_error else ("DEGRADED" if self._last_ok else "UNKNOWN")
         return ProviderHealth(

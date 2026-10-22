@@ -27,7 +27,7 @@ def cmd_real_equities(args) -> int:
 
     outcome = run(RunConfig(source=args.source, experiment_id=args.experiment_id, out_dir=Path(args.out), years=args.years,
                             universe=args.universe, time_start=args.time_start, time_end=args.time_end,
-                            max_requests=args.max_requests, progress=progress))
+                            max_requests=args.max_requests, progress=progress, protocol=args.protocol))
     print(f"real-equities research status={outcome.status} exit={outcome.exit_code} out={outcome.out_dir}")
     if outcome.exit_code != 0:
         print(f"::error title={outcome.status}::{outcome.reason[:900]}" if os.environ.get("GITHUB_ACTIONS") else outcome.reason,
@@ -69,13 +69,16 @@ def cmd_budget_check(args) -> int:
 def register(sub) -> None:
     rs = sub.add_parser("research", help="research-only experiments (no signing, no registry, no promotion, no orders)")
     rsub = rs.add_subparsers(dest="research_cmd", required=True)
-    re_ = rsub.add_parser("real-equities", help="Phase 14: H1-H8 + baselines on real Alpaca SIP history (fixed78)")
+    re_ = rsub.add_parser("real-equities", help="H1-H8 (protocol-1) or S1-S5 (protocol-2) on real Alpaca SIP history")
     re_.add_argument("--source", choices=["alpaca", "fixture"], required=True,
                      help="alpaca = real historical SIP (needs ALPACA_KEY_ID/ALPACA_SECRET_KEY); fixture = DEMO smoke test")
     re_.add_argument("--experiment-id", required=True, help="lower-case slug, e.g. 2026-10-fixed78-sip-8y (fixture: demo-...)")
     re_.add_argument("--out", required=True, help="output directory for the seven report files")
     re_.add_argument("--years", type=int, default=8)
-    re_.add_argument("--universe", choices=["fixed78"], default="fixed78")
+    re_.add_argument("--universe", choices=["fixed78", "u1-sp500"], default="fixed78",
+                     help="fixed78 (realeq-protocol-1) or u1-sp500 (realeq-protocol-2)")
+    re_.add_argument("--protocol", choices=["realeq-protocol-1", "realeq-protocol-2"], default="realeq-protocol-1",
+                     help="frozen protocol; protocol-2 is opt-in (docs/quant-v2, research-results/real-equities/PROTOCOL_V2.md)")
     re_.add_argument("--time-start", type=_date, default=None, help="optional first decision date (YYYY-MM-DD)")
     re_.add_argument("--time-end", type=_date, default=None, help="optional last data session (YYYY-MM-DD)")
     re_.add_argument("--max-requests", type=int, default=300)
