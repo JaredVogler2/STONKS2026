@@ -426,12 +426,9 @@ class BotService:
             pos = cands[0]
         elif UUID_RE.fullmatch(r.lower()):
             pos = self.positions.position(ctx.duid, r.lower())
-        elif r.isdigit():  # starter-bot entry number (imported with idempotency key starter:<id>)
-            pid = self._history().position_for_key(ctx.duid, f"starter:{int(r)}")
-            if pid is None:
-                raise PositionNotFound("position not found")
-            pos = self.positions.position(ctx.duid, pid)
-        else:
+        elif r.isdigit() and (pid := self._history().position_for_key(ctx.duid, f"starter:{int(r)}")) is not None:
+            pos = self.positions.position(ctx.duid, pid)  # starter-bot entry number (idempotency key starter:<id>)
+        else:  # an all-digit reference with no starter entry is still a position-id prefix (2.3% of UUIDs)
             mine = self.positions.positions(ctx.duid, include_closed=True)
             low = r.lower()
             hits = [p for p in mine if len(low) >= 4 and p["position_id"].startswith(low)]
