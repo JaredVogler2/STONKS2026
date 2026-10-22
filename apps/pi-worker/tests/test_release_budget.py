@@ -7,7 +7,16 @@ import pytest
 
 from apex_worker.release import cli as rcli
 from apex_worker.release.budget import EXIT_SKIP, PROFILE, decide, max_possible_month, minutes_between
-from apex_worker.release.schedule import WEEKDAY_DRIFT, WEEKLY_TRAIN, remaining_runs_in_month, runs_in_month, sla_status
+from apex_worker.release.schedule import (
+    FORWARD_SHADOW,
+    FORWARD_SHADOW_RETRY,
+    FORWARD_SHADOW_WEEKEND,
+    WEEKDAY_DRIFT,
+    WEEKLY_TRAIN,
+    remaining_runs_in_month,
+    runs_in_month,
+    sla_status,
+)
 
 
 def utc(*a):
@@ -37,8 +46,9 @@ def test_max_possible_month_is_timeout_times_frequency():
     now = utc(2026, 11, 10)
     train = 45 * runs_in_month(WEEKLY_TRAIN, now)
     drift = 10 * runs_in_month(WEEKDAY_DRIFT, now)
-    assert max_possible_month(now) == train + drift
-    assert max_possible_month(now, "auto") == train + drift + 10 * runs_in_month(WEEKLY_TRAIN, now)
+    forward = 12 * sum(runs_in_month(s, now) for s in (FORWARD_SHADOW, FORWARD_SHADOW_RETRY, FORWARD_SHADOW_WEEKEND))
+    assert max_possible_month(now) == train + drift + forward
+    assert max_possible_month(now, "auto") == train + drift + forward + 10 * runs_in_month(WEEKLY_TRAIN, now)
     assert max_possible_month(now, "auto") < 1500  # the default budget covers the worst case of every APEX workflow
 
 
@@ -53,9 +63,14 @@ def test_required_job_proceeds_until_its_own_timeout_would_exceed_budget():
 
 def test_optional_drift_reserves_remaining_required_runs_and_fails_safe():
     now = utc(2026, 11, 2, 12)  # remaining train slots this UTC month: Nov 3, 10, 17, 24 (00:17 UTC) -> 4 x 45 = 180
-    d = decide("drift", now, budget_minutes=1500, measured_minutes=1310)
-    assert d.proceed and d.remaining_required_worst_case == 180
-    low = decide("drift", now, budget_minutes=1500, measured_minutes=1311)
+    fwd = 12 * sum(remaining_runs_in_month(s, now) for s in (FORWARD_SHADOW, FORWARD_SHADOW_RETRY, FORWARD_SHADOW_WEEKEND))
+    # 21 weekday evenings Mon 2 Nov .. Mon 30 Nov at 18:12 ET; the 21:52 ET retry of 30 Nov is 02:52 UTC on 1 Dec;
+    # Saturdays 7, 14, 21, 28 Nov at 12:12 ET
+    assert fwd == 12 * (21 + 20 + 4)
+    edge = 1500 - 10 - 180 - fwd
+    d = decide("drift", now, budget_minutes=1500, measured_minutes=edge)
+    assert d.proceed and d.remaining_required_worst_case == 180 + fwd  # the forward shadow is reserved before drift
+    low = decide("drift", now, budget_minutes=1500, measured_minutes=edge + 1)
     assert not low.proceed and "budget low" in low.reason
     assert not decide("drift", now, measured_minutes=None).proceed  # unknown => skip optional work
     off = decide("drift", now, measured_minutes=0, drift_enabled=False)
@@ -84,6 +99,9 @@ def test_profile_matches_schedules():
     keys = {p.key: p for p in PROFILE}
     assert keys["train"].schedule is WEEKLY_TRAIN and keys["drift"].schedule is WEEKDAY_DRIFT
     assert keys["drift"].optional and not keys["train"].optional and keys["release"].auto_only
+    assert keys["forward_shadow"].schedule is FORWARD_SHADOW and not keys["forward_shadow"].optional
+    assert keys["forward_shadow_retry"].schedule is FORWARD_SHADOW_RETRY and not keys["forward_shadow_retry"].optional
+    assert keys["forward_shadow_weekend"].schedule is FORWARD_SHADOW_WEEKEND
 
 
 def test_budget_cli_uses_server_policy_and_exit_codes(tmp_path, monkeypatch):

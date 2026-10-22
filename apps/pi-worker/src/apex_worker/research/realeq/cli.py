@@ -88,3 +88,6 @@ def register(sub) -> None:
     bc.add_argument("--timeout-minutes", type=int, required=True)
     bc.add_argument("--out")
     bc.set_defaults(func=cmd_budget_check)
+    from apex_worker.research.forward.cli import register as register_forward_shadow
+
+    register_forward_shadow(rsub)  # `apex research forward-shadow run|verify|health|export|smoke`

@@ -63,11 +63,13 @@ const discordMsgsPerDay = p.signals * 4 + p.positions * 1.5 + 2;
 
 // ---- GitHub Actions (minutes / month) ----
 // Worst-case month, same profile as apps/pi-worker/src/apex_worker/release/budget.py: 5 Mondays and 23 weekdays, every
-// run reaching its timeout-minutes; auto-release only runs after a training when promotion_mode=auto.
+// run reaching its timeout-minutes; auto-release only runs after a training when promotion_mode=auto. The forward
+// shadow (apex-forward-shadow.yml, research only) makes two attempts every weekday evening.
 const trainTimeout = 45;
 const releaseTimeout = 10;
 const driftTimeout = 10;
-const actionsMax = trainTimeout * 5 + releaseTimeout * 5 + driftTimeout * 23;
+const forwardTimeout = 12;
+const actionsMax = trainTimeout * 5 + releaseTimeout * 5 + driftTimeout * 23 + forwardTimeout * (2 * 23 + 5);
 
 const fmt = (n, d = 0) => Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 const pct = (a, b) => `${fmt((a / b) * 100, 1)}%`;
@@ -78,7 +80,7 @@ const rows = [
   ["Alpaca IEX streamed symbols", `${p.symbols}`, "30", pct(p.symbols, 30), "https://docs.alpaca.markets/us/docs/about-market-data-api"],
   ["Supabase database size", `≈ ${fmt(steadyState / 1024 / 1024, 1)} MB steady + ${fmt(growthPerMonth / 1024 / 1024, 1)} MB / month`, "500 MB (warn 350, stop 450)", `${fmt(monthsTo350, 0)} months to 350 MB`, "https://supabase.com/docs/guides/platform/billing-on-supabase"],
   ["Discord messages", `${fmt(discordMsgsPerDay)} / day`, "per-route rate limits (bot honours 429 retry-after)", "n/a", "https://discord.com/developers/docs/topics/rate-limits"],
-  ["GitHub Actions minutes (max possible, model workflows)", `${fmt(actionsMax)} / month (${fmt(actionsMax - releaseTimeout * 5)} with manual promotion), plus CI`, "2,000 / month on Free, shared by ALL repos", pct(actionsMax, 2000), "https://docs.github.com/en/billing/concepts/product-billing/github-actions"],
+  ["GitHub Actions minutes (max possible, model + forward-shadow workflows)", `${fmt(actionsMax)} / month (${fmt(actionsMax - releaseTimeout * 5)} with manual promotion), plus CI`, "2,000 / month on Free, shared by ALL repos", pct(actionsMax, 2000), "https://docs.github.com/en/billing/concepts/product-billing/github-actions"],
   ["SEC EDGAR", "≤ 2 requests / second (polite pacing)", "10 / second fair-access ceiling", "≤ 20%", "https://www.sec.gov/os/accessing-edgar-data"],
 ];
 
@@ -97,6 +99,13 @@ Network egress (Pi): ≈ ${fmt((agentPerDay * 2.5 + alpacaPerSession * 40) / 102
 Notes
 - Limits marked ASSUMED or "verify" change over time; check the linked page before relying on them. Nothing in APEX upgrades a plan automatically.
 - GitHub Actions minutes are shared with every private repository and workflow on the account; the weekly job skips optional work when the configured budget is low.
+- \`apex-forward-shadow\` (Discovery V3 PR-A) is REQUIRED work, reserved before optional drift: two weekday attempts and a
+  Saturday retry, at most ${forwardTimeout} minutes each (${fmt(forwardTimeout * (2 * 23 + 5))} in a 23-weekday, 5-Saturday month). Expected cost is ~4-6 minutes for a
+  decision run and ~1-2 minutes for a no-op retry, about 40-60 Alpaca requests per decision, and two GitHub issue
+  comments per session (decision, later outcome).
+- \`apex-real-equities-research\` (Phase 14) is manual-only and not part of the scheduled worst case above: each run costs
+  at most 30 minutes (job timeout) and about 16–20 Alpaca requests for 8 years of fixed78 daily bars. Its pre-fetch
+  checkpoint skips the run when the scheduled worst case plus 30 minutes would exceed \`APEX_ACTIONS_MONTHLY_BUDGET\`.
 - Supabase Free pauses after inactivity; the Pi keeps its spool and the dashboard reports the outage. Resume the project from the Supabase dashboard.
 - Market data shown to other Discord members can be subject to redistribution terms even when the API itself is free (compliance switch ALLOW_EXTERNAL_MARKET_DATA_REDISPLAY stays OFF by default).
 `);

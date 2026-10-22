@@ -26,7 +26,7 @@ from dataclasses import dataclass, replace
 import numpy as np
 import pandas as pd
 
-from apex_worker.research.execution_v2 import ExecutionPolicy, TradeV2, plan_from_levels, simulate_v2
+from apex_worker.research.execution_v2 import ExecutionPolicy, OrderPlan, TradeV2, plan_from_levels, simulate_v2
 from apex_worker.signals.levels import LevelConfig, Levels, compute_levels
 
 MATCH_LEVELS = ("sector_vol", "sector", "vol", "pool")
@@ -90,9 +90,11 @@ class SimResult:
     trade: TradeV2
 
 
-def simulate_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, level_cfg: LevelConfig,
-                    invalidation_hint: float | None = None, stop_distance_atr: float | None = None) -> SimResult | None:
-    """Levels at the close of session t (causal) -> order plan -> v2 simulation on sessions after t. None = rejected.
+def plan_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, level_cfg: LevelConfig,
+                invalidation_hint: float | None = None, stop_distance_atr: float | None = None
+                ) -> tuple[Levels, OrderPlan] | None:
+    """The CAUSAL half of `simulate_signal`: levels at the close of session t and the order plan, or None (rejected).
+    It reads bars and features through t only, so the forward shadow can freeze it before any outcome exists.
 
     Exit arms without a target (X1, X2) never use the target, so the target-based screens (resistance cap, minimum net
     reward/risk) do not apply to them; the stop must still be valid. Signals and controls get the same treatment."""
@@ -110,6 +112,16 @@ def simulate_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, lev
     plan = plan_from_levels(lv.entry_min, lv.entry_max, lv.stop, lv.target, close, atr, policy.entry)
     if plan is None:
         return None
+    return lv, plan
+
+
+def simulate_signal(m: Market, symbol: str, t: int, policy: ExecutionPolicy, level_cfg: LevelConfig,
+                    invalidation_hint: float | None = None, stop_distance_atr: float | None = None) -> SimResult | None:
+    """Levels at the close of session t (causal, `plan_signal`) -> v2 simulation on sessions after t. None = rejected."""
+    got = plan_signal(m, symbol, t, policy, level_cfg, invalidation_hint, stop_distance_atr)
+    if got is None:
+        return None
+    lv, plan = got
     tr = simulate_v2(m.o[symbol], m.h[symbol], m.low[symbol], m.c[symbol], t, plan, policy, m.atr[symbol], m.valid[symbol])
     return SimResult(lv, tr)
 
@@ -139,12 +151,10 @@ class ControlSet:
     trades: tuple[TradeV2, ...]
 
 
-def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: ExecutionPolicy, level_cfg: LevelConfig,
-                     rng: np.random.Generator, k: int = 20, pool: np.ndarray | None = None,
-                     exclude: frozenset[str] = frozenset(), min_stratum: int = 5,
-                     accept: Callable[[str, TradeV2], bool] | None = None) -> ControlSet:
-    """K same-session controls for one signal; see the module docstring for the matching hierarchy. `accept` may reject
-    a simulated candidate (e.g. a quarantined corporate-action window); it is then replaced by the next candidate."""
+def control_stratum(m: Market, symbol: str, t: int, pool: np.ndarray | None = None,
+                    exclude: frozenset[str] = frozenset(), min_stratum: int = 5) -> tuple[str, np.ndarray]:
+    """(match level, candidate rows) of the first stratum with >= `min_stratum` candidates. CAUSAL: it reads the gate
+    mask and volatility terciles of session t only, so the forward shadow freezes the same draw order before outcomes."""
     elig = m.eligible[:, t].copy()
     if pool is not None:
         elig &= pool[:, t]
@@ -156,11 +166,19 @@ def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: Execu
     code = m.sector_code[m.row(symbol)] if m.has(symbol) else -1
     same_sec = (m.sector_code[cand] == code) if sec is not None and code >= 0 else np.zeros(len(cand), bool)
     same_vol = m.vol_tercile[cand, t] == terc if terc >= 0 else np.zeros(len(cand), bool)
-    match, chosen = "none", np.array([], int)
     for name, mask in zip(MATCH_LEVELS, (same_sec & same_vol, same_sec, same_vol, np.ones(len(cand), bool)), strict=True):
         if mask.sum() >= min_stratum:
-            match, chosen = name, cand[mask]
-            break
+            return name, cand[mask]
+    return "none", np.array([], int)
+
+
+def matched_controls(m: Market, symbol: str, t: int, k_atr: float, policy: ExecutionPolicy, level_cfg: LevelConfig,
+                     rng: np.random.Generator, k: int = 20, pool: np.ndarray | None = None,
+                     exclude: frozenset[str] = frozenset(), min_stratum: int = 5,
+                     accept: Callable[[str, TradeV2], bool] | None = None) -> ControlSet:
+    """K same-session controls for one signal; see the module docstring for the matching hierarchy. `accept` may reject
+    a simulated candidate (e.g. a quarantined corporate-action window); it is then replaced by the next candidate."""
+    match, chosen = control_stratum(m, symbol, t, pool, exclude, min_stratum)
     vals_p, vals_o, syms, trades, fills = [], [], [], [], 0
     for j in rng.permutation(len(chosen)):  # without replacement: at most K distinct controls
         if len(vals_p) >= k:

@@ -22,7 +22,16 @@ import math
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
-from apex_worker.release.schedule import WEEKDAY_DRIFT, WEEKLY_TRAIN, Schedule, remaining_runs_in_month, runs_in_month
+from apex_worker.release.schedule import (
+    FORWARD_SHADOW,
+    FORWARD_SHADOW_RETRY,
+    FORWARD_SHADOW_WEEKEND,
+    WEEKDAY_DRIFT,
+    WEEKLY_TRAIN,
+    Schedule,
+    remaining_runs_in_month,
+    runs_in_month,
+)
 
 INCLUDED_FREE_MINUTES = 2000  # GitHub Free, private repos, standard runners (verify at deployment; plan-wide, shared)
 DEFAULT_BUDGET_MINUTES = 1500  # leaves 500 of the free 2,000 for ci.yml, coding-agent CI and other repositories
@@ -32,7 +41,7 @@ EXIT_SKIP = 3
 
 @dataclass(frozen=True)
 class JobProfile:
-    key: str  # train | release | drift
+    key: str  # train | release | drift | forward_shadow | forward_shadow_retry | forward_shadow_weekend
     workflow_file: str
     job_id: str
     timeout_minutes: int  # MUST equal the job's timeout-minutes in the workflow file (asserted by tests)
@@ -45,6 +54,10 @@ PROFILE: tuple[JobProfile, ...] = (
     JobProfile("train", "apex-model-train-weekly.yml", "train", 45, WEEKLY_TRAIN, optional=False),
     JobProfile("release", "apex-model-release.yml", "release", 10, WEEKLY_TRAIN, optional=False, auto_only=True),
     JobProfile("drift", "apex-model-drift.yml", "drift", 10, WEEKDAY_DRIFT, optional=True),
+    # prospective evidence cannot be recovered later, so the forward shadow is REQUIRED and reserved before drift
+    JobProfile("forward_shadow", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW, optional=False),
+    JobProfile("forward_shadow_retry", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW_RETRY, optional=False),
+    JobProfile("forward_shadow_weekend", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW_WEEKEND, optional=False),
 )
 
 
