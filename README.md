@@ -1,3 +1,5 @@
+> **New proposed research roadmap (Discovery V3, October 22, 2026):** [Portfolio-first hypothesis discovery, prospective evidence capture, and Claude Code execution guide](amendments/discovery-v3-2026-10-22/README.md). [Copy-ready Claude Code assignment](amendments/discovery-v3-2026-10-22/11_COPY_PASTE_CLAUDE_CODE.md). Research-only documents; historical Quant V2 NO_TRADE remains in force.
+
 > **Quant V2 proposed amendment (October 22, 2026):** [Read the new empirical strategy-remediation package](amendments/quant-v2-2026-10-22/README.md) and [coding-agent handoff](amendments/quant-v2-2026-10-22/13_COPY_READY_AGENT_HANDOFF.md). Documentation-only proposal; first real-equities research results remain immutable. No LIVE strategy approved.
 
 # STONKS2026 — APEX Swing-Trading Intelligence
