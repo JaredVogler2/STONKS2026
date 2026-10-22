@@ -7,7 +7,9 @@ and reports the optimistic one as a sensitivity.
 
 Path model (the only assumption): within a session the price moves continuously from the open to the close and
 touches the high and the low; gaps occur only between sessions. A resting limit fills at its price when first touched
-("touch fill"; `trade_through_ticks=1` requires the low to go one tick through the limit). No partial fills, queue or
+("touch fill"; `trade_through_ticks=1` requires the price to trade one tick through a resting limit: the low below a
+buy limit, the high above the target sell limit; an open AT or beyond either is marketable). Derived prices are
+compared on the cent grid (rounded), so an exact one-tick trade-through is recognised. No partial fills, queue or
 spread are modelled: costs are a proportional charge per side (`Costs`), applied once, in `TradeV2.net`.
 
 Entry (buy limit, valid `valid_sessions` sessions from t+1; t is the decision session, after its close):
@@ -22,8 +24,13 @@ Exits: a protective stop (fixed, or trailing for X2), an optional target limit, 
   * later sessions: open <= stop -> exit at the (worse) open; open >= target -> exit at the open; one bar touching both
     -> UNRESOLVED (pessimistic STOP, optimistic TARGET); otherwise the touched barrier at its price.
   * a trailing stop for session d uses closes and ATR through d-1 only (known before d's open) and never loosens.
-  * missing bars are skipped, never filled in; data ending before the horizon exits at the last close (DATA_END).
+  * missing bars are never filled in. A missing bar in the entry window is a session without a fill; a window with no
+    bar at all is NO_DATA_IN_ENTRY_WINDOW (an incomplete label, not a no-fill). A missing bar WHILE HELD is
+    UNRESOLVED (ambiguity MISSING_BAR): its legs are the worst and best of "the stop traded that day" (exit at
+    min(stop, next valid open)), "the target traded that day" (X0) and "neither" (continue). Data ending before the
+    horizon exits at the last close (DATA_END).
 MFE/MAE are BOUNDS over the post-fill, pre-exit segment of the pessimistic leg; daily bars never observe that path.
+For an ambiguous trade they describe the pessimistic branch only, so summaries average them over resolved trades.
 """
 
 from __future__ import annotations
@@ -35,7 +42,7 @@ import numpy as np
 
 from apex_worker.signals.levels import tick_round
 
-EXECUTION_VERSION = "exec-v2.0"
+EXECUTION_VERSION = "exec-v2.1"  # 2.1 (A1): MISSING_BAR ambiguity, NO_DATA_IN_ENTRY_WINDOW, cent-grid comparisons
 TICK = 0.01
 OPEN, LIMIT = "OPEN", "LIMIT"
 AMBIGUITY = ("NONE", "SAME_BAR_STOP_TARGET", "FILL_DAY_TARGET_ORDER")
@@ -103,9 +110,10 @@ def plan_from_levels(entry_min: float, entry_max: float, stop: float, target: fl
         return OrderPlan(entry_max, entry_min, stop, target)
     if entry.arm == "E1":
         limit = tick_round(close - entry.e1_below_close_atr * atr, down=True)
-        if not limit > stop + TICK:
+        guard = _cents(stop + TICK)
+        if not limit > guard:
             return None
-        return OrderPlan(min(limit, entry_max), stop + TICK, stop, target)
+        return OrderPlan(min(limit, entry_max), guard, stop, target)
     raise ValueError(f"unknown entry arm {entry.arm}")
 
 
@@ -155,9 +163,14 @@ class TradeV2:
         return None if lg is None or self.entry_index is None else lg.exit_index - self.entry_index
 
 
+def _cents(x: float) -> float:
+    """A derived price on the cent grid (101.13 - 0.01 is 101.11999999999999 in binary floating point)."""
+    return round(x, 6)
+
+
 def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy, ok: np.ndarray) -> tuple[int, float, str, list[str]] | None:
     flags: list[str] = []
-    through = entry.trade_through_ticks * TICK
+    buy_through = _cents(plan.limit - entry.trade_through_ticks * TICK)
     for d in range(t + 1, min(len(c), t + 1 + entry.valid_sessions)):
         if not ok[d]:
             flags.append("MISSING_BAR_IN_ENTRY_WINDOW")
@@ -166,20 +179,20 @@ def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy, ok: np.ndar
             continue
         if o[d] <= plan.limit:
             return d, float(o[d]), OPEN, flags
-        if low[d] <= plan.limit - through:
+        if low[d] <= buy_through:
             return d, float(plan.limit), LIMIT, flags
     return None
 
 
 def _segment(o, h, low, c, d: int, start: float, start_is_open: bool, low_after_start: bool, end_kind: str | None,
-             end_px: float | None, stop_d: float) -> tuple[float, float, float, float]:
+             end_px: float | None, stop_d: float, over: float = 0.0) -> tuple[float, float, float, float]:
     """(max_known, max_possible, min_known, min_possible) of the price over one session's held segment."""
     if end_kind == "GAP":
         return end_px, end_px, end_px, end_px
     end = c[d] if end_kind is None else end_px
     to_close = end_kind is None
     max_known = max(start, end, h[d] if start_is_open and to_close else -math.inf)
-    max_possible = end_px if end_kind == "TARGET" else h[d]
+    max_possible = end_px + over if end_kind == "TARGET" else h[d]  # a trade-through target sells above its price
     min_known = min(start, end, low[d] if low_after_start and to_close else math.inf)
     min_possible = stop_d if end_kind == "STOP" else low[d]
     return max_known, max(max_possible, max_known), min_known, min(min_possible, min_known)
@@ -202,11 +215,19 @@ def simulate_v2(
 
     got = _fill(o, h, low, c, decision_index, plan, policy.entry, ok)
     if got is None:
-        status = "NO_FILL" if decision_index + policy.entry.valid_sessions < n else "DATA_END"
+        window = range(decision_index + 1, min(n, decision_index + 1 + policy.entry.valid_sessions))
+        if decision_index + policy.entry.valid_sessions >= n:
+            status = "DATA_END"
+        elif not any(ok[d] for d in window):
+            status = "NO_DATA_IN_ENTRY_WINDOW"  # nothing observed: an incomplete label, never a no-fill
+        else:
+            status = "NO_FILL"
         return TradeV2(False, status)
     fi, px, kind, flags = got
     xp = policy.exit
     tgt = plan.target if xp.uses_target else None
+    tt = policy.entry.trade_through_ticks * TICK  # touch-fill sensitivity: resting buy AND sell limits need a trade-through
+    tgt_hit = _cents(tgt + tt) if tgt is not None else None  # the high (or close) a resting target sell needs
     if xp.arm == "X2" and atr is None:
         raise ValueError("X2 trailing exit needs the causal ATR series")
     last = min(n - 1, fi + xp.horizon_sessions)
@@ -228,7 +249,17 @@ def simulate_v2(
         for d in range(start_day, last + 1):
             if not ok[d]:
                 flags.append("MISSING_BAR_WHILE_HELD")
-                continue
+                k = next((k for k in range(d + 1, n) if ok[k]), None)
+                if k is None:
+                    continue  # no later bar: the data-end rule below applies
+                s = stop_on(d)  # known before d (closes and ATR through d-1)
+                cont_p, cont_o, _amb = walk(d + 1)
+                branches = [Leg("STOP", d, min(s, float(o[k])), True)]
+                if tgt is not None:
+                    branches.append(Leg("TARGET", d, tgt))
+                pess_ = min([cont_p, *branches], key=lambda lg: lg.exit_price)
+                opt_ = max([cont_o, *branches], key=lambda lg: lg.exit_price)
+                return pess_, opt_, "MISSING_BAR"
             s = stop_on(d)
             if o[d] <= s:
                 leg = Leg("STOP", d, float(o[d]), True)
@@ -236,7 +267,7 @@ def simulate_v2(
             if tgt is not None and o[d] >= tgt:
                 leg = Leg("TARGET", d, float(o[d]), True)
                 return leg, leg, "NONE"
-            hit_s, hit_t = low[d] <= s, tgt is not None and h[d] >= tgt
+            hit_s, hit_t = low[d] <= s, tgt is not None and h[d] >= tgt_hit
             if hit_s and hit_t:
                 return Leg("STOP", d, s), Leg("TARGET", d, tgt), "SAME_BAR_STOP_TARGET"
             if hit_s:
@@ -263,7 +294,7 @@ def simulate_v2(
     # ---- fill session ------------------------------------------------------------------------------------------
     s0 = plan.stop
     hit_s = low[fi] <= s0
-    hit_t = tgt is not None and h[fi] >= tgt
+    hit_t = tgt is not None and h[fi] >= tgt_hit
     if kind == OPEN:
         if hit_s and hit_t:
             pess, opt, amb = Leg("STOP", fi, s0), Leg("TARGET", fi, tgt), "SAME_BAR_STOP_TARGET"
@@ -276,7 +307,7 @@ def simulate_v2(
         else:
             pess, opt, amb = walk(fi + 1)
     else:  # LIMIT: approached from above; the low and any stop touch are after the fill, the high may be before it
-        post_target = tgt is not None and c[fi] >= tgt
+        post_target = tgt is not None and c[fi] >= tgt_hit
         if hit_s and hit_t:
             pess, opt, amb = Leg("STOP", fi, s0), Leg("TARGET", fi, tgt), "SAME_BAR_STOP_TARGET"
         elif hit_s:
@@ -310,9 +341,9 @@ def simulate_v2(
         if d == ex and (pess.gap or pess.outcome in ("STOP", "TARGET")):
             end_kind, end_px = ("GAP" if pess.gap else pess.outcome), pess.exit_price
         if d == fi:
-            seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0)
+            seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0, tt)
         else:
-            seg = _segment(o, h, low, c, d, float(o[d]), True, True, end_kind, end_px, stop_on(d))
+            seg = _segment(o, h, low, c, d, float(o[d]), True, True, end_kind, end_px, stop_on(d), tt)
         mx_k, mx_p, mn_k, mn_p = max(mx_k, seg[0]), max(mx_p, seg[1]), min(mn_k, seg[2]), min(mn_p, seg[3])
     mfe = (round(mx_k / px - 1, 6), round(mx_p / px - 1, 6))
     mae = (round(mn_p / px - 1, 6), round(mn_k / px - 1, 6))

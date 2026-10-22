@@ -43,8 +43,12 @@ def universe_frames(start: date = date(2022, 1, 3)) -> dict[str, pd.DataFrame]:
 
 
 class FakeAlpaca:
-    def __init__(self, frames: dict[str, pd.DataFrame]):
+    """In-process emulation of the Alpaca bars API. `corporate_actions` (a list of {"type": "spin_offs" | ...,
+    **record}) also emulates the v1beta1 corporate-actions endpoint; None keeps it unemulated (404), as protocol-1."""
+
+    def __init__(self, frames: dict[str, pd.DataFrame], corporate_actions: list[dict] | None = None):
         self.frames = frames
+        self.corporate_actions = corporate_actions
         self.requests: list[dict] = []
         self._rows: dict[str, list[tuple[pd.Timestamp, dict]]] = {}
         for sym, df in frames.items():
@@ -53,6 +57,15 @@ class FakeAlpaca:
             self._rows[sym] = list(zip(stamps, recs, strict=True))
 
     def handler(self, req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/v1beta1/corporate-actions" and self.corporate_actions is not None:
+            p = dict(req.url.params)
+            syms, a, b = set(p["symbols"].split(",")), p["start"], p["end"]
+            out: dict[str, list[dict]] = {}
+            for rec in self.corporate_actions:
+                sym = rec.get("source_symbol") or rec.get("symbol")
+                if sym in syms and a <= rec["ex_date"] <= b:
+                    out.setdefault(rec["type"], []).append({k: v for k, v in rec.items() if k != "type"})
+            return httpx.Response(200, json={"corporate_actions": out, "next_page_token": None})
         if req.url.path != "/v2/stocks/bars":
             return httpx.Response(404, json={"message": "not emulated"})
         assert req.headers["APCA-API-KEY-ID"] == FAKE_KEY_ID

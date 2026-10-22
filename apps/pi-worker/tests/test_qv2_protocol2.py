@@ -31,6 +31,7 @@ from apex_worker.signals.strategies.quant_v2 import (
     S5Config,
     allocation_returns,
     earnings_event_frame,
+    retest_sessions,
     s5_weights,
 )
 
@@ -211,6 +212,20 @@ def test_v35_s3_immediate_and_retest_share_the_opportunity():
     assert c["invalidation_hint"].iloc[7] == pytest.approx(100.0 - 0.5 * 2.0)
 
 
+def test_a1_s3_retest_of_an_older_breakout_is_not_hidden_by_a_newer_one():
+    """Breakouts at 5 and 6. Session 7 retests breakout 5 (low <= 100 + 1, close > 100) but not breakout 6 (close <
+    102.5). Before A1 only the most recent breakout was checked, so this retest was lost."""
+    f = _s3_frame()
+    f.loc[f.index[6:], "pivot_high_20"] = 102.5
+    f.loc[f.index[6], ["breakout_today", "rel_volume_1", "close", "v2_low"]] = [1.0, 2.0, 103.0, 102.6]
+    f.loc[f.index[7], ["v2_low", "close"]] = [100.5, 101.0]
+    a = QV2_STRATEGIES["s3a_breakout_immediate"].trigger_frame(f)
+    assert list(np.flatnonzero(a["trigger"])) == [5, 6]
+    c = QV2_STRATEGIES["s3c_breakout_retest"].trigger_frame(f)
+    assert list(np.flatnonzero(c["trigger"])) == [7] and c["opportunity"].iloc[7] == 5
+    assert retest_sessions(f) == {5: (7, pytest.approx(100.0 - 0.5 * 2.0))}
+
+
 def test_v36_s3_runaway_breakout_has_no_retest_signal():
     f = _s3_frame()
     f.loc[f.index[9], ["v2_low", "close"]] = [100.5, 101.0]  # 4 sessions later: outside the 1-3 session window
@@ -267,6 +282,37 @@ def test_v40_s5_weights_abstain_and_cap_and_accounting():
     assert rets.iloc[11] == pytest.approx(-0.0025 * 1.0)  # selling everything into cash on the risk-off rebalance
     assert expo.iloc[12] == 0 and (rets.iloc[12:21] == 0).all()  # cash: no return, no cost
     assert rets.iloc[21] == pytest.approx(-0.0025)  # the next rebalance (session 20, trending) buys back in
+    _r, _x, xo = allocation_returns(w2, {k: flat for k in etfs}, {k: flat for k in etfs}, cost_bps=25,
+                                    with_open_exposure=True)
+    assert xo.iloc[1] == pytest.approx(1.0) and expo.iloc[0] == 0  # bought at the open of 1: invested intraday only
+    assert xo.iloc[11] == 0 and expo.iloc[10] == pytest.approx(1.0)  # sold at the open of 11: invested overnight only
+
+
+def test_a1_s5_exposure_matched_benchmark_follows_the_rebalance_timing():
+    """On the day S5 buys at the open, the benchmark must earn SPY's open-to-close move only; on the day it sells at
+    the open, SPY's overnight move only. A0 applied yesterday's close exposure to the whole close-to-close return."""
+    from types import SimpleNamespace
+
+    idx = pd.bdate_range("2020-01-01", periods=30)
+    feats = pd.DataFrame({"ret_60": 0.1, "rv_20": 0.2, "dist_sma50_atr": 1.0}, index=idx)
+    flat = pd.Series(100.0, index=idx)
+    spy_c = pd.Series(100.0, index=idx)
+    spy_o = spy_c.copy()
+    spy_o.iloc[1], spy_c.iloc[1] = 102.0, 101.0  # +2% overnight, -0.98% intraday
+    spy_o.iloc[11], spy_c.iloc[11] = 99.0, 100.0  # -1% overnight from 100, +1.01% intraday
+    spy_c.iloc[10] = 100.0
+    etfs = ("XA", "XB", "XC")  # top 3: three qualifiers make a fully invested book
+    bars = {e: pd.DataFrame({"open": flat, "close": flat}) for e in etfs} | {
+        "SPY": pd.DataFrame({"open": spy_o, "close": spy_c})}
+    reg = pd.Series("trending_up", index=idx)
+    reg.iloc[10] = "risk_off"
+    pre = SimpleNamespace(etf_features=dict.fromkeys(etfs, feats), bars=bars, sessions=idx, regime=reg)
+    data = SV.S5Data(pre)
+    _r, x, xo, bench = data.series(pre, "R10", 0.0)
+    assert xo.iloc[1] == pytest.approx(1.0) and x.iloc[0] == 0
+    assert bench.iloc[1] == pytest.approx(101.0 / 102.0 - 1)  # intraday only; A0 gave 0.0
+    assert x.iloc[10] == pytest.approx(1.0) and xo.iloc[11] == 0
+    assert bench.iloc[11] == pytest.approx(99.0 / 100.0 - 1)  # overnight only; A0 gave the full +0%
 
 
 # ---- dispositions (amendment 04 section 6) -------------------------------------------------------------------------------
@@ -275,23 +321,92 @@ def _primary(status="OK", mean=0.01, p=0.001, up=0.02):
 
 
 GOOD = {"mean_per_signal_net": 0.004, "mean_paired_50bps": 0.009, "mean_paired_touch_fill_sensitivity": 0.009,
-        "regimes": {"trending_up": 60, "risk_off": 40}, "ambiguous_share_of_fills": 0.05}
+        "regimes": {"trending_up": 60, "risk_off": 40}, "ambiguous_share_of_fills": 0.05,
+        "mean_per_signal_net_optimistic": 0.006, "mean_paired_50bps_optimistic": 0.011,
+        "mean_paired_touch_fill_sensitivity_optimistic": 0.011}
+OPT_OK = {"holm_opt": 0.008, "half_opt": [0.01, 0.01], "dev_mean_opt": 0.005}
+FAIL = _primary(mean=-0.001, p=0.8, up=0.002)
 
 
-@pytest.mark.parametrize(("primary", "holm", "desc", "dev", "half", "opt", "want"), [
-    (_primary(), 0.004, GOOD, 0.004, [0.01, 0.01], None, "RULE_VALIDATED_RESEARCH_OOS"),
-    (_primary("INSUFFICIENT_CLUSTERS"), None, GOOD, 0.004, [0.01, 0.01], None, "INCONCLUSIVE"),
-    (_primary(mean=-0.001, p=0.8, up=0.002), 1.0, GOOD, 0.004, [0.0, -0.002], None, "FAILED_WITH_POWER"),
-    (_primary(mean=-0.001, p=0.8, up=0.01), 1.0, GOOD, 0.004, [0.0, -0.002], None, "INCONCLUSIVE"),
-    (_primary(mean=0.004, p=0.08), 0.2, GOOD, 0.004, [0.01, 0.01], None, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
-    (_primary(), 0.004, GOOD, -0.001, [0.01, 0.01], None, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
-    (_primary(), 0.004, GOOD | {"ambiguous_share_of_fills": 0.4}, 0.004, [0.01, 0.01], None, "UNCERTAINTY_TOO_HIGH"),
-    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.008, p=0.002), "UNCERTAINTY_TOO_HIGH"),
-    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.004, p=0.03),
+@pytest.mark.parametrize(("primary", "holm", "desc", "dev", "half", "opt", "kw", "want"), [
+    (_primary(), 0.004, GOOD, 0.004, [0.01, 0.01], None, {}, "RULE_VALIDATED_RESEARCH_OOS"),
+    (_primary("INSUFFICIENT_CLUSTERS"), None, GOOD, 0.004, [0.01, 0.01], None, {}, "INCONCLUSIVE"),
+    (FAIL, 1.0, GOOD, 0.004, [0.0, -0.002], None, {}, "FAILED_WITH_POWER"),
+    (_primary(mean=-0.001, p=0.8, up=0.01), 1.0, GOOD, 0.004, [0.0, -0.002], None, {}, "INCONCLUSIVE"),
+    (_primary(mean=0.004, p=0.08), 0.2, GOOD, 0.004, [0.01, 0.01], None, {}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (_primary(), 0.004, GOOD, -0.001, [0.01, 0.01], None, {}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (_primary(), 0.004, GOOD | {"ambiguous_share_of_fills": 0.4}, 0.004, [0.01, 0.01], None, {}, "UNCERTAINTY_TOO_HIGH"),
+    # A1: the machine copy governs: > 25% ambiguous fills is UNCERTAINTY whatever the other gates say
+    (FAIL, 1.0, GOOD | {"ambiguous_share_of_fills": 0.4}, 0.004, [0.0, -0.002], None, {}, "UNCERTAINTY_TOO_HIGH"),
+    # A1: the optimistic leg must pass EVERY gate, with its own Holm p
+    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.008, p=0.002), OPT_OK,
+     "UNCERTAINTY_TOO_HIGH"),
+    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.008, p=0.002),
+     OPT_OK | {"holm_opt": 0.09}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.008, p=0.002),
+     OPT_OK | {"half_opt": [0.01, -0.001]}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (_primary(mean=0.004, p=0.03), 0.12, GOOD, 0.004, [0.01, 0.01], _primary(mean=0.004, p=0.03), OPT_OK,
      "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),  # identical legs: no ambiguity to blame
+    # A1: FAILED_WITH_POWER needs both legs to fail with power when they differ
+    (FAIL, 1.0, GOOD, 0.004, [0.0, -0.002], _primary(mean=0.001, p=0.3, up=0.006), {}, "INCONCLUSIVE"),
+    (FAIL, 1.0, GOOD, 0.004, [0.0, -0.002], _primary(mean=-0.0005, p=0.7, up=0.0025), {}, "FAILED_WITH_POWER"),
 ])
-def test_v26_v41_v42_dispositions(primary, holm, desc, dev, half, opt, want):
-    assert SV.classify_v2(primary, holm, desc, dev, half, opt)[0] == want
+def test_v26_v41_v42_dispositions(primary, holm, desc, dev, half, opt, kw, want):
+    assert SV.classify_v2(primary, holm, desc, dev, half, opt, **kw)[0] == want
+
+
+S5_GOOD = {"mean_daily_net": 0.0004, "mean_daily_active_50bps": 0.0002,
+           "invested_sessions_by_regime": {"trending_up": 300, "rebound": 80, "choppy_neutral": 60}}
+
+
+@pytest.mark.parametrize(("desc", "want"), [
+    (S5_GOOD, "RULE_VALIDATED_RESEARCH_OOS"),
+    (S5_GOOD | {"mean_daily_active_50bps": -0.00001}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (S5_GOOD | {"invested_sessions_by_regime": {"trending_up": 400, "rebound": 20}}, "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD"),
+    (S5_GOOD | {"mean_daily_net": -0.0001}, "INCONCLUSIVE"),
+])
+def test_a1_s5_gates_cost_regimes_and_absolute_return(desc, want):
+    """S5 has its own gates (A1): touch-fill and daily-bar ambiguity do not apply to market orders at the open."""
+    assert SV.classify_v2(_primary(mean=0.0002), 0.01, desc, 0.0001, [0.0001, 0.0002], None, kind="s5")[0] == want
+
+
+@pytest.mark.parametrize(("t", "df", "want"), [  # reference values from scipy.stats.t.sf
+    (2.0, 10, 0.03669401738537018), (1.0, 3, 0.19550110947788524), (-0.5, 17, 0.6882573967171444),
+    (3.5, 34, 0.0006604577837727128), (0.0, 12, 0.5), (5.0, 11, 0.0002012649090622598)])
+def test_a1_student_t_tail_matches_reference(t, df, want):
+    from apex_worker.research.inference import student_t_isf, student_t_sf
+
+    assert student_t_sf(t, df) == pytest.approx(want, rel=1e-10)
+    if 0 < want < 1:
+        assert student_t_isf(want, df) == pytest.approx(t, abs=1e-6)  # flat within ~3e-8 of the median (float x->1)
+
+
+def test_a1_t_floor_never_lowers_p_and_binds_with_few_clusters():
+    """The protocol-2 decision statistic takes max(bootstrap-t p, Student-t p with df = blocks - 1) at every length."""
+    from apex_worker.research.inference import block_test, student_t_sf
+
+    assert PROTOCOL_V2["inference"]["small_sample_t_floor"] is True
+    rng = np.random.default_rng(3)
+    bound = 0
+    for r in range(40):
+        idx = np.sort(rng.integers(0, 300, 60))
+        v = rng.standard_t(3, 60) * 0.03 + 0.008
+        a = block_test(v, idx, 300, block_len=20, n_boot=499, seed=r, min_blocks=12)
+        f = block_test(v, idx, 300, block_len=20, n_boot=499, seed=r, min_blocks=12, t_floor=True)
+        if a.status != "OK":
+            continue
+        assert f.p_one_sided >= a.p_one_sided and f.lower_95 <= a.lower_95 + 1e-15
+        assert f.p_one_sided == pytest.approx(max(a.p_one_sided, student_t_sf(a.t, a.nonempty_blocks - 1)))
+        bound += f.p_one_sided > a.p_one_sided
+    assert bound > 0  # with 15 blocks and t3 tails the floor is not idle
+    dec = SV.block_decision(v, idx, 300, n_boot=499)
+    assert dec["L20"]["p_one_sided"] >= block_test(v, idx, 300, block_len=20, n_boot=499, seed=11).p_one_sided
+
+
+def test_a1_holm_counts_members_without_a_p_value_as_one():
+    full, shown = SV._holm_full({"S1": 0.01, "S2": None, "S3": 0.02, "S5": 0.04})
+    assert full == pytest.approx({"S1": 0.04, "S3": 0.06, "S5": 0.08, "S2": 1.0})  # A0 used m = 3: S1 0.03
+    assert shown["S2"] is None and shown["S1"] == pytest.approx(0.04)
 
 
 # ---- data layer -----------------------------------------------------------------------------------------------------------
@@ -351,6 +466,110 @@ async def test_corporate_actions_fall_back_to_yearly_windows_when_the_range_is_r
     assert len(out) == 3
 
 
+# ---- data integrity (A1, independent data review) --------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def tiny_frames():
+    return factor_frames_v2(per_sector=2, seed=4)
+
+
+def _inventory(tmp_path, frames, actions, monkeypatch, max_requests=None):
+    from apex_worker.research.realeq.data_v2 import data_end, fetch_v2, quality_inventory_v2, spec_v2
+    from apex_worker.research.realeq.fixture import FIXTURE_NOW, FakeAlpaca
+
+    monkeypatch.setitem(PROTOCOL_V2["abort_rules"], "min_usable_stocks", 10)
+    cal = default_calendar()
+    fake = FakeAlpaca(frames, corporate_actions=actions)
+    loaded = fetch_v2(lambda: fake.adapter(FIXTURE_NOW), tmp_path, spec_v2(max_requests), end=data_end(cal, FIXTURE_NOW),
+                      now=FIXTURE_NOW)
+    return quality_inventory_v2(loaded, cal)
+
+
+def _a_stock(frames):
+    return next(s for s in sorted(frames) if s in set(U.u1_stocks()))
+
+
+def test_a1_corporate_actions_unavailable_stops_the_run(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path, tiny_frames, None, monkeypatch)  # A0: COMPLETED with only the 2 registered quarantines
+    assert e.value.status == "SOURCE_INVALID" and "corporate actions unavailable" in e.value.reason
+
+
+def test_a1_mis_adjusted_split_is_detected_and_quarantined(tmp_path, tiny_frames, monkeypatch):
+    frames = {k: v.copy() for k, v in tiny_frames.items()}
+    sym = _a_stock(frames)
+    day = frames[sym].index[1200]
+    frames[sym].loc[frames[sym].index >= day, ["open", "high", "low", "close"]] /= 4.0  # a 4:1 split left unadjusted
+    actions = [{"type": "forward_splits", "symbol": sym, "ex_date": str(day.date()), "old_rate": 1, "new_rate": 4}]
+    body, usable = _inventory(tmp_path, frames, actions, monkeypatch)
+    assert body["corporate_actions"]["split_adjustment_suspect"] == {sym: [str(day.date())]}
+    assert str(day.date()) in body["quarantine"][sym] and sym in usable
+    assert any(w.startswith("SPLIT ADJUSTMENT") for w in body["bias_warnings"])
+
+
+def test_a1_impossible_bars_are_removed_not_just_counted(tmp_path, tiny_frames, monkeypatch):
+    frames = {k: v.copy() for k, v in tiny_frames.items()}
+    sym = _a_stock(frames)
+    bad_days = frames[sym].index[[400, 800, 1600]]
+    frames[sym].loc[bad_days, "open"] = frames[sym].loc[bad_days, "high"] * 1.05  # open above the high
+    body, usable = _inventory(tmp_path, frames, [], monkeypatch)
+    entry = next(e for e in body["symbols"] if e["symbol"] == sym)
+    assert entry["invalid_rows_removed"] == 3 and not usable[sym].index.isin(bad_days).any()
+
+
+def test_a1_benchmark_must_have_every_session_and_consolidated_volume(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    gap = {k: v.copy() for k, v in tiny_frames.items()}
+    gap["SPY"] = gap["SPY"].drop(gap["SPY"].index[900])
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path / "gap", gap, [], monkeypatch)
+    assert e.value.status == "INSUFFICIENT_HISTORY" and "session axis" in e.value.reason
+    thin = {k: v.copy() for k, v in tiny_frames.items()}
+    thin["SPY"]["volume"] = 1.5e6  # one venue's share, not the consolidated tape
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path / "thin", thin, [], monkeypatch)
+    assert e.value.status == "SOURCE_INVALID" and "single-venue" in e.value.reason
+
+
+def test_a1_request_budget_is_enforced_on_every_call(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path, tiny_frames, [], monkeypatch, max_requests=3)  # A0: 144 requests and a passing run
+    assert e.value.status == "INSUFFICIENT_HISTORY" and "budget (3)" in e.value.reason
+
+
+@pytest.mark.asyncio
+async def test_a1_a_repeated_page_token_stops_pagination():
+    from apex_worker.market.adapters.alpaca import AlpacaError
+
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(200, json={"bars": {}, "next_page_token": "same"})
+
+    async def no_sleep(_s):
+        return None
+
+    ad = AlpacaAdapter("PKTEST", "x", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+                       bucket=TokenBucket(1e9, 1e9), sleep=no_sleep)
+    with pytest.raises(AlpacaError, match="repeated next_page_token"):
+        await ad.get_daily_bars(["AAA"], date(2020, 1, 2), date(2020, 2, 3))
+    assert len(calls) == 2  # A0 paged until the job timed out
+
+
+def test_a1_quarantine_window_covers_both_legs():
+    from apex_worker.research.execution_v2 import Leg, TradeV2
+
+    idx = pd.bdate_range("2020-01-01", periods=60)
+    tr = TradeV2(True, "FILLED", 11, 100.0, "LIMIT", Leg("TARGET", 11, 106.0), Leg("TIME", 40, 108.0),
+                 "FILL_DAY_TARGET_ORDER")
+    assert SV.quarantined("XYZ", 10, tr, idx, {"XYZ": [idx[38]]}, 2)  # inside the optimistic leg's hold only
+
+
 # ---- study: quarantine, withheld arms, engine self-checks (V25, V42) ------------------------------------------------------
 def test_quarantined_windows_are_excluded(small):
     _bars, b, pre = small
@@ -359,7 +578,143 @@ def test_quarantined_windows_are_excluded(small):
     base = SV.run_arm("t", "E0X1", sigs, pre, b, {}, stop_k=2.0, controls=False)
     day = pre.sessions[b.presample_range[0] + 45]
     q = SV.run_arm("t", "E0X1", sigs, pre, b, {pre.stocks[0]: [day]}, stop_k=2.0, controls=False)
-    assert base.funnel["kept"] == 1 and q.funnel["quarantined"] == 1 and q.funnel["kept"] == 0
+    assert base.funnel["PRESAMPLE"]["kept"] == 1 and q.funnel["PRESAMPLE"]["quarantined"] == 1
+    assert q.funnel["PRESAMPLE"]["kept"] == 0 and q.funnel["DEV"]["signals"] == 0
+
+
+def test_a1_presample_trade_reaching_dev_is_excluded(small, monkeypatch):
+    """A delayed time exit (missing horizon bar) can push a PRESAMPLE trade's exit into DEV: it is excluded (A1)."""
+    from types import SimpleNamespace
+
+    from apex_worker.research.controls import SimResult
+    from apex_worker.research.execution_v2 import Leg, TradeV2
+
+    _bars, b, pre = small
+    t, dev0 = b.presample_range[1], b.dev_range[0]
+
+    def fake(exit_index):
+        leg = Leg("TIME", exit_index, 101.0, True)
+        tr = TradeV2(True, "FILLED", t + 1, 100.0, "OPEN", leg, leg, mfe_bounds=(0.0, 0.01), mae_bounds=(-0.01, 0.0))
+        return lambda *a, **k: SimResult(SimpleNamespace(mid=100.0, stop=98.0), tr)
+
+    SV.OPEN = pre.open_sessions
+    sig = [SV.Signal(pre.stocks[0], t, None, 0.0)]
+    monkeypatch.setattr(SV, "simulate_signal", fake(dev0))
+    r = SV.run_arm("t", "E0X1", sig, pre, b, {}, stop_k=2.0, controls=False)
+    assert r.funnel["PRESAMPLE"]["label_crosses_dev"] == 1 and r.funnel["PRESAMPLE"]["kept"] == 0
+    monkeypatch.setattr(SV, "simulate_signal", fake(dev0 - 1))
+    r = SV.run_arm("t", "E0X1", sig, pre, b, {}, stop_k=2.0, controls=False)
+    assert r.funnel["PRESAMPLE"]["label_crosses_dev"] == 0 and r.funnel["PRESAMPLE"]["kept"] == 1
+
+
+def test_a1_selection_is_locked_before_any_presample_outcome_and_unselected_arms_never_see_presample(small, monkeypatch):
+    """A1 isolation. Every simulation of a PRESAMPLE decision raises until the DEV-only selection lock exists, so no
+    PRESAMPLE outcome can influence the choice; afterwards only the locked arm of each S strategy reaches PRESAMPLE,
+    and nothing about an unselected arm's PRESAMPLE appears in the result."""
+    from apex_worker.research import controls as CT
+
+    _bars, b, pre = small
+    lo, hi = b.presample_range
+    events, state = [], {"locked": False}
+
+    def guard(fn):
+        def wrapped(m, symbol, t, *a, **k):
+            if lo <= t <= hi and not state["locked"]:
+                raise AssertionError(f"PRESAMPLE outcome simulated before the lock: {symbol} t={t}")
+            return fn(m, symbol, t, *a, **k)
+        return wrapped
+
+    monkeypatch.setattr(SV, "simulate_signal", guard(SV.simulate_signal))
+    monkeypatch.setattr(CT, "simulate_signal", guard(CT.simulate_signal))
+    real_arm, real_s5 = SV.run_arm, SV.s5_segment
+
+    def arm_spy(name, arm, sigs, *a, **k):
+        events.append(("arm", name, arm, {SV.segment_of(g.t, b) for g in sigs}))
+        return real_arm(name, arm, sigs, *a, **k)
+
+    def s5_spy(pre_, b_, data, arm, seg, full):
+        if seg == "PRESAMPLE" and not state["locked"]:
+            raise AssertionError("S5 PRESAMPLE before the lock")
+        events.append(("s5", "S5", arm, {seg}))
+        return real_s5(pre_, b_, data, arm, seg, full)
+
+    def on_lock(lock):
+        state["locked"] = True
+        events.append(("lock", lock["chosen_arms"]))
+
+    monkeypatch.setattr(SV, "run_arm", arm_spy)
+    monkeypatch.setattr(SV, "s5_segment", s5_spy)
+    res = SV.run_study(pre, b, {}, on_lock=on_lock, manifest_sha256="m" * 64)
+    k = next(i for i, e in enumerate(events) if e[0] == "lock")
+    chosen = events[k][1]
+    assert all("PRESAMPLE" not in e[3] for e in events[:k])  # before the lock: DEV only, every registered arm
+    assert {(e[1], e[2]) for e in events[:k] if e[1] in chosen} == {
+        (sid, a) for sid in ("S1", "S2", "S3", "S5") for a in PROTOCOL_V2["strategies"][sid]["arms"]}
+    after = [(e[1], e[2]) for e in events[k + 1:] if "PRESAMPLE" in e[3] and e[1] in chosen]
+    assert sorted(after) == sorted(chosen.items())  # each locked arm exactly once, nothing else
+    assert res.selection_lock["chosen_arms"] == chosen and len(res.selection_lock["lock_sha256"]) == 64
+    for sid in ("S1", "S2", "S3", "S5"):
+        st = res.strategies[sid]
+        for arm, v in st["arms"].items():
+            if arm != chosen[sid]:
+                assert v["PRESAMPLE"] == SV.WITHHELD
+        assert st["selection"]["lock_sha256"] == res.selection_lock["lock_sha256"]
+    assert "withheld" in res.strategies["S3"]["mechanism"]["PRESAMPLE"]
+    pres_rows = {(r["name"], r["arm"]) for r in res.summary_rows if r["segment"] == "PRESAMPLE" and r["name"] in chosen}
+    assert pres_rows <= set(chosen.items())
+    pres_cfg = {(c["name"], c["arm"]) for c in res.configurations if c["segment"] == "PRESAMPLE" and c["name"] in chosen}
+    assert pres_cfg == set(chosen.items())
+
+
+def test_a1_split_dev_then_presample_runs_equal_one_run_over_both(small):
+    """Running DEV first and PRESAMPLE later (the isolation order) changes no number: same rows, values and controls."""
+    _bars, b, pre = small
+    SV.OPEN = pre.open_sessions
+    sigs, _ = SV.signals_for(QV2_STRATEGIES["s2_residual_momentum"], pre, b)
+    one = SV.run_arm("S2", "E0X1", sigs, pre, b, {})
+    dev = SV.run_arm("S2", "E0X1", [g for g in sigs if SV.segment_of(g.t, b) == "DEV"], pre, b, {})
+    pres = SV.run_arm("S2", "E0X1", [g for g in sigs if SV.segment_of(g.t, b) == "PRESAMPLE"], pre, b, {})
+    both = SV._merge_runs(dev, pres)
+    cols = ["symbol", "t", "segment", "value", "value_opt", "ctrl_value", "ctrl_value_opt", "value_tt", "ctrl_value_tt"]
+    assert len(one.rows) > 20
+    pd.testing.assert_frame_equal(one.rows[cols].reset_index(drop=True), both.rows[cols].reset_index(drop=True))
+    assert one.funnel == both.funnel
+
+
+def test_a1_s5_segment_simulation_matches_full_history_and_computes_nothing_earlier(small):
+    _bars, b, pre = small
+    data = SV.S5Data(pre)
+    for arm in PROTOCOL_V2["strategies"]["S5"]["arms"]:
+        for seg in ("DEV", "PRESAMPLE"):
+            lo, hi = SV.seg_range(b, seg)
+            st = SV.s5_start(arm, lo)
+            full = data.series(pre, arm, 25.0)
+            loc = data.series(pre, arm, 25.0, start=st)
+            for f_, l_ in zip(full, loc, strict=True):
+                np.testing.assert_allclose(f_.iloc[lo + 1 : hi + 1], l_.iloc[lo + 1 : hi + 1], rtol=0, atol=1e-12)
+            assert (loc[0].iloc[: st + 1] == 0).all() and st < lo  # no return before the segment's own book exists
+
+
+def test_a1_quarantine_uses_the_fixed_label_window_not_the_realised_exit():
+    """A spin-off 15 sessions after the decision quarantines the trade whether it stopped out early or held to the
+    horizon; A0 used the realised exit, so an early stop escaped the quarantine (selection on the outcome)."""
+    from apex_worker.research.execution_v2 import Leg, TradeV2
+
+    idx = pd.bdate_range("2020-01-01", periods=60)
+    q = {"XYZ": [idx[25]]}
+    early = Leg("STOP", 16, 97.0)
+    tr = TradeV2(True, "FILLED", 11, 100.0, "OPEN", early, early)
+    assert SV.quarantined("XYZ", 10, tr, idx, q, 2)
+    assert not SV.quarantined("XYZ", 40, tr, idx, q, 2)
+
+
+def test_a1_fill_rate_decomposition_sums_to_the_paired_mean():
+    """Identical +0.5% per fill, 60% vs 90% fill rates: the paired mean (-0.15 pp) is all fill-rate term."""
+    part = pd.DataFrame({"filled": [True] * 6 + [False] * 4, "value": [0.005] * 6 + [0.0] * 4,
+                         "ctrl_value": [0.9 * 0.005] * 10, "ctrl_fill_rate": [0.9] * 10})
+    dec = SV.fill_decomposition(part, part[part["filled"]], "value")["paired_decomposition"]
+    assert dec["per_fill_term"] == pytest.approx(0.0, abs=1e-12)
+    assert dec["fill_rate_term"] + dec["per_fill_term"] == pytest.approx((part["value"] - part["ctrl_value"]).mean())
 
 
 def test_v25_lookahead_trap_detected_and_placebo_quiet():
@@ -395,11 +750,26 @@ def test_v42_protocol2_demo_end_to_end(tmp_path, monkeypatch):
     assert m["data_class"] == "SYNTHETIC_FIXTURE_DEMO" and m["protocol_version"] == "realeq-protocol-2"
     assert set(m["aggregate"]["dispositions"]) == {"S1", "S2", "S3", "S4", "S5"}
     assert m["aggregate"]["dispositions"]["S4"] == "NOT_EVALUABLE_MISSING_INPUT"
-    for sid in ("S1", "S2", "S3"):
+    for sid in ("S1", "S2", "S3", "S5"):
         st = m["strategies"][sid]
         for arm, v in st["arms"].items():
             if arm != st["selection"]["chosen_arm"]:
                 assert "withheld" in v["PRESAMPLE"], (sid, arm)
+                if sid != "S5":
+                    assert isinstance(st["funnel"][arm]["PRESAMPLE"], str), (sid, arm)  # counts withheld too
+        assert st["primary"]["evidence_type"].startswith("PRESAMPLE_BACKWARD_TIME_HISTORICAL_ROBUSTNESS")
+    presample_cfgs = {(c["name"], c["arm"]) for c in m["configurations_attempted"]
+                      if c["segment"] == "PRESAMPLE" and c["name"] in ("S1", "S2", "S3", "S5")}
+    assert presample_cfgs == {(sid, m["strategies"][sid]["selection"]["chosen_arm"]) for sid in ("S1", "S2", "S3", "S5")}
+    assert set(m["strategies"]["S5"]["primary"]["describe"]["cost_grid"]) == {"0bps", "10bps", "25bps", "50bps"}
+    assert m["multiplicity"]["family_size_used"] == 4
+    assert m["bias_warnings"] and m["corporate_actions"]["status"] == "available"
+    for f in ("recommendations.md", "execution_log.md"):
+        assert "## Limitations" in (out / f).read_text(), f
+    head = (out / "comparisons.md").read_text().splitlines()[:40]  # what the job summary shows
+    assert any("Limitations" in x and "SURVIVORSHIP" in x for x in head)
+    log = (out / "execution_log.md").read_text()
+    assert log.index("lock the DEV-only arm selection") < log.index("evaluate S1-S5")
     assert "DEMO — SYNTHETIC FIXTURE" in (out / "comparisons.md").read_text()
     header = (out / "trades_summary.csv").read_text().splitlines()[0]
     assert "price" not in header and "open" not in header

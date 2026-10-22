@@ -7,9 +7,9 @@ rejection rate of true nulls at nominal 5% for H8- and H5-shaped samples. This m
   session index of its decision date. All values of one session move together, so cross-sectional correlation is kept.
 * Statistic: the trade-weighted mean, studentized with a block-cluster (batch-means) standard error that includes a
   Bartlett lag-1 term for adjacent blocks (20-session holds straddle block borders).
-* Null distribution: a circular block bootstrap of the session index with block length L sessions (L at least the label
-  length, e.g. 20/40/60), CENTRED at the estimate. So p = P*(t* >= t_hat) tests H0: mean <= 0, and the percentile-t
-  bounds are intervals for the mean.
+* Null distribution: a circular block bootstrap of the session index with block length L sessions (about the label
+  length or longer, e.g. 20/40/60; the Bartlett term covers adjacent-block overlap), CENTRED at the estimate. So
+  p = P*(t* >= t_hat) tests H0: mean <= 0, and the percentile-t bounds are intervals for the mean.
 * Fewer than `min_blocks` non-empty, non-overlapping L-blocks gives INSUFFICIENT_CLUSTERS and no p-value. The rule
   applies to a FAILED reading as much as to a VALIDATED one.
 
@@ -25,7 +25,7 @@ from dataclasses import asdict, dataclass
 
 import numpy as np
 
-INFERENCE_VERSION = "inference-v2.0"
+INFERENCE_VERSION = "inference-v2.1"  # 2.1 (A1): optional Student-t small-sample floor (protocol-2 uses it)
 BLOCK_LENGTHS = (20, 40, 60)
 MIN_BLOCKS = 12
 N_BOOT = 4999
@@ -87,6 +87,59 @@ def _studentize(sb: np.ndarray, nb: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     return mean, np.sqrt(var)
 
 
+def _betacf(a: float, b: float, x: float) -> float:
+    """Continued fraction for the regularized incomplete beta function (modified Lentz)."""
+    tiny, qab, qap, qam = 1e-300, a + b, a + 1.0, a - 1.0
+    c, d = 1.0, 1.0 - qab * x / qap
+    d = 1.0 / (d if abs(d) > tiny else tiny)
+    h = d
+    for m in range(1, 300):
+        m2 = 2 * m
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c if abs(1.0 + aa / c) > tiny else tiny
+        h *= d * c
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        d = 1.0 / (d if abs(d) > tiny else tiny)
+        c = 1.0 + aa / c if abs(1.0 + aa / c) > tiny else tiny
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < 1e-14:
+            break
+    return h
+
+
+def _betainc(a: float, b: float, x: float) -> float:
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    lbt = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b) + a * math.log(x) + b * math.log1p(-x)
+    if x < (a + 1.0) / (a + b + 2.0):
+        return math.exp(lbt) * _betacf(a, b, x) / a
+    return 1.0 - math.exp(lbt) * _betacf(b, a, 1.0 - x) / b
+
+
+def student_t_sf(t: float, df: float) -> float:
+    """P(T > t) for Student's t with `df` degrees of freedom (no scipy in the runtime environment)."""
+    tail = 0.5 * _betainc(df / 2.0, 0.5, df / (df + t * t))
+    return tail if t > 0 else 1.0 - tail
+
+
+def student_t_isf(q: float, df: float) -> float:
+    """The t with P(T > t) = q (bisection on student_t_sf; q in (0, 1))."""
+    lo, hi = -1e3, 1e3
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if student_t_sf(mid, df) > q:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
 def block_test(
     values: Sequence[float] | np.ndarray,
     session_index: Sequence[int] | np.ndarray,
@@ -95,8 +148,13 @@ def block_test(
     n_boot: int = N_BOOT,
     seed: int = 11,
     min_blocks: int = MIN_BLOCKS,
+    t_floor: bool = False,
 ) -> BlockTest:
-    """One-sided test of H0: mean <= 0 for values clustered on `session_index` (0..sessions-1)."""
+    """One-sided test of H0: mean <= 0 for values clustered on `session_index` (0..sessions-1).
+
+    `t_floor` (protocol-2 A1): the p-value is the LARGER of the bootstrap-t p and the Student-t p with df = non-empty
+    blocks - 1, and the bounds use the wider of the two quantiles. With few effective clusters and fat tails the
+    bootstrap-t alone over-rejects; the floor can only make the test more conservative."""
     v = np.asarray(values, float)
     idx = np.asarray(session_index, int)
     if len(v) != len(idx):
@@ -124,10 +182,17 @@ def block_test(
     draws = rng.integers(0, sessions, size=(n_boot, k))
     m_star, se_star = _studentize(_block(ps, draws, block_len, sessions), _block(pn, draws, block_len, sessions))
     good = np.isfinite(m_star) & (se_star > 0)
+    if good.sum() < max(100, n_boot // 10):  # degenerate resampling: no reliable null distribution
+        return BlockTest("INSUFFICIENT_CLUSTERS", nonempty_blocks=nonempty, mean=mean, se=se, design_effect=deff, **base)
     t_star = (m_star[good] - mean) / se_star[good]
     t_hat = mean / se
     p = float((1 + np.sum(t_star >= t_hat)) / (1 + len(t_star)))
     q05, q95 = np.quantile(t_star, [0.05, 0.95])
+    if t_floor:
+        df = nonempty - 1
+        p = max(p, student_t_sf(t_hat, df))
+        tq = student_t_isf(0.05, df)
+        q05, q95 = min(q05, -tq), max(q95, tq)
     return BlockTest(
         "OK", nonempty_blocks=nonempty, mean=mean, se=se, t=t_hat, p_one_sided=p,
         lower_95=float(mean - q95 * se), ci90=(float(mean - q95 * se), float(mean - q05 * se)), design_effect=deff,

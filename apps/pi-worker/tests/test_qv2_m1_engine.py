@@ -174,6 +174,44 @@ def test_v09_prefill_high_is_not_certain_mfe():
     assert v1.mfe == pytest.approx(105.5 / 101.0 - 1, abs=1e-6)  # protocol-1 reported the bound as an observation
 
 
+def test_a1_touch_fill_sensitivity_also_requires_the_target_to_trade_through():
+    """A high exactly at the target fills the resting sell at 0 ticks but not when one tick of trade-through is required."""
+    o, h, low, c = bars([[100, 101, 99, 100], [100, 101, 99.5, 100.5], [101, 106, 100, 102]] + [[100, 101, 99, 100]] * 25)
+    touch, through = simulate_v2(o, h, low, c, 0, PLAN, pol()), simulate_v2(o, h, low, c, 0, PLAN, pol(through=1))
+    assert (touch.pess.outcome, touch.pess.exit_index, touch.pess.exit_price) == ("TARGET", 2, 106.0)
+    assert through.fill_kind == "OPEN" and through.pess.outcome == "TIME"
+
+
+def test_a1_missing_bar_while_held_is_ambiguous_with_a_stop_branch():
+    """A missing session can hide a stop. Before A1 both legs skipped it (TIME at 101.5, +1.5%) although the full bars
+    stop out at 97 (-3%); now the pessimistic leg takes the stop branch and the trade counts as ambiguous."""
+    rows = [[100, 101, 99, 100], [100, 101, 99.5, 100.5], [99, 99.5, 96, 98]] + [[101.5, 102, 101, 101.5]] * 25
+    o, h, low, c = bars(rows)
+    full = simulate_v2(o, h, low, c, 0, PLAN, pol("E0", "X1"))
+    assert (full.pess.outcome, full.pess.exit_price) == ("STOP", 97.0)
+    o[2] = h[2] = low[2] = c[2] = math.nan
+    tr = simulate_v2(o, h, low, c, 0, PLAN, pol("E0", "X1"))
+    assert tr.ambiguity == "MISSING_BAR" and "MISSING_BAR_WHILE_HELD" in tr.flags
+    assert (tr.pess.outcome, tr.pess.exit_price) == ("STOP", 97.0) and (tr.opt.outcome, tr.opt.exit_price) == ("TIME", 101.5)
+
+
+def test_a1_entry_window_without_any_bar_is_an_incomplete_label_not_a_no_fill():
+    o, h, low, c = bars([[100, 101, 99, 100], [math.nan] * 4, [math.nan] * 4] + [[100, 101, 99, 100]] * 25)
+    tr = simulate_v2(o, h, low, c, 0, PLAN, pol())
+    assert tr.status == "NO_DATA_IN_ENTRY_WINDOW" and per_signal_net(tr, pol()) is None  # A0: NO_FILL valued 0.0
+
+
+def test_a1_exact_one_tick_trade_through_is_recognised_on_the_cent_grid():
+    """101.13 - 0.01 is 101.11999999999999 in floating point; A0 refused this exact one-tick trade-through."""
+    plan = OrderPlan(limit=101.13, min_open=99.0, stop=97.0, target=106.13)
+    o, h, low, c = bars([[100, 101, 99, 100], [101.5, 102, 101.12, 101.6], [102, 106.14, 101.5, 103]] + [[103] * 4] * 25)
+    tr = simulate_v2(o, h, low, c, 0, plan, pol(through=1))
+    assert (tr.fill_kind, tr.entry_price) == ("LIMIT", 101.13)
+    assert (tr.pess.outcome, tr.pess.exit_index, tr.pess.exit_price) == ("TARGET", 2, 106.13)
+    e1 = plan_from_levels(99.0, 101.0, 97.13, 106.0, 100.0, 2.0, EntryPolicy("E1"))
+    assert e1.min_open == 97.14  # the E1 open guard is exactly one tick above the stop
+
+
 def test_v14_limit_expires_after_exactly_two_sessions():
     o, h, low, c = bars([[100, 101, 99, 100], [103, 104, 102, 103], [103, 104, 101.5, 103], [103, 104, 100, 103]] + [[103] * 4] * 25)
     assert simulate_v2(o, h, low, c, 0, PLAN, pol()).status == "NO_FILL"
@@ -191,8 +229,11 @@ def test_missing_bars_are_skipped_never_invented():
     tr = simulate_v2(o, h, low, c, 0, PLAN, pol())
     assert tr.entry_index == 2 and "MISSING_BAR_IN_ENTRY_WINDOW" in tr.flags
     o[22] = h[22] = low[22] = c[22] = math.nan  # the horizon bar (fill 2 + 20) is missing
-    tr = simulate_v2(o, h, low, c, 0, PLAN, pol())
-    assert (tr.pess.outcome, tr.pess.exit_index, tr.pess.gap) == ("TIME", 23, True)
+    tr = simulate_v2(o, h, low, c, 0, PLAN, pol("E0", "X1"))
+    # A1: the unseen session could have traded through the stop, so it is a MISSING_BAR ambiguity; the branch that
+    # saw nothing keeps the delayed time exit at the next open
+    assert tr.ambiguity == "MISSING_BAR" and (tr.pess.outcome, tr.pess.exit_index, tr.pess.exit_price) == ("STOP", 22, 97.0)
+    assert (tr.opt.outcome, tr.opt.exit_index, tr.opt.gap) == ("TIME", 23, True)
     assert "TIME_EXIT_DELAYED_MISSING_BAR" in tr.flags
 
 
@@ -336,11 +377,14 @@ def test_controls_same_session_matched_stratum_same_geometry_and_seeded(market):
 
 
 def test_per_signal_value_counts_no_fill_as_zero_and_incomplete_as_missing():
-    from apex_worker.research.execution_v2 import TradeV2
+    from apex_worker.research.execution_v2 import Leg, TradeV2
 
     p = ExecutionPolicy()
     assert per_signal_net(TradeV2(False, "NO_FILL"), p) == 0.0
     assert per_signal_net(TradeV2(False, "DATA_END"), p) is None
+    leg = Leg("DATA_END", 5, 101.0)
+    short = TradeV2(True, "FILLED", 1, 100.0, "OPEN", leg, leg, flags=("ENDED_BEFORE_HORIZON",))
+    assert per_signal_net(short, p) is None  # a label cut short by the data end is incomplete, not a 5-session trade
 
 
 # ---- book accounting (V16) -----------------------------------------------------------------------------------------------
@@ -356,6 +400,17 @@ def test_v16_ten_slots_hundred_same_day_signals_sector_cap_and_no_cash_creation(
     assert bk.skipped["slots_full"] + bk.skipped["sector_cap"] + bk.skipped["duplicate_symbol"] == 91
     assert bk.equity[-1] == pytest.approx(1.0 + 10 * 0.1 * 0.01)
     assert bk.avg_exposure <= 1.0 + 1e-12
+
+
+def test_a1_book_sector_cap_counts_open_positions_at_their_mark():
+    """Two tech names doubled: tech is 0.4 of 1.2 equity (33%) before a third tech entry. A0 counted entry cost (0.2)
+    and admitted it, taking tech to 43%; the marked value refuses it."""
+    n = 10
+    px = {"A": np.r_[[100.0] * 2, [200.0] * 8], "B": np.r_[[100.0] * 2, [200.0] * 8], "C": np.full(n, 50.0)}
+    trades = pd.DataFrame([{"symbol": s, "sector": "tech", "entry_index": e, "exit_index": 9, "entry_price": px[s][e],
+                            "exit_price": px[s][9], "priority": 1.0} for s, e in (("A", 1), ("B", 1), ("C", 6))])
+    res = run_book(trades, px, n, cost_bps=0.0, slots=10, sector_cap=0.30, start=0, end=9)
+    assert res.taken == 2 and res.skipped["sector_cap"] == 1
 
 
 def test_book_same_session_exit_does_not_fund_that_sessions_entries():

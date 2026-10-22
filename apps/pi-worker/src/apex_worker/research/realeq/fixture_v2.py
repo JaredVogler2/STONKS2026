@@ -7,6 +7,7 @@ SYNTHETIC_FIXTURE_DEMO and can never be published as a real experiment.
 
 from __future__ import annotations
 
+import zlib
 from datetime import date
 
 import pandas as pd
@@ -69,7 +70,7 @@ def factor_frames_v2(per_sector: int = 12, seed: int = 5, start: date = FIXTURE_
         out[etf] = frame(sec_ret[sector], 60.0, 1e7, rng)
     for sector in SECTOR_ETFS:
         for sym in [c.symbol for c in u1_constituents() if c.sector == sector][:per_sector]:
-            r = np.random.default_rng(abs(hash((seed, sym))) % 2**32)
+            r = np.random.default_rng([seed, zlib.crc32(sym.encode())])  # stable across processes (hash() is salted)
             ret = r.uniform(0.8, 1.2) * sec_ret[sector] + r.normal(0, 0.012, n) + (planted or {}).get(sym, 0.0)
             out[sym] = frame(ret, float(r.uniform(30, 300)), float(r.uniform(3e6, 2e7)), r)
     return out

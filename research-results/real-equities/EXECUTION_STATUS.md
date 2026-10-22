@@ -6,7 +6,17 @@
 - No hypothesis is validated. Live alerts, promotion and orders stay disabled.
 - **Erratum (2026-10-22):** [ERRATUM.md](2026-10-21-fixed78-sip-8y-r2/ERRATUM.md), from the [Quant V2 M0 audit](../../docs/quant-v2/M0_AUDIT.md). The published files are unchanged; NO_TRADE stands.
 
-## Attempted real runs (every attempt is recorded, including blocked ones)
+## Protocol-2 (Quant V2, [Issue #12](https://github.com/JaredVogler2/STONKS2026/issues/12))
+
+**Status (2026-10-22): preflight amendment A1 issued** ([PROTOCOL_V2.md §12](PROTOCOL_V2.md#12-amendment-a1-2026-10-22-pre-evaluation)).
+- The official run, `qv2-20261022-s1-s5-u1-presample`, follows once A1 is merged to `main`.
+- The cancelled A0 run below is **exposed**. It computed and published PRESAMPLE outcomes in its log, job summary and artifact. The analyst never read them, and it is not a published result. See [PROTOCOL_V2.md §12.1](PROTOCOL_V2.md).
+
+| Run | Commit | Experiment id | Outcome | Details |
+|---|---|---|---|---|
+| [39829472789](https://github.com/JaredVogler2/STONKS2026/actions/runs/39829472789), 2026-10-22 18:13:42Z start, research step 18:13:52–18:17:29Z | `cb1f494` (main, PR #13 merge; protocol A0 `a15b4e92…4c9f`) | `2026-10-22-u1-sp500-sip-p2` (alpaca, u1-sp500, `realeq-protocol-2`) | **CANCELLED BY THE AGENT; OUTPUTS SEALED.** Not a published result. | <ul><li>**Why cancelled:** the pre-run review of PR #13 found defects that were later fixed in A1.</li><li>**What it holds:** the study step finished before the cancel landed. Artifact `apex-realeq-39829472789-1` (id 12449060139, zip sha256 `380eb7e927dcb61e6e96dc832173288a8746be7bc9d7fd3b55df675eb2e9fa23`, expires 2026-10-29) contains all seven files with A0 PRESAMPLE outcomes.</li><li>**What the agent saw:** the file names, sizes and hash. Then, for the A1 integrity audit, a redacted scan of the log (line kinds and counts) and a presence-only scan of the artifact (keys and booleans). No value was displayed.</li><li>**Exposure:**<ul><li>the log printed the S1–S3 PRESAMPLE summaries;</li><li>the job summary shows the primary table;</li><li>the artifact holds every selected arm's result and both S5 arms;</li><li>whether anyone viewed them is unknown.</li></ul></li><li>**What happens next:** it is opened once, after the A1 results are published, only as a reproducibility check.</li></ul> |
+
+## Protocol-1 attempted real runs (every attempt is recorded, including blocked ones)
 
 | Run | Commit | Experiment id | Outcome | Details |
 |---|---|---|---|---|

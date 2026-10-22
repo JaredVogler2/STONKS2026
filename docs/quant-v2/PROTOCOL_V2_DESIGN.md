@@ -4,7 +4,7 @@
 |---|---|
 | Milestones | M2 (data and universe), M3 (preregistration), M4 (S1–S5) of [Issue #12](https://github.com/JaredVogler2/STONKS2026/issues/12) |
 | Builds on | [M0_AUDIT.md](M0_AUDIT.md), [M1_ENGINE.md](M1_ENGINE.md) |
-| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md), sha256 `a15b4e92…4c9f` |
+| Frozen protocol | [`PROTOCOL_V2.md`](../../research-results/real-equities/PROTOCOL_V2.md). A1 (binding) sha256 `33bd4e99…475d`; A0 `a15b4e92…4c9f`, superseded before evaluation (§9) |
 | Market data used | none: every number below comes from seeded synthetic fixtures |
 | Trading | none; research-only plugins, disabled by default; no promotion, alerts or orders |
 
@@ -181,3 +181,42 @@ APEX_DEMO_PER_SECTOR=46 uv run apex research real-equities --protocol realeq-pro
 - **Intraday replay of ambiguous trades:** not needed for the decision (pessimistic leg); a possible later refinement.
 - **Forward shadow:** registered from 2026-10-23, earliest evaluation 2027-04-30.
 - **M7** (UI/Discord) is out of scope for this request.
+
+## 9. Amendment A1 (pre-evaluation)
+
+The full record is [PROTOCOL_V2.md §12](../../research-results/real-equities/PROTOCOL_V2.md).
+
+**Reviews behind it:**
+- the analyst's pre-run review;
+- three independent adversarial reviews: execution, controls and book; statistics and protocol; data and universe.
+
+All four used synthetic data only.
+
+**What changed:**
+
+| Area | Change |
+|---|---|
+| Isolation | DEV first, a hashed selection lock, then PRESAMPLE for the locked arms only. S5 is simulated segment-locally. |
+| Inference | A Student-t small-sample floor. |
+| Holm | A missing p counts as 1. |
+| Dispositions | The rules follow the hashed machine copy; their order is frozen. |
+| S5 | Benchmark timing corrected; its own gates. |
+| Execution (`exec-v2.1`) | Missing-bar ambiguity; cent-grid trade-through; trade-through on target sells. |
+| Labels and quarantine | Fixed-window quarantine, and DEV-crossing exclusions. |
+| Data | Corporate actions required; split-jump quarantine; impossible bars removed; the request budget enforced; complete SPY with consolidated-volume checks. |
+| S3C | Each breakout gets its own retest window. |
+| Book | The sector cap uses marked values. |
+
+**What did not change:** any threshold.
+
+**Corrections to §5 of this document:**
+- **Size:** the "decision-statistic battery" there uses independent controls, so its trades carry almost no cross-trade dependence. On production-shaped nulls (`bench/qv2_a1_production_null_battery.py`), the A1 rule rejects 5.8–6.6% at nominal 5% and 1.6–1.9% at 1.25%, about 1.2–1.5× nominal. That residual over-size is disclosed in every report.
+- **Power:** the power table is optimistic for the same reason. The independent statistics review measured a realistic MDE of about +1.5–2 pp per signal on a production-shaped Gaussian panel (design effect about 4). The runtime MDE is computed from the real data either way.
+
+**Status of the cancelled A0 run 39829472789 (exposed, not untouched):**
+- It computed PRESAMPLE outcomes and printed them (job log), saved them (artifact) and displayed them (job summary).
+- The analyst never saw a value.
+- Whether anyone viewed them cannot be determined.
+- The window is labelled `EVALUATION_PRESAMPLE_EXPOSED_A0_UNREAD_BY_ANALYST`.
+
+**Measured cost:** a DEMO with 12 stocks per sector takes about 2.5 minutes locally. The real U1 A0 study step took 3 minutes 37 seconds in Actions.

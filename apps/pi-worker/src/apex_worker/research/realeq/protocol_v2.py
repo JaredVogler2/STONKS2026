@@ -12,6 +12,10 @@ inspected. Protocol-2 therefore:
 * evaluates the selected arm ONCE on PRESAMPLE (decisions from 2017 whose label windows end before 2019-10-23),
   untouched by any earlier outcome. It is earlier in time, not later, and is labelled as such;
 * registers a FORWARD shadow window (decisions after the freeze) that a later run evaluates under this same protocol.
+
+Amendment A1 (2026-10-22, before any protocol-2 outcome was read): the pre-run adversarial review found defects in the
+frozen implementation and two places where the human copy and this machine copy disagreed. A1 fixes them and is the
+version every protocol-2 evaluation uses; the A0 hash stays on record. See PROTOCOL_V2.md section 12.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ import pandas as pd
 from apex_worker.research.realeq.universe_v2 import U2_STATUS, snapshot_sha256
 
 PROTOCOL_V2_VERSION = "realeq-protocol-2"
+PROTOCOL_V2_A0_SHA256 = "a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f"  # as frozen before A1
 PRESAMPLE_LABEL_END = "2019-10-23"  # first r2 decision session: every PRESAMPLE label window ends before it
 DEV_START = "2019-10-23"
 FORWARD_START = "2026-10-23"
@@ -32,6 +37,26 @@ FORWARD_START = "2026-10-23"
 PROTOCOL_V2: dict = {
     "version": PROTOCOL_V2_VERSION,
     "registered": "2026-10-22, before any protocol-2 outcome was computed on market data",
+    "amendment": {
+        "id": "A1", "date": "2026-10-22", "supersedes_sha256": PROTOCOL_V2_A0_SHA256,
+        "timing": "issued before any protocol-2 outcome informed it. The analyst never saw an A0 outcome value: of the A0 "
+        "run (Actions run 39829472789, cancelled after its study step had finished) only file names, sizes, hashes and a "
+        "redacted structural scan (line counts, key presence) were examined",
+        "a0_exposure": "the A0 run COMPUTED PRESAMPLE outcomes (selected arms of S1/S2/S3 and both S5 arms), PRINTED the "
+        "S1-S3 PRESAMPLE summaries in its job log, SAVED them in its artifact and DISPLAYED the primary table in its job "
+        "summary. Whether anyone viewed them cannot be determined from the GitHub API. PRESAMPLE is therefore recorded as "
+        "EXPOSED (outcomes published, unread by the analyst), not as untouched",
+        "cause": "pre-run adversarial reviews (the analyst's, then three independent reviews of execution/controls/"
+        "book, statistics/protocol and data): unselected arms simulated on PRESAMPLE before being discarded (S1-S3) or "
+        "published (S5); the decision rule over-rejected on production-shaped nulls; missing bars could hide stops; "
+        "corporate actions could silently be unavailable and mis-adjusted splits went undetected; S5 benchmark "
+        "mis-timed on rebalance days; Holm dropped members without a p-value; the UNCERTAINTY rule differed between "
+        "the copies; "
+        "FAILED_WITH_POWER ignored the optimistic leg; touch-fill sensitivity covered buy limits only; a delayed PRESAMPLE "
+        "time exit could reach DEV; the S3 retest of an older breakout could be hidden by a newer one; S5 had no cost, "
+        "regime or MDE gates",
+        "thresholds_changed": "none (alpha, block lengths, minimum blocks, economic minimums, costs and arms unchanged)",
+    },
     "mode": "RESEARCH_ONLY",
     "production_promotion_allowed": False,
     "group_actionable_allowed": False,
@@ -44,7 +69,13 @@ PROTOCOL_V2: dict = {
         "finality_lag_sessions": 2,
         "corporate_action_types": ["forward_split", "reverse_split", "spin_off"],
         "max_requests": 300,
+        "max_requests_scope": "A1: enforced by the adapter on EVERY provider call (bars and corporate actions together); "
+        "exhaustion stops the run before any evaluation; a repeated page token stops it as SOURCE_INVALID",
         "returns": "price-only (dividends not modelled), as protocol-1",
+        "integrity_checks": "A1: corporate actions must be available (else SOURCE_INVALID) and their per-year coverage is "
+        "reported; a split ex-date whose split-adjusted close jumps > 25% is adjustment-suspect and quarantined; "
+        "impossible bars (open or close outside [low, high]) are removed and become missing sessions; SPY must have "
+        "every session (its dates are the session axis) and a median volume >= 20M shares (consolidated, not one venue)",
     },
     "universe": {
         "id": "U1",
@@ -61,6 +92,9 @@ PROTOCOL_V2: dict = {
     },
     "abort_rules": {
         "credentials_missing": "BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING (no synthetic fallback)",
+        "corporate_actions_unavailable": "SOURCE_INVALID (A1)",
+        "benchmark_missing_session": "INSUFFICIENT_HISTORY (A1)",
+        "benchmark_volume_not_consolidated": "SOURCE_INVALID (A1)",
         "auth_or_entitlement_error": "SOURCE_INVALID",
         "feed_not_sip": "SOURCE_INVALID",
         "provider_bar_after_latest_completed_session": "SOURCE_INVALID",
@@ -72,16 +106,23 @@ PROTOCOL_V2: dict = {
     "symbol_exclusion": {"min_sessions": 260, "max_missing_session_fraction": 0.02, "max_stale_sessions": 3,
                          "large_move_flag_abs_return": 0.25},
     "quarantine": {
-        "rule": "a trade (strategy or control) whose window [decision session, exit session] contains a spin-off ex-date "
-        "of its symbol is excluded; a control is replaced by the next candidate",
+        "rule": "a trade (strategy or control) whose FIXED label window [decision session, decision + 2 + 20 sessions] "
+        "(extended to a later, delayed exit) contains a spin-off ex-date of its symbol is excluded; a control is replaced "
+        "by the next candidate. A1: the window no longer depends on the realised exit, so the quarantine never selects on "
+        "the outcome",
         "known_events": {"HON": ["2026-06-29"], "EXC": ["2022-02-02"]},
     },
     "chronology": {
         "warmup_sessions": 252,
         "label_sessions": 22,
-        "presample": {"role": "FRESH_EVALUATION_PRESAMPLE_UNTOUCHED",
+        "presample": {"role": "EVALUATION_PRESAMPLE_EXPOSED_A0_UNREAD_BY_ANALYST (untouched by protocol-1 and by design; "
+                      "A0 run 39829472789 published outcomes on 2026-10-22, see amendment.a0_exposure)",
+                      "evidence_type": "PRESAMPLE_BACKWARD_TIME_HISTORICAL_ROBUSTNESS (earlier in time than the design "
+                      "data; not forward out-of-sample; A0 outcomes published unread)",
                       "decisions": "from the first session with 252 prior sessions to the last whose decision + 22 "
-                      f"sessions is before {PRESAMPLE_LABEL_END}"},
+                      f"sessions is before {PRESAMPLE_LABEL_END}",
+                      "label_exclusion": f"a PRESAMPLE trade or control whose exit session (either leg) is on or after "
+                      f"{DEV_START} is excluded (a delayed time exit could otherwise reach DEV)"},
         "dev": {"role": "DEV_CONTAMINATED", "decisions": f"from {DEV_START} to data end - 22 sessions",
                 "use": "arm selection, variance and minimum-detectable-effect estimates, diagnostics; never a verdict"},
         "known_old_holdout": "2025-05-02..2026-09-21 (inside DEV; CONTAMINATED_FOR_NEW_DESIGN)",
@@ -89,7 +130,12 @@ PROTOCOL_V2: dict = {
                            "status": "REGISTERED_NOT_RUN"},
     },
     "execution": {
-        "engine": "exec-v2.0 (research.execution_v2)",
+        "engine": "exec-v2.1 (research.execution_v2; A1)",
+        "missing_bars": "A1: a missing session while held is ambiguity MISSING_BAR (legs: the worst and best of stop that "
+        "day at min(stop, next valid open), target that day for X0, or continue); an entry window without any bar is "
+        "NO_DATA_IN_ENTRY_WINDOW (an incomplete label, excluded), not a no-fill; MISSING_BAR counts in the ambiguous share",
+        "price_grid": "derived prices (limit - trade-through, target + trade-through, stop + one tick) are compared on the "
+        "cent grid",
         "primary_leg": "pessimistic",
         "entry_valid_sessions": 2,
         "horizon_sessions": 20,
@@ -100,6 +146,8 @@ PROTOCOL_V2: dict = {
         "e1_below_close_atr": 0.5,
         "x2_trail_atr": 3.0,
         "touch_fill_sensitivity_trade_through_ticks": 1,
+        "touch_fill_sensitivity_scope": "the price must trade through by 1 tick for resting buy limits AND target sell "
+        "limits; the re-simulated windows are quarantined like the primary ones",
         "levels": "signals.levels.compute_levels at the PRIMARY cost (25 bps). X0 arms: target capped below the prior "
         "120-session high and screened at min_net_rr 1.5. X1/X2 arms have no target: only the stop must be valid",
         "dedup": "one pending/open position per (strategy, arm, symbol) until the pessimistic exit",
@@ -112,11 +160,26 @@ PROTOCOL_V2: dict = {
         "S2": {"title": "Market/sector residual momentum", "arms": ["E0X1", "E0X0"], "default_arm": "E0X1",
                "rebalance_every_sessions": 5, "mechanism_pool": "raw 20-session momentum, same filters"},
         "S3": {"title": "Volatility-contraction breakout: immediate vs retest", "arms": ["A_X0", "A_X2", "C_X0", "C_X2"],
-               "default_arm": "A_X0", "mechanism": "per opportunity: retest arm minus immediate arm, same exit"},
+               "default_arm": "A_X0", "mechanism": "per opportunity: retest arm minus immediate arm, same exit",
+               "retest_rule": "each qualified breakout b is judged on its own window b+1..b+3 (first qualifying "
+               "session); when two opportunities retest on one session the signal carries the more recent breakout",
+               "mechanism_scope": "DEV only (A1 isolation): the contrast needs both entry arms, so its PRESAMPLE half "
+               "would evaluate an unselected arm and is withheld; descriptive, never a gate; an opportunity whose retest "
+               "lies outside the breakout's segment or whose trade is quarantined or label-incomplete is excluded, not "
+               "counted as a miss"},
         "S4": {"title": "First-publication earnings/guidance continuation", "status": "NOT_EVALUABLE_MISSING_INPUT",
                "reason": "no verified point-in-time first-publication earnings source; nothing is backdated"},
         "S5": {"title": "Sector-ETF trend allocation with cash abstention", "arms": ["R10", "R5"], "default_arm": "R10",
-               "top_n": 3, "benchmark": "exposure-matched SPY/cash", "mechanism": "equal-weight 11 sector ETFs"},
+               "top_n": 3, "benchmark": "exposure-matched SPY/cash: per session (1 + prior-close exposure x SPY "
+               "overnight return) x (1 + post-open exposure x SPY open-to-close return) - 1; cash yield 0; no cost",
+               "mechanism": "equal-weight 11 sector ETFs",
+               "presample": "only the DEV-selected arm is computed on PRESAMPLE",
+               "gates": "Holm p < 0.05; mean daily active >= +1 bp; mean daily net > 0 at 25 bps; mean daily active > 0 "
+               "at 50 bps; positive in both PRESAMPLE halves; >= 2 regime labels with >= 15% of invested sessions; DEV "
+               "mean > 0. Exempt: touch-fill and daily-bar ambiguity (market orders at the open)",
+               "risk_off_check": "regime abstention is evaluated at rebalance sessions only",
+               "price_only_bias": "dividends are not modelled: a yield gap of about 1%/yr between the held ETFs and SPY "
+               "moves the daily active return by about 0.4 bp x exposure (economic minimum: +1 bp/day)"},
     },
     "legacy": {"rules": ["h1_vcp_breakout", "h2_rs_pullback", "h4_oversold_recovery", "h5_sector_rotation",
                          "h6_gap_and_hold", "h8_turn_of_month"],
@@ -129,8 +192,16 @@ PROTOCOL_V2: dict = {
     "arm_selection": {"segment": "DEV", "criterion": "largest DEV studentized paired difference (pessimistic, 25 bps, "
                       "vs the generic matched control; the smaller t of L = 20 and 40); arms whose DEV test is not OK "
                       "are not eligible; none eligible -> the default arm; ties -> earlier in the arm list",
-                      "presample": "only the selected arm decides; other arms are not used for any status"},
-    "inference": {"method": "inference-v2.0: studentized, null-centred circular block bootstrap on the session index",
+                      "presample": "only the selected arm decides; other arms are not used for any status",
+                      "s5_criterion": "S5 has no matched control: its arms are ranked by the smaller DEV t (L = 20 and "
+                      "40) of the daily active return vs exposure-matched SPY/cash (A1, registering what the code does)",
+                      "isolation": "A1: (1) signals from causal features; (2) every registered S1-S5 arm evaluated on DEV "
+                      "only; (3) the frozen rule picks one arm per strategy and the choice is hashed (selection lock, "
+                      "logged before any PRESAMPLE outcome); (4) PRESAMPLE is simulated for the locked arms only. An "
+                      "unselected arm is never simulated on PRESAMPLE, so no PRESAMPLE outcome of it exists to reach a "
+                      "metric, log or artifact. S5 simulates each segment from the rebalance row preceding it. Legacy "
+                      "rules, baselines and engine self-checks are single configurations and run after the lock"},
+    "inference": {"method": "inference-v2.1: studentized, null-centred circular block bootstrap on the session index",
                   "block_lengths": [20, 40], "sensitivity_block_length": 60, "n_boot": 4999, "seed": 11,
                   "min_blocks": 12,
                   "decision_statistic": "conservative: largest p and smallest lower bound over L = 20 and 40 (the "
@@ -139,7 +210,17 @@ PROTOCOL_V2: dict = {
                   "time_axis": "per segment, the sessions on which the live gates admit at least one stock (the "
                   "market-wide risk-off breaker closes all stocks; a closed market is not missing evidence); S5 uses "
                   "every session",
+                  "small_sample_t_floor": True,
+                  "small_sample_t_floor_rule": "A1: at each block length the p-value is the larger of the bootstrap-t p "
+                  "and the Student-t p with df = non-empty blocks - 1, and the bounds use the wider quantile. Reason: on "
+                  "production-shaped synthetic nulls (bench/qv2_a1_production_null_battery.py, 3,000 replicates each: "
+                  "K = 10 same-session controls, residual style/beta exposure, clustered signals) the A0 rule rejected "
+                  "5.9-7.9% at nominal 5% and 1.7-2.4% at the Holm first-step level 1.25%; with the floor 5.8-6.6% and "
+                  "1.6-1.9%. The residual over-size (about 1.2-1.5x nominal) is DISCLOSED, not fixed: alpha is "
+                  "unchanged, and a Holm p between 0.03 and 0.05 is reported as borderline",
                   "alpha_one_sided": 0.05, "primary_family": ["S1", "S2", "S3", "S5"], "multiplicity": "Holm",
+                  "multiplicity_missing_p": "a family member without a p-value enters Holm with p = 1, so the family "
+                  "size stays 4 (the same rule applies to the legacy family)",
                   "calibration": "bench/qv2_p2_inference_battery.py (L = 20, 40; axes 480-1700 sessions) and "
                   "docs/quant-v2/M1_ENGINE.md (L = 20, 40, 60)"},
     "economic_min_effect": {"per_signal": 0.003, "s5_daily_active": 0.0001,
@@ -149,16 +230,30 @@ PROTOCOL_V2: dict = {
         "absolute per-signal mean > 0 at 25 bps; paired mean > 0 at 50 bps and with touch-fill sensitivity; positive in "
         "both PRESAMPLE halves; >= 2 regime labels with >= 15% of signals each; DEV paired mean > 0; ambiguous trades "
         "<= 25% of fills. Research only: the forward shadow is still required",
-        "UNCERTAINTY_TOO_HIGH": "every validation gate passes on the optimistic leg only, or ambiguous trades > 25% of fills",
-        "FAILED_WITH_POWER": "clusters OK, mean <= 0, and the largest one-sided 95% upper bound < the economic minimum",
+        "UNCERTAINTY_TOO_HIGH": "every validation gate passes on the optimistic leg only, or ambiguous trades > 25% of fills. "
+        "A1 reading (this machine copy governs): clusters OK and not validated, and either ambiguous trades > 25% of fills "
+        "(whatever the other gates), or the legs differ and every validation gate passes on the optimistic leg, with its "
+        "Holm p recomputed by entering the optimistic p in the family",
+        "FAILED_WITH_POWER": "clusters OK, mean <= 0, and the largest one-sided 95% upper bound < the economic minimum; "
+        "when the legs differ, the optimistic leg must meet the same two conditions (A1)",
         "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD": "clusters OK, paired mean > 0 and absolute mean > 0, not validated",
         "INCONCLUSIVE": "everything else, including INSUFFICIENT_CLUSTERS",
+        "order": "A1: the first rule that holds, in this order: clusters not OK -> INCONCLUSIVE; every gate -> VALIDATED; "
+        "ambiguous > 25% -> UNCERTAINTY; optimistic leg passes every gate -> UNCERTAINTY; FAILED_WITH_POWER; "
+        "RULE_ECONOMICALLY_PROMISING_REQUIRES_FORWARD; INCONCLUSIVE",
+        "decision_legs": "the decision value is strategy pessimistic minus controls pessimistic ('both legs "
+        "pessimistic'); what daily bars can bound, [strategy pessimistic - controls optimistic, strategy optimistic - "
+        "controls pessimistic], and the controls' ambiguous share are reported descriptively (A1)",
         "NOT_EVALUABLE_MISSING_INPUT": "required point-in-time input does not exist (S4, H3, H7)",
         "RESEARCH_ENGINE_INVALID": "an engine self-check failed; no strategy status is reported",
         "aggregate": "NO_TRADE unless at least one RULE_VALIDATED_RESEARCH_OOS; even then RESEARCH_ONLY with live alerts "
         "disabled until the forward shadow and the release gates pass",
     },
-    "books": {"slots": 10, "sector_cap": 0.30, "cost_bps": 25, "benchmark": "exposure-matched SPY/cash (cash yield 0)"},
+    "books": {"slots": 10, "sector_cap": 0.30, "cost_bps": 25, "benchmark": "exposure-matched SPY/cash (cash yield 0)",
+              "benchmark_approximation": "SPY close-to-close with the previous close's exposure; intraday entries and "
+              "exits are not timed (descriptive only)", "sector_cap_basis": "open positions at their previous-close "
+              "mark (A1; A0 used entry cost)", "control_book_window": "every book runs to the latest exit of "
+              "the strategy and control trades of the segment"},
     "engine_self_checks": {
         "lookahead_trap": "a deliberately cheating rule (each session, the eligible member with the top realized forward "
         "20-session return; E0X1, 2 ATR stop) must give conservative p < 0.001 on PRESAMPLE; it is never a strategy",
@@ -166,9 +261,12 @@ PROTOCOL_V2: dict = {
     },
     "research_budget": {"github_runner_minutes_max": 45, "alpaca_requests_max": 300, "grid_arms_max": 12},
     "minimum_detectable_effect": "reported per strategy: (z(1 - 0.05/4) + z(0.80)) x SE, with SE from DEV projected to the "
-    "PRESAMPLE sample size and with the realised PRESAMPLE SE (largest over the decision block lengths)",
-    "versions": {"execution": "exec-v2.0", "inference": "inference-v2.0", "features": "qv2-features-1",
-                 "strategies": "0.1.0", "levels": "levels-1"},
+    "PRESAMPLE sample size and with the realised PRESAMPLE SE (largest over the decision block lengths); S5 per day",
+    "reporting": "descriptive economics (win/loss distribution, exit shares, gross and net per fill, net per initial "
+    "signal, books, concentration, independent counts) never change a disposition; values on fewer than 30 trades are "
+    "flagged small_sample",
+    "versions": {"execution": "exec-v2.1", "inference": "inference-v2.1", "features": "qv2-features-1",
+                 "strategies": "0.1.1", "levels": "levels-1"},
 }
 
 
