@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 LEVELS_VERSION = "levels-1"
 
@@ -59,7 +59,7 @@ def tick_round(price: float, down: bool = False) -> float:
     q = Decimal("0.01")
     d = Decimal(str(price))
     if down:
-        return float(d.quantize(q, rounding="ROUND_FLOOR"))
+        return float(d.quantize(q, rounding=ROUND_FLOOR))
     return float(d.quantize(q, rounding=ROUND_HALF_UP))
 
 

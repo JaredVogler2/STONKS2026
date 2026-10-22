@@ -22,7 +22,7 @@ The coding agent's execution contract is [Phase 14 — Real Equity Validation](.
 
 | Experiment | Run | Code | Data | Result |
 |---|---|---|---|---|
-| [`2026-10-21-fixed78-sip-8y-r2`](real-equities/2026-10-21-fixed78-sip-8y-r2/) ([reviewer notes](real-equities/2026-10-21-fixed78-sip-8y-r2/REVIEW.md)) | [39696547618](https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618), 2026-10-21 | `2acad29`, `realeq-protocol-1` | Alpaca SIP daily, split-adjusted, fixed78, 2018-10-22 → 2026-10-21; dataset `f428e39e…` | **NO_TRADE**. H8 FAILED_REAL_OOS; H5 UNVALIDATED; H1/H2/H4/H6 INSUFFICIENT_HISTORY; H3/H7 NOT_EVALUABLE_MISSING_INPUT |
+| [`2026-10-21-fixed78-sip-8y-r2`](real-equities/2026-10-21-fixed78-sip-8y-r2/) ([reviewer notes](real-equities/2026-10-21-fixed78-sip-8y-r2/REVIEW.md), [erratum](real-equities/2026-10-21-fixed78-sip-8y-r2/ERRATUM.md)) | [39696547618](https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618), 2026-10-21 | `2acad29`, `realeq-protocol-1` | Alpaca SIP daily, split-adjusted, fixed78, 2018-10-22 → 2026-10-21; dataset `f428e39e…` | **NO_TRADE**. H8 FAILED_REAL_OOS; H5 UNVALIDATED; H1/H2/H4/H6 INSUFFICIENT_HISTORY; H3/H7 NOT_EVALUABLE_MISSING_INPUT. **Erratum 2026-10-22:** p-values are descriptive, not calibrated; dataset hash not bitwise reproducible (metrics are); NO_TRADE stands |
 
 Attempted runs, including blocked ones, are listed in [real-equities/EXECUTION_STATUS.md](real-equities/EXECUTION_STATUS.md).
 
