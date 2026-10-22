@@ -14,7 +14,7 @@ The user wants APEX to discover statistically and economically credible **5–20
 - **Experiment:** [2026-10-21-fixed78-sip-8y-r2](../../research-results/real-equities/2026-10-21-fixed78-sip-8y-r2/).
 - **Source:** Alpaca historical SIP, split-adjusted, 156,773 price bars, 78/78 symbols usable (66 stocks; 11 sector ETFs + SPY references).
 - **Windows:** 2019-10-23 to 2025-05-01 development; 2025-05-02 to 2026-09-21 holdout.
-- **Configuration:** 20 NYSE sessions; 25 bps per side; seven? No: SIX economically evaluable rule families H1,H2,H4,H5,H6,H8. H3/H7 not evaluable due to missing point-in-time catalysts.
+- **Configuration:** 20 NYSE sessions; 25 bps per side; six economically evaluated rule families H1,H2,H4,H5,H6,H8. H3/H7 not evaluable due to missing point-in-time catalysts.
 - **Results:** H1 −0.144% (n16), H2 −0.037% (n39), H4 −1.095% (n7), H5 +0.034% (n225), H6 −2.092% (n11), H8 +0.129% (n140, underperforms matched random); simple momentum_20 +1.189% (n30; uncertainty includes losses). All means after primary costs. H5 and H8 forecasting Brier skill negative. No validated edge; group LIVE and auto promotion remain OFF.
 - **Potential source issue:** `apps/pi-worker/src/apex_worker/signals/levels.py` calls `ROUND_FLOOR` but import list only includes `ROUND_HALF_UP, Decimal`; reproduce and explain historical successful run before trusting new work.
 - **Sources:** `research-results/real-equities/ADVERSARIAL_REVIEW_BRIEF.md`, `research-results/real-equities/PROTOCOL.md`, `docs/TESTING_AND_METHODOLOGY_REPORT.md`.
