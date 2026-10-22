@@ -64,9 +64,26 @@ These are the reviewer's QA notes and adversarial interpretation, written by han
    None of these is a registered test of the primary family.
 8. **Paired success does not mean absolute success.** The matched controls are random same-sector S&P names traded with the same stop, horizon and costs. They lose money on average: −0.04%, −0.13% and −0.42% per signal for S1, S2 and S3. Every swing book also trails exposure-matched SPY/cash in both segments, S3's PRESAMPLE book aside, so beating the controls mostly means losing less than the trade wrapper's drag.
 
-## 5. Reproducibility check against the A0 artifact
+## 5. Reproducibility check against the A0 artifact (done once, after this PR was opened)
 
-This is pending. It will be done once, after this results PR is opened, and recorded here. Code differences between A0 and A1 (PROTOCOL_V2.md §12.2) and vendor data revisions are expected to change some numbers. It is a consistency check, never a second evaluation.
+The sealed A0 artifact was opened once, after these A1 results were published in this PR: zip sha256 `380eb7e9…fa23`, run 39829472789, code `cb1f494`, protocol A0 `a15b4e92…`. This is a consistency check, never a second evaluation.
+
+| | A0 (cancelled run) | A1 (this run) |
+|---|---|---|
+| Data end | 2026-10-19: ran at 18:13Z, before that day's close | 2026-10-20: ran after the close |
+| Effect of the extra session | — | DEV has one more session; every whole-series content hash differs; PRESAMPLE is unaffected |
+| DEV-locked arms | S1 E0X1, S2 E0X1, S3 C_X0, S5 R10 | identical |
+| PRESAMPLE n and paired means, S1/S2/S3 | 331 / 2,951 / 37; +0.003247 / −0.000545 / +0.007669 | identical, to every digit |
+| S3 conservative p (Holm) | 0.0884 (0.2652) | 0.0888 (0.2663), from the A1 Student-t floor |
+| S1, S2 p | 0.0576, 0.7674 | identical (the floor did not bind) |
+| S5 mean daily active (upper bound) | −4.24 bp/day (−2.37) | −4.22 bp/day (−2.55), from the A1 benchmark-timing fix |
+| Dispositions, S1–S5 and H1–H8 | — | **identical** |
+| Quarantine | — | adds EQT 2018-11-13, the A1 split-suspect check; no primary sample changed |
+
+**What this means:**
+1. The A1 integrity fixes did not change any registered conclusion on this data. They change behaviour only where this window had no such cases: missing bars, ambiguous fills, impossible bars or label crossings were all absent.
+2. The A0 exposure therefore carried essentially the same information as this result. Anyone who saw the A0 run page could have known it in advance. But no design or threshold choice was made after A0 produced outcomes, other than the integrity fixes, and those turned out neutral here. So the result could not have been tuned to the exposure.
+3. The A0 file listing is the only other place these numbers exist. It expires on 2026-10-29 and is not published.
 
 ## 6. Reproduce
 
