@@ -1,6 +1,6 @@
 # APEX Empirical Research Results — Central Register
 
-**Current status (2026-10-21):** Awaiting first complete REAL-equity strategy experiment (first attempt BLOCKED: Alpaca secrets not configured). Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
+**Current status (2026-10-21):** First REAL-equity experiment completed: aggregate **NO_TRADE**, no hypothesis validated (see below). Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
 
 The coding agent's execution contract is [Phase 14 — Real Equity Validation](../build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md).
 
@@ -20,8 +20,12 @@ The coding agent's execution contract is [Phase 14 — Real Equity Validation](.
 
 ## Real experiments
 
-_None completed yet._
+| Experiment | Run | Code | Data | Result |
+|---|---|---|---|---|
+| [`2026-10-21-fixed78-sip-8y-r2`](real-equities/2026-10-21-fixed78-sip-8y-r2/) ([reviewer notes](real-equities/2026-10-21-fixed78-sip-8y-r2/REVIEW.md)) | [39696547618](https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618), 2026-10-21 | `2acad29`, `realeq-protocol-1` | Alpaca SIP daily, split-adjusted, fixed78, 2018-10-22 → 2026-10-21; dataset `f428e39e…` | **NO_TRADE**. H8 FAILED_REAL_OOS; H5 UNVALIDATED; H1/H2/H4/H6 INSUFFICIENT_HISTORY; H3/H7 NOT_EVALUABLE_MISSING_INPUT |
+
+Attempted runs, including blocked ones, are listed in [real-equities/EXECUTION_STATUS.md](real-equities/EXECUTION_STATUS.md).
 
 ## Pending run
 
-- [Issue #6 — execute the real-equities research](https://github.com/JaredVogler2/STONKS2026/issues/6). The pipeline, workflow and frozen protocol are implemented and tested offline. The workflow is on `main`. The first dispatch, [run 39589850123](https://github.com/JaredVogler2/STONKS2026/actions/runs/39589850123) (2026-10-21), stopped with **BLOCKED — ALPACA_ACTIONS_SECRETS_MISSING**: no data was downloaded and no strategy was evaluated. Real-data backtest results are **not yet produced**. They wait for the owner's `real-equities-research` Alpaca secrets ([setup](real-equities/PROTOCOL.md#8-owner-one-time-setup-github-ui-only-no-laptop-no-pi)).
+- None. Follow-up experiments need a new pre-registered protocol version. See the reviewer recommendations in the experiment's REVIEW.md.

@@ -1,0 +1,532 @@
+{
+  "boundaries": {
+    "data_end": "2026-10-21",
+    "data_start": "2018-10-22",
+    "decision_sessions": 1736,
+    "decision_start": "2019-10-23",
+    "development_end": "2025-05-01",
+    "development_sessions": 1388,
+    "embargo_limit": "2025-04-25",
+    "holdout_end": "2026-09-21",
+    "holdout_sessions": 348,
+    "holdout_start": "2025-05-02",
+    "label_unavailable_sessions": 22
+  },
+  "code": {
+    "commit_sha": "2acad29f75a81dbde0a469d1634d8b273de5c9ea",
+    "dirty_worktree": false,
+    "ref": "refs/heads/main"
+  },
+  "costs_bps_per_side": [
+    0,
+    10,
+    25,
+    50
+  ],
+  "coverage": {
+    "first_session": "2018-10-22",
+    "last_session": "2026-10-21",
+    "requested_years": 8,
+    "time_end": null,
+    "time_start": null
+  },
+  "data_class": "REAL_MARKET_DATA",
+  "experiment_id": "2026-10-21-fixed78-sip-8y-r2",
+  "frozen_at": "2026-10-21T23:56:23Z",
+  "label_method": {
+    "entry_valid_sessions": 2,
+    "horizons": [
+      5,
+      10,
+      15,
+      20
+    ],
+    "primary_horizon_sessions": 20,
+    "same_bar_rule": "STOP_FIRST",
+    "type": "TARGET_BEFORE_STOP"
+  },
+  "promotion": "none (no signing, no registry, no champion change)",
+  "protocol": {
+    "ablations": {
+      "h1_vcp_breakout": [
+        "all_regimes",
+        "quality_top_half",
+        "model_without_quality_features"
+      ],
+      "h2_rs_pullback": [
+        "all_regimes",
+        "quality_top_half",
+        "model_without_quality_features"
+      ],
+      "h4_oversold_recovery": [
+        "all_regimes",
+        "quality_top_half",
+        "model_without_quality_features"
+      ]
+    },
+    "abort_rules": {
+      "auth_or_entitlement_error": "SOURCE_INVALID",
+      "benchmark_min_sessions": 504,
+      "credentials_missing": "BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING (no synthetic fallback)",
+      "feed_not_sip": "SOURCE_INVALID",
+      "invalid_raw_row_fraction_max": 0.001,
+      "min_usable_candidate_stocks": 60,
+      "provider_bar_after_latest_completed_session": "SOURCE_INVALID",
+      "rate_limited_after_retries": "SOURCE_INVALID",
+      "request_budget_exhausted": "INSUFFICIENT_HISTORY"
+    },
+    "bootstrap": {
+      "block": "decision week",
+      "n_boot": 2000,
+      "seed": 11
+    },
+    "costs_bps_per_side": [
+      0,
+      10,
+      25,
+      50
+    ],
+    "data": {
+      "adjustment": "split",
+      "feed": "sip",
+      "provider": "alpaca",
+      "timeframe": "1Day",
+      "traded_assets": "66 member stocks only; SPY and the 11 sector SPDRs are reference series, never traded",
+      "universe": "fixed78",
+      "years_bounds": [
+        3,
+        10
+      ],
+      "years_default": 8
+    },
+    "dispositions": {
+      "FAILED_REAL_OOS": "holdout n >= 100 and (bootstrap p90 of mean net @25bps < 0 or mean <= matched-random median)",
+      "INSUFFICIENT_HISTORY": "holdout completed rule trades < 30 or development completed rule trades < 100",
+      "NOT_EVALUABLE_MISSING_INPUT": "plugin requires point-in-time catalysts (none in CI); no events manufactured",
+      "PROMISING_NEEDS_FORWARD_TEST": "otherwise: mean net @25bps > 0 and above the matched-random median, and (bootstrap p10 > 0 or holdout n < 100)",
+      "UNVALIDATED": "everything else (inconclusive)",
+      "VALIDATED_REAL_OOS": "holdout n >= 100, >= 26 decision weeks, >= 2 regimes; mean net @25bps > 0 with bootstrap p10 > 0; mean net @50bps > 0; Holm-adjusted one-sided p < 0.10 across evaluable hypotheses; mean above the matched-random 95th percentile; mean > 0 in both sector groups; forecast not UNVALIDATED",
+      "aggregate": "NO_TRADE unless at least one VALIDATED_REAL_OOS; live alerts stay disabled either way"
+    },
+    "execution": {
+      "decision": "close of session t (+15 min); features use bars <= t only",
+      "dedup": "one pending/open position per (strategy, symbol): a signal is skipped until the earlier one exits",
+      "entry": "limit over [entry_min, entry_max] valid sessions t+1..t+2; open in zone -> open; open above zone and low <= entry_max -> entry_max; open below zone -> no fill that session; never the decision close",
+      "fill_session": "only the stop can trigger on the fill session",
+      "gap_above_target": "exit at the open",
+      "gap_through_stop": "exit at the (worse) open",
+      "risk_cap": "stop distance clamped to [1, 3] ATR; minimum net reward/risk 1.5 (signals.levels)",
+      "same_bar_target_and_stop": "STOP first (worst-first), counted; UNRESOLVED sensitivity excludes those trades",
+      "time_exit": "close of fill + H sessions"
+    },
+    "horizons": [
+      5,
+      10,
+      15,
+      20
+    ],
+    "matched_random": {
+      "draws": 50,
+      "levels": "generic stop hint close - 1.5 ATR",
+      "seed": 20261021
+    },
+    "model_definition": "existing competing-risk model + promotion-policy-2 gates (research.evaluate) on the same frozen holdout, trained on all filled events as the production pipeline does",
+    "portfolio": {
+      "cost_bps": 25,
+      "horizon": 20,
+      "marking": "daily close",
+      "sizing": "equity / slots at entry; skipped when all slots are used",
+      "slots": 10
+    },
+    "primary_cost_bps": 25,
+    "primary_horizon": 20,
+    "returns": {
+      "net": "(1 + gross) * (1 - c) / (1 + c) - 1, c = bps per side",
+      "r_multiple": "(exit * (1 - c) - entry * (1 + c)) / (entry * (1 + c) - stop)"
+    },
+    "robustness_splits": {
+      "chronological": "untouched final holdout (unseen most recent sessions)",
+      "sector_groups": {
+        "A": [
+          "technology",
+          "energy",
+          "industrials",
+          "consumer_staples",
+          "materials",
+          "communication_services"
+        ],
+        "B": [
+          "financials",
+          "health_care",
+          "consumer_discretionary",
+          "utilities",
+          "real_estate"
+        ]
+      },
+      "sector_method": "rule expectancy per group on the holdout; model trained on one group's development events, scored on the other group's holdout events"
+    },
+    "rule_definition": "every qualified, regime-allowed, de-duplicated signal of the registered plugin (live WATCH/ACTIVE logic without earnings veto and catalysts, which CI cannot observe point-in-time)",
+    "split": {
+      "calibration_fraction": 0.25,
+      "embargo_sessions": 5,
+      "holdout_fraction": 0.2,
+      "label_complete_sessions": 22,
+      "threshold_selection": "development out-of-sample predictions only",
+      "walk_forward_folds": 4,
+      "warmup_sessions": 252
+    },
+    "symbol_exclusion": {
+      "large_move_flag_abs_return": 0.25,
+      "max_missing_session_fraction": 0.02,
+      "max_stale_sessions": 3,
+      "min_sessions": 260
+    },
+    "thresholds": {
+      "adequate_holdout_trades": 100,
+      "holm_alpha": 0.1,
+      "min_development_trades": 100,
+      "min_holdout_trades": 30,
+      "min_holdout_weeks": 26,
+      "min_regimes": 2,
+      "random_quantile_validated": 0.95
+    },
+    "version": "realeq-protocol-1"
+  },
+  "research_only": true,
+  "runner": {
+    "event": "workflow_dispatch",
+    "image_os": "ubuntu24",
+    "image_version": "20261012.334.1",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "python": "3.11.15",
+    "ref": "refs/heads/main",
+    "repository": "JaredVogler2/STONKS2026",
+    "run_attempt": "1",
+    "run_id": "39696547618",
+    "run_url": "https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618",
+    "runner_arch": "X64",
+    "runner_os": "Linux",
+    "workflow": "apex-real-equities-research"
+  },
+  "schema": "apex-realeq-manifest-1",
+  "seeds": {
+    "PYTHONHASHSEED": "0",
+    "bootstrap": 11,
+    "matched_random": 20261021,
+    "validation": 20261020
+  },
+  "source": {
+    "adjustment": "split",
+    "corporate_actions": "available",
+    "dataset_hash": "f428e39edbc92f565693853895ad062afb2639809cb3bd6ad1f460851c94d419",
+    "entitlement": "Alpaca Basic: historical SIP older than 15 minutes",
+    "feed": "sip",
+    "fetched_at": "2026-10-21T23:56:11Z",
+    "history_hash": "18d9678faf9373fe6dd3526e05374e25a0b2ad2445d9a90ec783160bc328fecf",
+    "provider": "alpaca",
+    "provider_requests": 16,
+    "timeframe": "1Day"
+  },
+  "status_at_freeze": "FROZEN_BEFORE_METRICS",
+  "universe": {
+    "benchmark": "SPY",
+    "candidate_stocks": {
+      "communication_services": [
+        "GOOGL",
+        "VZ",
+        "T",
+        "DIS",
+        "CMCSA",
+        "NFLX"
+      ],
+      "consumer_discretionary": [
+        "AMZN",
+        "HD",
+        "MCD",
+        "NKE",
+        "SBUX",
+        "LOW"
+      ],
+      "consumer_staples": [
+        "PG",
+        "KO",
+        "PEP",
+        "WMT",
+        "CL",
+        "MO"
+      ],
+      "energy": [
+        "XOM",
+        "CVX",
+        "COP",
+        "SLB",
+        "EOG",
+        "PSX"
+      ],
+      "financials": [
+        "JPM",
+        "BAC",
+        "WFC",
+        "GS",
+        "MS",
+        "BLK"
+      ],
+      "health_care": [
+        "JNJ",
+        "UNH",
+        "PFE",
+        "MRK",
+        "ABT",
+        "TMO"
+      ],
+      "industrials": [
+        "CAT",
+        "HON",
+        "UNP",
+        "GE",
+        "LMT",
+        "DE"
+      ],
+      "materials": [
+        "LIN",
+        "APD",
+        "SHW",
+        "ECL",
+        "NEM",
+        "FCX"
+      ],
+      "real_estate": [
+        "PLD",
+        "AMT",
+        "CCI",
+        "SPG",
+        "EQIX",
+        "PSA"
+      ],
+      "technology": [
+        "AAPL",
+        "MSFT",
+        "NVDA",
+        "AVGO",
+        "ORCL",
+        "CSCO"
+      ],
+      "utilities": [
+        "NEE",
+        "DUK",
+        "SO",
+        "D",
+        "AEP",
+        "EXC"
+      ]
+    },
+    "name": "fixed78",
+    "sector_etfs": {
+      "communication_services": "XLC",
+      "consumer_discretionary": "XLY",
+      "consumer_staples": "XLP",
+      "energy": "XLE",
+      "financials": "XLF",
+      "health_care": "XLV",
+      "industrials": "XLI",
+      "materials": "XLB",
+      "real_estate": "XLRE",
+      "technology": "XLK",
+      "utilities": "XLU"
+    },
+    "traded": [
+      "AAPL",
+      "ABT",
+      "AEP",
+      "AMT",
+      "AMZN",
+      "APD",
+      "AVGO",
+      "BAC",
+      "BLK",
+      "CAT",
+      "CCI",
+      "CL",
+      "CMCSA",
+      "COP",
+      "CSCO",
+      "CVX",
+      "D",
+      "DE",
+      "DIS",
+      "DUK",
+      "ECL",
+      "EOG",
+      "EQIX",
+      "EXC",
+      "FCX",
+      "GE",
+      "GOOGL",
+      "GS",
+      "HD",
+      "HON",
+      "JNJ",
+      "JPM",
+      "KO",
+      "LIN",
+      "LMT",
+      "LOW",
+      "MCD",
+      "MO",
+      "MRK",
+      "MS",
+      "MSFT",
+      "NEE",
+      "NEM",
+      "NFLX",
+      "NKE",
+      "NVDA",
+      "ORCL",
+      "PEP",
+      "PFE",
+      "PG",
+      "PLD",
+      "PSA",
+      "PSX",
+      "SBUX",
+      "SHW",
+      "SLB",
+      "SO",
+      "SPG",
+      "T",
+      "TMO",
+      "UNH",
+      "UNP",
+      "VZ",
+      "WFC",
+      "WMT",
+      "XOM"
+    ],
+    "usable": [
+      "AAPL",
+      "ABT",
+      "AEP",
+      "AMT",
+      "AMZN",
+      "APD",
+      "AVGO",
+      "BAC",
+      "BLK",
+      "CAT",
+      "CCI",
+      "CL",
+      "CMCSA",
+      "COP",
+      "CSCO",
+      "CVX",
+      "D",
+      "DE",
+      "DIS",
+      "DUK",
+      "ECL",
+      "EOG",
+      "EQIX",
+      "EXC",
+      "FCX",
+      "GE",
+      "GOOGL",
+      "GS",
+      "HD",
+      "HON",
+      "JNJ",
+      "JPM",
+      "KO",
+      "LIN",
+      "LMT",
+      "LOW",
+      "MCD",
+      "MO",
+      "MRK",
+      "MS",
+      "MSFT",
+      "NEE",
+      "NEM",
+      "NFLX",
+      "NKE",
+      "NVDA",
+      "ORCL",
+      "PEP",
+      "PFE",
+      "PG",
+      "PLD",
+      "PSA",
+      "PSX",
+      "SBUX",
+      "SHW",
+      "SLB",
+      "SO",
+      "SPG",
+      "SPY",
+      "T",
+      "TMO",
+      "UNH",
+      "UNP",
+      "VZ",
+      "WFC",
+      "WMT",
+      "XLB",
+      "XLC",
+      "XLE",
+      "XLF",
+      "XLI",
+      "XLK",
+      "XLP",
+      "XLRE",
+      "XLU",
+      "XLV",
+      "XLY",
+      "XOM"
+    ]
+  },
+  "versions": {
+    "model_features": [
+      "setup_score",
+      "quality",
+      "g_price",
+      "g_sector",
+      "g_volume",
+      "g_volatility",
+      "g_regime",
+      "g_catalyst",
+      "atr_pct_14",
+      "rs_bench_20",
+      "rel_volume_1",
+      "squeeze_prev",
+      "dist_sma20_atr",
+      "regime_p_trending_up",
+      "regime_p_risk_off",
+      "rr_net",
+      "stop_dist_atr",
+      "earnings_unknown"
+    ],
+    "promotion_policy": "promotion-policy-2",
+    "protocol": "realeq-protocol-1",
+    "protocol_sha256": "721d3e3e3b82a602e36429ac7e40a0c8d01240d81e5340cb25bdd700dc95d636",
+    "strategies": {
+      "h1_vcp_breakout": "1.0.0",
+      "h2_rs_pullback": "1.0.0",
+      "h3_post_event_drift": "1.0.0",
+      "h4_oversold_recovery": "1.0.0",
+      "h5_sector_rotation": "1.0.0",
+      "h6_gap_and_hold": "1.0.0",
+      "h7_catalyst_compression": "1.0.0",
+      "h8_turn_of_month": "1.0.0"
+    }
+  },
+  "warnings": [
+    "SURVIVORSHIP: fixed universe of currently listed large caps; historical results are optimistic",
+    "SECTOR LABELS: current classification applied to all history (mild look-ahead in sector-relative features)",
+    "EARNINGS UNKNOWN: no point-in-time earnings calendar in CI; earnings vetoes not modelled",
+    "NO CATALYSTS: catalyst-dependent strategies produce no events in CI training",
+    "PRICE-ONLY RETURNS: split-adjusted bars, dividends not modelled",
+    "REFERENCE ASSETS: SPY and the 11 sector SPDRs feed relative-strength/sector features and are never traded",
+    "UNIVERSE SIZE: 66 large caps in 11 sectors; results describe this sample, not U.S. equities in general",
+    "DAILY BARS: intraday order of high/low is unknown; same-bar target+stop is resolved stop-first",
+    "SPIN-OFFS: split-only adjustment leaves spin-off / special distributions as price drops (e.g. T 2022, GE 2023-2024); a trade held across such an ex-date can book a false loss (large moves are flagged)"
+  ]
+}
