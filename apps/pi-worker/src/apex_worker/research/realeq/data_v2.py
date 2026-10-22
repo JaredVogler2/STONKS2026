@@ -86,9 +86,10 @@ class LoadedV2:
 
 
 def fetch_v2(adapter_factory: Callable[[], object], cache_dir: Path, spec: HistorySpec, *, end: date,
-             now: datetime) -> LoadedV2:
-    """Bars, then corporate actions. The adapter enforces the protocol's request budget on EVERY call, bars and
-    corporate actions together (A1); hitting it stops the run (INSUFFICIENT_HISTORY), never a partial evaluation."""
+             now: datetime, actions_start: date = FIRST) -> LoadedV2:
+    """Bars, then corporate actions from `actions_start` (the study: the protocol's first session; the forward shadow:
+    its window start). The adapter enforces the protocol's request budget on EVERY call, bars and corporate actions
+    together (A1); hitting it stops the run (INSUFFICIENT_HISTORY), never a partial evaluation."""
     from apex_worker.market.adapters.alpaca import AlpacaBudgetExhausted, AlpacaError
 
     async def run():
@@ -103,7 +104,8 @@ def fetch_v2(adapter_factory: Callable[[], object], cache_dir: Path, spec: Histo
                 err = "adapter has no corporate-actions endpoint"
             else:
                 try:
-                    actions = await fn(list(spec.symbols), FIRST, end, ",".join(PROTOCOL_V2["data"]["corporate_action_types"]))
+                    actions = await fn(list(spec.symbols), actions_start, end,
+                                       ",".join(PROTOCOL_V2["data"]["corporate_action_types"]))
                     if actions is None:
                         err = "endpoint unsupported for this plan/window"
                 except AlpacaBudgetExhausted:
@@ -163,6 +165,10 @@ def _impossible(df: pd.DataFrame) -> np.ndarray:
             | (px[:, 0] < px[:, 2] - tol) | (px[:, 3] > px[:, 1] + tol) | (px[:, 3] < px[:, 2] - tol))
 
 
+def rules_start_by() -> str:
+    return PROTOCOL_V2["abort_rules"]["benchmark_must_start_by"]
+
+
 MIN_SIP_BENCHMARK_VOLUME = 20e6  # SPY's consolidated daily volume is several times this; one venue (IEX) is far below
 
 
@@ -189,8 +195,14 @@ def roles_v2() -> dict[str, tuple[str, str | None]]:
     return roles
 
 
-def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) -> tuple[dict, dict[str, pd.DataFrame]]:
+def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None, *, first: date = FIRST,
+                         benchmark_start_by: str | None = None, min_usable_stocks: int | None = None
+                         ) -> tuple[dict, dict[str, pd.DataFrame]]:
+    """(data_quality body, usable bars) under the protocol's rules. `first` / `benchmark_start_by` default to the
+    study's fixed window (2016-01-04 / the registered abort date); the forward shadow passes its own window start.
+    `min_usable_stocks` overrides the abort minimum for synthetic fixture runs only (callers enforce that)."""
     cal = cal or default_calendar()
+    start_by = benchmark_start_by or rules_start_by()
     rules, excl = PROTOCOL_V2["abort_rules"], PROTOCOL_V2["symbol_exclusion"]
     res, insp = loaded.result, loaded.inspector
     roles = roles_v2()
@@ -218,7 +230,7 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         df = res.bars.get(sym)
         removed = 0
         if df is not None and not df.empty:
-            df = df[(df.index >= pd.Timestamp(FIRST)) & (df.index <= pd.Timestamp(loaded.end))]
+            df = df[(df.index >= pd.Timestamp(first)) & (df.index <= pd.Timestamp(loaded.end))]
             bad = _impossible(df)
             removed = int(bad.sum())
             df = df[~bad]  # A1: an impossible bar is removed (a missing session), not merely counted
@@ -249,7 +261,7 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
             entry["notes"].append(f"split ex-date(s) {jumps} jump by more than 25% in split-adjusted closes: adjustment "
                                   "suspect; trade windows across them are quarantined (A1)")
         added = members[sym].date_added if sym in members else None
-        late = bool(added) and days[0] > max(FIRST, date.fromisoformat(str(added)[:10])) + timedelta(days=10)
+        late = bool(added) and days[0] > max(first, date.fromisoformat(str(added)[:10])) + timedelta(days=10)
         entry.update(sessions=len(days), first_session=str(days[0]), last_session=str(days[-1]),
                      missing_sessions=len(missing), off_calendar_rows=len(off_cal), stale_sessions=max(0, stale),
                      large_move_sessions=big[:20], split_dates=split_days,
@@ -275,7 +287,7 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
     stocks_ok = sum(1 for e in symbols if e["role"] == "candidate_stock" and e["status"] == "OK")
     bench = next(e for e in symbols if e["symbol"] == BENCHMARK)
     q = quarantine_dates(loaded.actions, suspect)
-    years = [str(y) for y in range(FIRST.year, loaded.end.year + 1)]
+    years = [str(y) for y in range(first.year, loaded.end.year + 1)]
     gap_years = [y for y in years if not by_year.get(y)] if loaded.actions is not None else years
     u1 = set(u1_symbols())
     pres_start = "2017-01-03"  # the registered PRESAMPLE start (PROTOCOL_V2.md section 1); descriptive count only
@@ -285,7 +297,7 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
     body = {
         "schema": "apex-realeq-data-quality-2", "protocol": PROTOCOL_V2["version"], "provider": "alpaca",
         "feed": insp.feed, "adjustment": insp.adjustment, "fetched_at": loaded.fetched_at,
-        "requested_window": {"start": str(res.start), "end": str(res.end)}, "first_session_used": str(FIRST),
+        "requested_window": {"start": str(res.start), "end": str(res.end)}, "first_session_used": str(first),
         "data_end_after_finality_lag": str(loaded.end), "provider_requests": res.requests,
         "provider_calls": len(insp.calls), "history_hash": res.history_hash, "budget_exhausted": res.budget_exhausted,
         "raw_rows": total_raw, "raw_invalid_rows": total_invalid,
@@ -329,13 +341,14 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         abort = (STATUS_SOURCE_INVALID, f"invalid raw rows {total_invalid}/{total_raw} exceed the protocol maximum")
     elif res.budget_exhausted:
         abort = (STATUS_INSUFFICIENT, "provider request budget exhausted before the universe was downloaded")
-    elif bench["status"] != "OK" or first_bench > pd.Timestamp(rules["benchmark_must_start_by"]):
-        abort = (STATUS_INSUFFICIENT, f"benchmark {BENCHMARK} missing or starting after {rules['benchmark_must_start_by']}")
+    elif bench["status"] != "OK" or first_bench > pd.Timestamp(start_by):
+        abort = (STATUS_INSUFFICIENT, f"benchmark {BENCHMARK} missing or starting after {start_by}")
     elif bench.get("missing_sessions", 0) > 0:  # A1: SPY's dates are every symbol's session axis
         abort = (STATUS_INSUFFICIENT, f"benchmark {BENCHMARK} is missing {bench['missing_sessions']} session(s); its "
                  "dates define the session axis, so it must be complete")
-    elif stocks_ok < rules["min_usable_stocks"]:
-        abort = (STATUS_INSUFFICIENT, f"only {stocks_ok} usable U1 stocks (< {rules['min_usable_stocks']})")
+    elif stocks_ok < (min_usable_stocks if min_usable_stocks is not None else rules["min_usable_stocks"]):
+        abort = (STATUS_INSUFFICIENT, f"only {stocks_ok} usable U1 stocks "
+                 f"(< {min_usable_stocks if min_usable_stocks is not None else rules['min_usable_stocks']})")
     if abort:
         body["abort"] = {"status": abort[0], "reason": abort[1]}
         err = RunStop(*abort)
