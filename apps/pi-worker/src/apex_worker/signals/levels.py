@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_FLOOR, ROUND_HALF_UP, Decimal
 
 LEVELS_VERSION = "levels-1"
 
@@ -59,7 +59,7 @@ def tick_round(price: float, down: bool = False) -> float:
     q = Decimal("0.01")
     d = Decimal(str(price))
     if down:
-        return float(d.quantize(q, rounding="ROUND_FLOOR"))
+        return float(d.quantize(q, rounding=ROUND_FLOOR))
     return float(d.quantize(q, rounding=ROUND_HALF_UP))
 
 
@@ -70,7 +70,10 @@ def compute_levels(
     resistance: float | None,
     cfg: LevelConfig = LevelConfig(),
     r_multiple: float | None = None,
+    stop_distance_atr: float | None = None,
 ) -> Levels | LevelRejection:
+    """`stop_distance_atr` (research controls only) replaces the hint by mid - k ATR, so a matched control reproduces a
+    signal's stop geometry in ATR units; the [stop_min_atr, stop_max_atr] clamp still applies."""
     if not (close and atr) or any(math.isnan(x) for x in (close, atr)) or close <= 0 or atr <= 0:
         return LevelRejection("LEVELS_INPUT_MISSING", "close/ATR unavailable")
     above = min(cfg.entry_above_atr * atr, cfg.entry_above_cap_pct * close)
@@ -78,6 +81,8 @@ def compute_levels(
     entry_min = tick_round(close - cfg.entry_below_atr * atr, down=True)
     mid = (entry_min + entry_max) / 2
     hint = invalidation_hint if invalidation_hint is not None and not math.isnan(invalidation_hint) else mid - 1.5 * atr
+    if stop_distance_atr is not None:
+        hint = mid - stop_distance_atr * atr
     stop = min(max(hint, mid - cfg.stop_max_atr * atr), mid - cfg.stop_min_atr * atr)
     stop = tick_round(stop, down=True)
     if stop <= 0 or stop >= entry_min:

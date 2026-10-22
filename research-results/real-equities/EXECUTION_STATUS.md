@@ -4,11 +4,13 @@
 
 - Results: [`2026-10-21-fixed78-sip-8y-r2/`](2026-10-21-fixed78-sip-8y-r2/), with reviewer notes in [REVIEW.md](2026-10-21-fixed78-sip-8y-r2/REVIEW.md).
 - No hypothesis is validated. Live alerts, promotion and orders stay disabled.
+- **Erratum (2026-10-22):** [ERRATUM.md](2026-10-21-fixed78-sip-8y-r2/ERRATUM.md), from the [Quant V2 M0 audit](../../docs/quant-v2/M0_AUDIT.md). The published files are unchanged; NO_TRADE stands.
 
 ## Attempted real runs (every attempt is recorded, including blocked ones)
 
 | Run | Commit | Experiment id | Outcome | Details |
 |---|---|---|---|---|
+| [39757487973](https://github.com/JaredVogler2/STONKS2026/actions/runs/39757487973), 2026-10-22 09:42:25–09:43:25Z | `8146a79` (main, PR #11 merge; research code and workflow identical to `2acad29`) | protocol-1 replay of r2 (alpaca, `years=8`, `time_end=2026-10-21`, fixed78) | **DIAGNOSTIC REPLAY**, not a new experiment and not published as one | 16 SIP requests. Every metric in `strategy_metrics.json` identical to r2 and `trades_summary.csv` byte-identical, but `dataset_hash` and `history_hash` differ (vendor bar values changed after the r2 fetch). Recorded in [M0_AUDIT.md §2](../../docs/quant-v2/M0_AUDIT.md) and erratum E1. Artifact id 12415284265, zip sha256 `933c7afd…5bbe`. |
 | [39696547618](https://github.com/JaredVogler2/STONKS2026/actions/runs/39696547618) (job 119555196116), 2026-10-21 23:55:54–23:57:22Z | `2acad29` (main, PR #8 merge) | `2026-10-21-fixed78-sip-8y-r2` (alpaca, 8 years, fixed78) | **COMPLETED**: aggregate NO_TRADE | 16 SIP requests, 78/78 symbols usable, 156,773 raw rows, 0 invalid. Holdout 2025-05-02 → 2026-09-21. Dispositions: H8 FAILED_REAL_OOS; H5 UNVALIDATED; H1/H2/H4/H6 INSUFFICIENT_HISTORY; H3/H7 NOT_EVALUABLE_MISSING_INPUT. Artifact id 12390019748, sha256 `270c8895…`. |
 | [39589850123](https://github.com/JaredVogler2/STONKS2026/actions/runs/39589850123) (job 119187791407), 2026-10-21 11:09:25–11:09:47Z | `7ee224c` (main, PR #7 merge) | `2026-10-21-fixed78-sip-8y` (alpaca, 8 years, fixed78) | **BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING**, exit 2 | Minutes checkpoint passed: 480 of 1500 minutes worst case, measured usage unknown. `ALPACA_KEY_ID` and `ALPACA_SECRET_KEY` were empty, so no provider request was made, no data was downloaded, no synthetic fallback ran and no strategy was evaluated. Artifact `apex-realeq-39589850123-1` (id 12341355551, sha256 `ac2b17f1…`, 7 days) holds the seven BLOCKED-status files only. |
 

@@ -61,7 +61,11 @@ def build_panel(
     benchmark: str,
     sector_etfs: dict[str, str],
     lookback: int | None = None,
+    membership: dict[str, pd.Series] | None = None,
 ) -> FeaturePanel:
+    """`membership` (research, protocol-2): per-stock boolean series; cross-sectional ranks and breadth then use only
+    stocks that are members on each session, so a name joining the universe later never enters an earlier cross-section.
+    The stocks' own features are unaffected. Live scanning passes None (unchanged behaviour)."""
     if benchmark not in bars:
         raise KeyError(f"benchmark {benchmark} missing from bars")
     if lookback:
@@ -76,6 +80,9 @@ def build_panel(
         feats[sym] = f.astype("float32")
 
     stocks = {s: f for s, f in feats.items() if meta.get(s) and meta[s].asset_kind == "stock"}
+    if membership is not None:
+        stocks = {s: f.where(membership[s].reindex(f.index).fillna(False).astype(bool), axis=0)
+                  for s, f in stocks.items() if s in membership}
     ranks = cross_sectional_ranks(stocks)
 
     # sector context: each sector ETF's 20-session return rank among sectors, now and 20 sessions ago

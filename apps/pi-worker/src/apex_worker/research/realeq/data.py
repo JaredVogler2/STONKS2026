@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -20,7 +21,7 @@ import numpy as np
 import pandas as pd
 
 from apex_worker.market.calendar import MarketCalendar, default_calendar
-from apex_worker.market.history import HistoryResult, HistorySpec, sync_history
+from apex_worker.market.history import HistoryResult, HistorySpec, encode_bars, sync_history
 from apex_worker.research.realeq.protocol import PROTOCOL
 from apex_worker.research.training_data import BENCHMARK, BIAS_WARNINGS, MEMBERS, SECTOR_ETFS, universe_symbols
 
@@ -196,6 +197,17 @@ def default_spec(years: int, max_requests: int = 300) -> HistorySpec:
                        max_requests=max_requests)
 
 
+def content_hashes(df: pd.DataFrame) -> dict:
+    """sha256 of the deterministic cache encoding (QV2 M0): whole series plus one 16-hex digest per calendar year, so a
+    replay whose dataset hash differs can name the symbol and year that changed without publishing any price."""
+    years = pd.DatetimeIndex(df.index).year
+    return {
+        "all": hashlib.sha256(encode_bars(df)).hexdigest(),
+        "by_year": {str(y): hashlib.sha256(encode_bars(df[years == y])).hexdigest()[:16] for y in sorted(set(years))},
+        "last_session": hashlib.sha256(encode_bars(df.iloc[-1:])).hexdigest()[:16],
+    }
+
+
 def quality_inventory(loaded: Loaded, cal: MarketCalendar | None = None) -> tuple[dict, dict[str, pd.DataFrame]]:
     """(data_quality.json body, usable bars). Raises RunStop when an abort rule fires (the body is attached)."""
     cal = cal or default_calendar()
@@ -268,6 +280,7 @@ def quality_inventory(loaded: Loaded, cal: MarketCalendar | None = None) -> tupl
         if big:
             entry["notes"].append(f"{len(big)} close-to-close moves above 25% flagged for review (not excluded)")
         entry["status"] = status
+        entry["content_hash"] = content_hashes(df)  # hashes of the encoded bars, never the bars: localises vendor drift
         if status == "OK":
             usable[sym] = df
         symbols.append(entry)
