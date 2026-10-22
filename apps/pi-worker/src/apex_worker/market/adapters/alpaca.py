@@ -36,6 +36,23 @@ class AlpacaError(RuntimeError):
         self.status = status
 
 
+class AlpacaBudgetExhausted(AlpacaError):
+    """The caller's request budget (`max_requests`) would be exceeded; no request was sent."""
+
+    def __init__(self, limit: int):
+        super().__init__(0, f"request budget of {limit} exhausted")
+        self.limit = limit
+
+
+def _next_token(data: dict, seen: set[str]) -> str | None:
+    token = data.get("next_page_token")
+    if token and token in seen:  # a provider loop would otherwise page forever
+        raise AlpacaError(0, "repeated next_page_token: pagination did not advance")
+    if token:
+        seen.add(token)
+    return token or None
+
+
 def _instrument(symbol: str, name: str | None, attributes: list[str]) -> tuple[str, bool]:
     n = (name or "").upper()
     for kind, suffix in INSTRUMENT_HINTS:
@@ -82,10 +99,13 @@ class AlpacaAdapter:
         self._last_ok: datetime | None = None
         self._last_error: str | None = None
         self.requests = 0
+        self.max_requests: int | None = None  # optional hard budget (research runs); None = unbounded (live use)
 
     async def _get(self, url: str, params: dict, priority: Priority = Priority.NORMAL) -> dict | list:
         attempt = 0
         while True:
+            if self.max_requests is not None and self.requests >= self.max_requests:
+                raise AlpacaBudgetExhausted(self.max_requests)
             wait = self.bucket.try_acquire()
             while wait > 0:
                 await self._sleep(wait)
@@ -167,7 +187,7 @@ class AlpacaAdapter:
         end = self._clamp_end(end, feed)
         for i in range(0, len(symbols), BATCH):
             chunk = symbols[i : i + BATCH]
-            token = None
+            token, seen = None, set()
             while True:
                 params = {
                     "symbols": ",".join(chunk),
@@ -184,7 +204,7 @@ class AlpacaAdapter:
                 data = await self._get(f"{DATA_BASE}/v2/stocks/bars", params, priority)
                 for sym, bars in (data.get("bars") or {}).items():  # type: ignore[union-attr]
                     out.setdefault(sym, []).extend(bars)
-                token = data.get("next_page_token")  # type: ignore[union-attr]
+                token = _next_token(data, seen)  # type: ignore[arg-type]
                 if not token:
                     break
         frames = {}
@@ -287,7 +307,7 @@ class AlpacaAdapter:
         actions: list[dict] = []
 
         async def window(chunk: list[str], a: date, b: date) -> list[dict]:
-            got, token = [], None
+            got, token, seen = [], None, set()
             while True:
                 params = {"symbols": ",".join(chunk), "start": a.isoformat(), "end": b.isoformat(), "types": types,
                           "limit": 1000}
@@ -296,7 +316,7 @@ class AlpacaAdapter:
                 data = await self._get(f"{DATA_BASE}/v1beta1/corporate-actions", params, Priority.OPTIONAL)
                 for kind, rows in (data.get("corporate_actions") or {}).items():  # type: ignore[union-attr]
                     got += [{"type": kind, **r} for r in rows]
-                token = data.get("next_page_token")  # type: ignore[union-attr]
+                token = _next_token(data, seen)  # type: ignore[arg-type]
                 if not token:
                     return got
 

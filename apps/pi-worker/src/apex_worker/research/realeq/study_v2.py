@@ -186,7 +186,8 @@ def quarantined(symbol: str, t: int, tr: TradeV2, sessions: pd.DatetimeIndex, q:
     if not dates:
         return False
     fixed = t + valid + P["execution"]["horizon_sessions"]
-    end = min(len(sessions) - 1, max(fixed, tr.pess.exit_index if tr.filled and tr.pess else fixed))
+    held = max(tr.pess.exit_index, tr.opt.exit_index) if tr.filled and tr.pess and tr.opt else fixed  # both legs
+    end = min(len(sessions) - 1, max(fixed, held))
     a, z = sessions[t], sessions[end]
     return any(a <= d <= z for d in dates)
 

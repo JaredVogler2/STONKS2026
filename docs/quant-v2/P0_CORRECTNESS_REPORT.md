@@ -64,7 +64,7 @@ These are engine facts and constraints. The numeric study design is frozen in M3
 | Item | Status |
 |---|---|
 | Engineering on the engine, S1–S5 plugins behind research-only flags, protocol-2 drafting (M2–M4) | **Allowed** |
-| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 as amended pre-evaluation by A1 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md) §12, sha256 `746436ee3440e8e70d371905dd34f5e33399f18c45d6454653abc34f6d15503e`; A0 was `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. The cancelled A0 run 39829472789 is sealed (§12 there). |
+| A `realeq-protocol-2` evaluation run | **Allowed once merged to `main`**: M1 engine plus the frozen protocol-2 as amended pre-evaluation by A1 ([PROTOCOL_V2.md](../../research-results/real-equities/PROTOCOL_V2.md) §12, sha256 `433ec7e22794b06c0289b9e43ae4fc94ff8f871063d60487b7224e8cc23a6c71`; A0 was `a15b4e92013657ab2fdef79cf860a3b257fcf4517649f035113dadb914444c9f`). One dispatch with `protocol: realeq-protocol-2`; its PRESAMPLE look is used once. The cancelled A0 run 39829472789 is sealed (§12 there). |
 | Re-using the 2025–26 holdout as untouched OOS | **Blocked** permanently: DEV diagnostic only |
 | S4 earnings continuation evaluation | **Blocked** (`NOT_EVALUABLE_MISSING_INPUT`) until a verified point-in-time first-publication source exists |
 | Any live, group or high-conviction release; any order placement | **Blocked** (unchanged; independent of research results) |

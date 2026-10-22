@@ -433,6 +433,110 @@ async def test_corporate_actions_fall_back_to_yearly_windows_when_the_range_is_r
     assert len(out) == 3
 
 
+# ---- data integrity (A1, independent data review) --------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def tiny_frames():
+    return factor_frames_v2(per_sector=2, seed=4)
+
+
+def _inventory(tmp_path, frames, actions, monkeypatch, max_requests=None):
+    from apex_worker.research.realeq.data_v2 import data_end, fetch_v2, quality_inventory_v2, spec_v2
+    from apex_worker.research.realeq.fixture import FIXTURE_NOW, FakeAlpaca
+
+    monkeypatch.setitem(PROTOCOL_V2["abort_rules"], "min_usable_stocks", 10)
+    cal = default_calendar()
+    fake = FakeAlpaca(frames, corporate_actions=actions)
+    loaded = fetch_v2(lambda: fake.adapter(FIXTURE_NOW), tmp_path, spec_v2(max_requests), end=data_end(cal, FIXTURE_NOW),
+                      now=FIXTURE_NOW)
+    return quality_inventory_v2(loaded, cal)
+
+
+def _a_stock(frames):
+    return next(s for s in sorted(frames) if s in set(U.u1_stocks()))
+
+
+def test_a1_corporate_actions_unavailable_stops_the_run(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path, tiny_frames, None, monkeypatch)  # A0: COMPLETED with only the 2 registered quarantines
+    assert e.value.status == "SOURCE_INVALID" and "corporate actions unavailable" in e.value.reason
+
+
+def test_a1_mis_adjusted_split_is_detected_and_quarantined(tmp_path, tiny_frames, monkeypatch):
+    frames = {k: v.copy() for k, v in tiny_frames.items()}
+    sym = _a_stock(frames)
+    day = frames[sym].index[1200]
+    frames[sym].loc[frames[sym].index >= day, ["open", "high", "low", "close"]] /= 4.0  # a 4:1 split left unadjusted
+    actions = [{"type": "forward_splits", "symbol": sym, "ex_date": str(day.date()), "old_rate": 1, "new_rate": 4}]
+    body, usable = _inventory(tmp_path, frames, actions, monkeypatch)
+    assert body["corporate_actions"]["split_adjustment_suspect"] == {sym: [str(day.date())]}
+    assert str(day.date()) in body["quarantine"][sym] and sym in usable
+    assert any(w.startswith("SPLIT ADJUSTMENT") for w in body["bias_warnings"])
+
+
+def test_a1_impossible_bars_are_removed_not_just_counted(tmp_path, tiny_frames, monkeypatch):
+    frames = {k: v.copy() for k, v in tiny_frames.items()}
+    sym = _a_stock(frames)
+    bad_days = frames[sym].index[[400, 800, 1600]]
+    frames[sym].loc[bad_days, "open"] = frames[sym].loc[bad_days, "high"] * 1.05  # open above the high
+    body, usable = _inventory(tmp_path, frames, [], monkeypatch)
+    entry = next(e for e in body["symbols"] if e["symbol"] == sym)
+    assert entry["invalid_rows_removed"] == 3 and not usable[sym].index.isin(bad_days).any()
+
+
+def test_a1_benchmark_must_have_every_session_and_consolidated_volume(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    gap = {k: v.copy() for k, v in tiny_frames.items()}
+    gap["SPY"] = gap["SPY"].drop(gap["SPY"].index[900])
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path / "gap", gap, [], monkeypatch)
+    assert e.value.status == "INSUFFICIENT_HISTORY" and "session axis" in e.value.reason
+    thin = {k: v.copy() for k, v in tiny_frames.items()}
+    thin["SPY"]["volume"] = 1.5e6  # one venue's share, not the consolidated tape
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path / "thin", thin, [], monkeypatch)
+    assert e.value.status == "SOURCE_INVALID" and "single-venue" in e.value.reason
+
+
+def test_a1_request_budget_is_enforced_on_every_call(tmp_path, tiny_frames, monkeypatch):
+    from apex_worker.research.realeq.data import RunStop
+
+    with pytest.raises(RunStop) as e:
+        _inventory(tmp_path, tiny_frames, [], monkeypatch, max_requests=3)  # A0: 144 requests and a passing run
+    assert e.value.status == "INSUFFICIENT_HISTORY" and "budget (3)" in e.value.reason
+
+
+@pytest.mark.asyncio
+async def test_a1_a_repeated_page_token_stops_pagination():
+    from apex_worker.market.adapters.alpaca import AlpacaError
+
+    calls = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(200, json={"bars": {}, "next_page_token": "same"})
+
+    async def no_sleep(_s):
+        return None
+
+    ad = AlpacaAdapter("PKTEST", "x", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+                       bucket=TokenBucket(1e9, 1e9), sleep=no_sleep)
+    with pytest.raises(AlpacaError, match="repeated next_page_token"):
+        await ad.get_daily_bars(["AAA"], date(2020, 1, 2), date(2020, 2, 3))
+    assert len(calls) == 2  # A0 paged until the job timed out
+
+
+def test_a1_quarantine_window_covers_both_legs():
+    from apex_worker.research.execution_v2 import Leg, TradeV2
+
+    idx = pd.bdate_range("2020-01-01", periods=60)
+    tr = TradeV2(True, "FILLED", 11, 100.0, "LIMIT", Leg("TARGET", 11, 106.0), Leg("TIME", 40, 108.0),
+                 "FILL_DAY_TARGET_ORDER")
+    assert SV.quarantined("XYZ", 10, tr, idx, {"XYZ": [idx[38]]}, 2)  # inside the optimistic leg's hold only
+
+
 # ---- study: quarantine, withheld arms, engine self-checks (V25, V42) ------------------------------------------------------
 def test_quarantined_windows_are_excluded(small):
     _bars, b, pre = small
@@ -626,6 +730,13 @@ def test_v42_protocol2_demo_end_to_end(tmp_path, monkeypatch):
     assert presample_cfgs == {(sid, m["strategies"][sid]["selection"]["chosen_arm"]) for sid in ("S1", "S2", "S3", "S5")}
     assert set(m["strategies"]["S5"]["primary"]["describe"]["cost_grid"]) == {"0bps", "10bps", "25bps", "50bps"}
     assert m["multiplicity"]["family_size_used"] == 4
+    assert m["bias_warnings"] and m["corporate_actions"]["status"] == "available"
+    for f in ("recommendations.md", "execution_log.md"):
+        assert "## Limitations" in (out / f).read_text(), f
+    head = (out / "comparisons.md").read_text().splitlines()[:40]  # what the job summary shows
+    assert any("Limitations" in x and "SURVIVORSHIP" in x for x in head)
+    log = (out / "execution_log.md").read_text()
+    assert log.index("lock the DEV-only arm selection") < log.index("evaluate S1-S5")
     assert "DEMO — SYNTHETIC FIXTURE" in (out / "comparisons.md").read_text()
     header = (out / "trades_summary.csv").read_text().splitlines()[0]
     assert "price" not in header and "open" not in header

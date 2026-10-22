@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -76,14 +76,19 @@ class LoadedV2:
     end: date
     fetched_at: str
     actions_error: str | None = None
+    requests_total: int | None = None  # every provider request: bars AND corporate actions (A1)
 
 
 def fetch_v2(adapter_factory: Callable[[], object], cache_dir: Path, spec: HistorySpec, *, end: date,
              now: datetime) -> LoadedV2:
-    from apex_worker.market.adapters.alpaca import AlpacaError
+    """Bars, then corporate actions. The adapter enforces the protocol's request budget on EVERY call, bars and
+    corporate actions together (A1); hitting it stops the run (INSUFFICIENT_HISTORY), never a partial evaluation."""
+    from apex_worker.market.adapters.alpaca import AlpacaBudgetExhausted, AlpacaError
 
     async def run():
         insp = InspectingAdapter(adapter_factory(), spec.feed, spec.adjustment)
+        if hasattr(insp.inner, "max_requests"):
+            insp.inner.max_requests = spec.max_requests
         try:
             res = await sync_history(insp, cache_dir, spec, end=end, now=now)
             actions, err = None, None
@@ -95,14 +100,19 @@ def fetch_v2(adapter_factory: Callable[[], object], cache_dir: Path, spec: Histo
                     actions = await fn(list(spec.symbols), FIRST, end, ",".join(PROTOCOL_V2["data"]["corporate_action_types"]))
                     if actions is None:
                         err = "endpoint unsupported for this plan/window"
+                except AlpacaBudgetExhausted:
+                    raise
                 except (AlpacaError, OSError, ValueError, TypeError) as exc:
                     err = f"{type(exc).__name__}: {str(exc)[:120]}"
-            return res, insp, actions, err
+            return res, insp, actions, err, int(getattr(insp.inner, "requests", 0))
         finally:
             await insp.aclose()
 
     try:
-        res, insp, actions, err = asyncio.run(run())
+        res, insp, actions, err, total = asyncio.run(run())
+    except AlpacaBudgetExhausted as exc:
+        raise RunStop(STATUS_INSUFFICIENT, f"provider request budget ({exc.limit}) exhausted before bars and corporate "
+                      "actions were complete; nothing was evaluated") from None
     except AlpacaError as exc:
         status = getattr(exc, "status", 0)
         why = (f"Alpaca rejected the credentials or the plan lacks historical SIP entitlement (HTTP {status})"
@@ -110,7 +120,7 @@ def fetch_v2(adapter_factory: Callable[[], object], cache_dir: Path, spec: Histo
         raise RunStop(STATUS_SOURCE_INVALID, why) from None
     except OSError as exc:
         raise RunStop(STATUS_SOURCE_INVALID, f"history cache/network error: {type(exc).__name__}") from None
-    return LoadedV2(res, insp, actions, end, now.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), err)
+    return LoadedV2(res, insp, actions, end, now.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), err, total)
 
 
 def _ex_date(a: dict) -> str | None:
@@ -118,8 +128,10 @@ def _ex_date(a: dict) -> str | None:
     return str(d)[:10] if d else None
 
 
-def quarantine_dates(actions: list[dict] | None) -> dict[str, list[pd.Timestamp]]:
-    """Symbol -> ex-dates whose trade windows are excluded: spin-off parents plus the registered known events."""
+def quarantine_dates(actions: list[dict] | None, suspect_splits: dict[str, list[str]] | None = None
+                     ) -> dict[str, list[pd.Timestamp]]:
+    """Symbol -> ex-dates whose trade windows are excluded: spin-off parents, the registered known events and (A1)
+    split ex-dates whose split-adjusted close still jumps by more than the large-move threshold (adjustment suspect)."""
     out: dict[str, set[str]] = {s: set(v) for s, v in PROTOCOL_V2["quarantine"]["known_events"].items()}
     for a in actions or []:
         if "spin" in str(a.get("type", "")):
@@ -127,7 +139,39 @@ def quarantine_dates(actions: list[dict] | None) -> dict[str, list[pd.Timestamp]
             d = _ex_date(a)
             if sym and d:
                 out.setdefault(str(sym), set()).add(d)
+    for sym, days in (suspect_splits or {}).items():
+        out.setdefault(sym, set()).update(days)
     return {s: sorted(pd.Timestamp(d) for d in v) for s, v in out.items()}
+
+
+def quarantine_from_quality(dq: dict) -> dict[str, list[pd.Timestamp]]:
+    """The study's quarantine exactly as recorded in data_quality.json (the single source of truth)."""
+    return {s: [pd.Timestamp(d) for d in v] for s, v in (dq.get("quarantine") or {}).items()}
+
+
+def _impossible(df: pd.DataFrame) -> np.ndarray:
+    """Rows no real bar can have (the inspector's rule): open or close outside [low, high], low > high, close <= 0."""
+    px = df[["open", "high", "low", "close"]].astype(float).to_numpy()
+    tol = 1e-9 * np.maximum(1.0, np.abs(px[:, 3]))
+    return (~np.isfinite(px).all(axis=1) | (px[:, 2] > px[:, 1] + tol) | (px[:, 3] <= 0) | (px[:, 0] > px[:, 1] + tol)
+            | (px[:, 0] < px[:, 2] - tol) | (px[:, 3] > px[:, 1] + tol) | (px[:, 3] < px[:, 2] - tol))
+
+
+MIN_SIP_BENCHMARK_VOLUME = 20e6  # SPY's consolidated daily volume is several times this; one venue (IEX) is far below
+
+
+def data_warnings(gap_years: list[str], suspect: dict[str, list[str]], actions: list[dict] | None) -> list[str]:
+    """Run-specific data limitations, appended to the fixed BIAS_WARNINGS_V2 (A1)."""
+    out = []
+    if actions is not None and gap_years:
+        out.append(f"CORPORATE-ACTION COVERAGE: no split or spin-off record was returned for year(s) {gap_years}; "
+                   "spin-off quarantines and split checks may be incomplete there")
+    if suspect:
+        out.append(f"SPLIT ADJUSTMENT: {len(suspect)} symbol(s) show a >25% jump on a split ex-date; those trade windows "
+                   "are quarantined")
+    out.append("CORPORATE ACTIONS BY CURRENT TICKER: a spin-off by a parent under a former ticker may be missing from "
+               "the quarantine; dividends and other distributions are not modelled")
+    return out
 
 
 def roles_v2() -> dict[str, tuple[str, str | None]]:
@@ -147,11 +191,15 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
     expected_last = cal.previous_session(loaded.end) if not cal.is_session(loaded.end) else loaded.end
     split_by: dict[str, list[str]] = {}
     spin_by: dict[str, list[str]] = {}
+    by_year: dict[str, int] = {}
     for a in loaded.actions or []:
         d, kind = _ex_date(a), str(a.get("type", ""))
         sym = a.get("source_symbol") or a.get("symbol")
         if sym and d:
             (spin_by if "spin" in kind else split_by).setdefault(str(sym), []).append(d)
+            by_year[d[:4]] = by_year.get(d[:4], 0) + 1
+    members = {c.symbol: c for c in u1_constituents()}
+    suspect: dict[str, list[str]] = {}
     symbols, usable = [], {}
     future = total_raw = total_invalid = 0
     for sym in u1_symbols():
@@ -162,11 +210,16 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         if raw.last and raw.last > expected_last.isoformat():
             future += 1
         df = res.bars.get(sym)
+        removed = 0
         if df is not None and not df.empty:
             df = df[(df.index >= pd.Timestamp(FIRST)) & (df.index <= pd.Timestamp(loaded.end))]
+            bad = _impossible(df)
+            removed = int(bad.sum())
+            df = df[~bad]  # A1: an impossible bar is removed (a missing session), not merely counted
         entry: dict = {"symbol": sym, "role": role, "sector": sector, "raw_rows": raw.rows,
-                       "raw_invalid_rows_dropped": raw.invalid_rows, "raw_duplicate_rows": raw.duplicate_rows,
-                       "zero_volume_sessions": raw.zero_volume_rows, "notes": []}
+                       "raw_invalid_rows_dropped": raw.invalid_rows, "invalid_rows_removed": removed,
+                       "raw_duplicate_rows": raw.duplicate_rows, "zero_volume_sessions": raw.zero_volume_rows,
+                       "notes": []}
         if sym in INCEPTION_NOTES:
             entry["notes"].append(INCEPTION_NOTES[sym])
         if df is None or df.empty:
@@ -182,10 +235,21 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         rets = c[1:] / c[:-1] - 1
         big = [str(days[i + 1]) for i in np.flatnonzero(np.abs(rets) > excl["large_move_flag_abs_return"])]
         stale = len(cal.sessions_between(days[-1], expected_last)) - 1
+        split_days = sorted(set(split_by.get(sym, [])))
+        pos = {str(d): i for i, d in enumerate(days)}
+        jumps = [d for d in split_days if d in pos and pos[d] > 0 and abs(rets[pos[d] - 1]) > excl["large_move_flag_abs_return"]]
+        if jumps:
+            suspect[sym] = jumps
+            entry["notes"].append(f"split ex-date(s) {jumps} jump by more than 25% in split-adjusted closes: adjustment "
+                                  "suspect; trade windows across them are quarantined (A1)")
+        added = members[sym].date_added if sym in members else None
+        late = bool(added) and days[0] > max(FIRST, date.fromisoformat(str(added)[:10])) + timedelta(days=10)
         entry.update(sessions=len(days), first_session=str(days[0]), last_session=str(days[-1]),
                      missing_sessions=len(missing), off_calendar_rows=len(off_cal), stale_sessions=max(0, stale),
-                     large_move_sessions=big[:20], split_dates=sorted(set(split_by.get(sym, []))),
-                     spin_off_ex_dates=sorted(set(spin_by.get(sym, []))))
+                     large_move_sessions=big[:20], split_dates=split_days,
+                     split_adjustment_continuity="suspect" if jumps else ("ok" if split_days else None),
+                     spin_off_ex_dates=sorted(set(spin_by.get(sym, []))), late_start=late,
+                     date_added=str(added)[:10] if added else None)
         status = "OK"
         if len(days) < excl["min_sessions"]:
             status = "EXCLUDED_INCOMPLETE_HISTORY"
@@ -204,7 +268,14 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         symbols.append(entry)
     stocks_ok = sum(1 for e in symbols if e["role"] == "candidate_stock" and e["status"] == "OK")
     bench = next(e for e in symbols if e["symbol"] == BENCHMARK)
-    q = quarantine_dates(loaded.actions)
+    q = quarantine_dates(loaded.actions, suspect)
+    years = [str(y) for y in range(FIRST.year, loaded.end.year + 1)]
+    gap_years = [y for y in years if not by_year.get(y)] if loaded.actions is not None else years
+    u1 = set(u1_symbols())
+    pres_start = "2017-01-03"  # the registered PRESAMPLE start (PROTOCOL_V2.md section 1); descriptive count only
+    ok_stocks = [e for e in symbols if e["role"] == "candidate_stock" and e["status"] == "OK"]
+    bench_df = usable.get(BENCHMARK)
+    spy_vol = float(bench_df["volume"].astype(float).median()) if bench_df is not None and "volume" in bench_df else None
     body = {
         "schema": "apex-realeq-data-quality-2", "protocol": PROTOCOL_V2["version"], "provider": "alpaca",
         "feed": insp.feed, "adjustment": insp.adjustment, "fetched_at": loaded.fetched_at,
@@ -214,29 +285,49 @@ def quality_inventory_v2(loaded: LoadedV2, cal: MarketCalendar | None = None) ->
         "raw_rows": total_raw, "raw_invalid_rows": total_invalid,
         "raw_invalid_fraction": round(total_invalid / total_raw, 6) if total_raw else None,
         "symbols_with_future_bars": future,
+        "provider_requests_total": loaded.requests_total,
         "corporate_actions": {"status": "available" if loaded.actions is not None else
                               f"UNAVAILABLE ({loaded.actions_error or 'endpoint/plan'})",
                               "records": None if loaded.actions is None else len(loaded.actions),
-                              "spin_off_parents": sorted(s for s, v in spin_by.items() if v)},
+                              "records_by_year": dict(sorted(by_year.items())), "years_without_records": gap_years,
+                              "spin_off_parents": sorted(s for s, v in spin_by.items() if v),
+                              "spin_off_parents_not_in_u1": sorted(s for s in spin_by if s not in u1),
+                              "split_adjustment_suspect": suspect,
+                              "limitation": "records are requested for current U1 tickers: a spin-off by a parent under a "
+                              "former ticker may be absent; parents not in U1 are listed above"},
         "quarantine": {s: [str(d.date()) for d in v] for s, v in sorted(q.items())},
         "universe": {"snapshot": PROTOCOL_V2["universe"]["snapshot"], "requested_stocks": len(u1_constituents()),
                      "share_classes_dropped": dropped_share_classes()},
         "counts": {"requested": len(u1_symbols()), "with_data": sum(1 for e in symbols if e.get("sessions")),
                    "usable": len(usable), "candidate_stocks_usable": stocks_ok,
+                   "usable_members_at_presample_start": sum(1 for e in ok_stocks if (e.get("date_added") or "9") <= pres_start),
+                   "late_start_stocks": sorted(e["symbol"] for e in ok_stocks if e.get("late_start")),
+                   "invalid_rows_removed": sum(e.get("invalid_rows_removed", 0) for e in symbols),
                    "sector_etfs_usable": sum(1 for e in symbols if e["role"] == "sector_etf" and e["status"] == "OK"),
                    "status": {k: sum(1 for e in symbols if e["status"] == k) for k in sorted({e["status"] for e in symbols})}},
-        "symbols": symbols, "bias_warnings": list(BIAS_WARNINGS_V2), "abort": None,
+        "benchmark_median_volume": spy_vol,
+        "symbols": symbols, "bias_warnings": list(BIAS_WARNINGS_V2) + data_warnings(gap_years, suspect, loaded.actions),
+        "abort": None,
     }
     abort = None
     first_bench = pd.Timestamp(bench.get("first_session") or "2100-01-01")
     if future:
         abort = (STATUS_SOURCE_INVALID, f"{future} symbol(s) returned bars dated after the latest completed session")
+    elif loaded.actions is None:  # A1: the quarantine (and split checks) cannot run without corporate actions
+        abort = (STATUS_SOURCE_INVALID, f"corporate actions unavailable ({loaded.actions_error or 'endpoint/plan'}): "
+                 "spin-off quarantine and split-adjustment checks cannot run")
+    elif spy_vol is not None and spy_vol < MIN_SIP_BENCHMARK_VOLUME:
+        abort = (STATUS_SOURCE_INVALID, f"{BENCHMARK} median volume {spy_vol:,.0f} is far below consolidated (SIP) "
+                 "volume: the response looks like a single-venue feed")
     elif total_raw and total_invalid / total_raw > rules["invalid_raw_row_fraction_max"]:
         abort = (STATUS_SOURCE_INVALID, f"invalid raw rows {total_invalid}/{total_raw} exceed the protocol maximum")
     elif res.budget_exhausted:
         abort = (STATUS_INSUFFICIENT, "provider request budget exhausted before the universe was downloaded")
     elif bench["status"] != "OK" or first_bench > pd.Timestamp(rules["benchmark_must_start_by"]):
         abort = (STATUS_INSUFFICIENT, f"benchmark {BENCHMARK} missing or starting after {rules['benchmark_must_start_by']}")
+    elif bench.get("missing_sessions", 0) > 0:  # A1: SPY's dates are every symbol's session axis
+        abort = (STATUS_INSUFFICIENT, f"benchmark {BENCHMARK} is missing {bench['missing_sessions']} session(s); its "
+                 "dates define the session axis, so it must be complete")
     elif stocks_ok < rules["min_usable_stocks"]:
         abort = (STATUS_INSUFFICIENT, f"only {stocks_ok} usable U1 stocks (< {rules['min_usable_stocks']})")
     if abort:

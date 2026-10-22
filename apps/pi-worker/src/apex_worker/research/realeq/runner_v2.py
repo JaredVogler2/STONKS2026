@@ -29,7 +29,7 @@ from apex_worker.research.realeq.data_v2 import (
     data_end,
     fetch_v2,
     quality_inventory_v2,
-    quarantine_dates,
+    quarantine_from_quality,
     spec_v2,
 )
 from apex_worker.research.realeq.protocol_v2 import (
@@ -106,7 +106,8 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
 
             now = FIXTURE_NOW
             end = data_end(cal, now, cfg.time_end)
-            fake = FakeAlpaca(factor_frames_v2(per_sector=int(env.get("APEX_DEMO_PER_SECTOR") or 12)))
+            fake = FakeAlpaca(factor_frames_v2(per_sector=int(env.get("APEX_DEMO_PER_SECTOR") or 12)),
+                              corporate_actions=[])  # the endpoint is emulated (and empty): protocol-2 requires it
             factory = cfg.adapter_factory or (lambda: fake.adapter(FIXTURE_NOW))
             step("credentials", "skipped", "DEMO fixture: in-process emulation of the Alpaca bars API, no keys, no network")
         else:
@@ -136,6 +137,7 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
             raise
         R.write_json(out / "data_quality.json", dq)
         m["data_quality"] = dq
+        m["bias_warnings"] = list(dq["bias_warnings"])  # fixed warnings plus this run's data findings (A1)
         step("data-quality and bias inventory", "ok",
              f"usable {dq['counts']['usable']}/{len(u1_symbols())}, stocks {dq['counts']['candidate_stocks_usable']}; "
              f"corporate actions {dq['corporate_actions']['status']}")
@@ -157,7 +159,7 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
                          "usable": sorted(usable)},
             "boundaries": b.to_dict(),
             "versions": {"protocol": PROTOCOL_V2_VERSION, "protocol_sha256": m["protocol_sha256"]},
-            "protocol": PROTOCOL_V2, "warnings": list(BIAS_WARNINGS_V2),
+            "protocol": PROTOCOL_V2, "warnings": list(m["bias_warnings"]),
         }
         R.write_json(out / "manifest.json", manifest)
         m |= {"boundaries": b.to_dict(), "dataset_hash": dhash, "manifest_sha256": _sha_file(out / "manifest.json")}
@@ -172,7 +174,7 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
             step("lock the DEV-only arm selection (before any PRESAMPLE outcome)", "ok",
                  f"{lock['chosen_arms']}; lock sha256 {lock['lock_sha256'][:16]}; manifest {m['manifest_sha256'][:12]}")
 
-        res2 = run_study(pre, b, quarantine_dates(loaded.actions), cfg.progress, on_lock, m["manifest_sha256"])
+        res2 = run_study(pre, b, quarantine_from_quality(dq), cfg.progress, on_lock, m["manifest_sha256"])
         step("evaluate S1-S5, legacy H rules, baselines, controls, self-checks", "ok",
              f"{len(res2.configurations)} configurations; aggregate {res2.aggregate['conclusion']}")
         m |= {"run_status": STATUS_COMPLETED, "strategies": res2.strategies, "legacy": res2.legacy,
@@ -183,7 +185,8 @@ def run_v2(cfg: RunConfig) -> RunOutcome:
             "protocol_sha256": m["protocol_sha256"], "index": R.INDEX, "aggregate": res2.aggregate,
             "strategies": res2.strategies, "legacy": res2.legacy, "baselines": res2.baselines,
             "engine_self_checks": res2.self_checks, "multiplicity": res2.multiplicity, "coverage": res2.coverage,
-            "selection_lock": res2.selection_lock,
+            "selection_lock": res2.selection_lock, "bias_warnings": m["bias_warnings"],
+            "corporate_actions": dq["corporate_actions"] | {"quarantined_symbols": len(dq["quarantine"])},
             "configurations_attempted": res2.configurations,
         }
         R.write_json(out / "strategy_metrics.json", metrics)
@@ -229,7 +232,7 @@ def _finish_v2(m: dict, steps: list[dict], out: Path, status: str, reason: str) 
         R.write_csv_v2(out / "trades_summary.csv", [])
         (out / "comparisons.md").write_text(R.comparisons_md_v2(m))
         (out / "recommendations.md").write_text(R.recommendations_md_v2(m))
-    (out / "execution_log.md").write_text(R.execution_log_md(m, steps))
+    (out / "execution_log.md").write_text(R.execution_log_md(m, steps) + R.limitations_md(m))  # protocol-2 only
     if status == STATUS_BLOCKED:
         reason = f"{BLOCKED_BANNER}. {OWNER_SETUP}"
     return RunOutcome(status, EXIT.get(status, 1), out, reason)

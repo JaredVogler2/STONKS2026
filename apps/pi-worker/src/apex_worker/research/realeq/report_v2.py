@@ -32,6 +32,16 @@ INDEX = {
 }
 
 
+def limitations_md(m: dict) -> str:
+    """The limitations block every protocol-2 report carries (PROTOCOL_V2.md section 11)."""
+    ws = m.get("bias_warnings") or []
+    return "\n".join(["", "## Limitations", "", *(f"* {w}" for w in ws), ""]) + "\n" if ws else ""
+
+
+def _limitation_titles(m: dict) -> str:
+    return "; ".join(w.split(":")[0] for w in (m.get("bias_warnings") or []))
+
+
 def write_csv_v2(path: Path, rows: list[dict]) -> None:
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=list(CSV_COLUMNS_V2), lineterminator="\n", extrasaction="ignore")
@@ -66,6 +76,7 @@ def comparisons_md_v2(m: dict) -> str:
             f"* DEV (contaminated: design and diagnostics only): decisions {b['dev_start']} → {b['dev_end']}",
             f"* Universe: U1 {PROTOCOL_V2['universe']['classification']} (snapshot {PROTOCOL_V2['universe']['snapshot']}); "
             f"costs {PROTOCOL_V2['primary_cost_bps']} bps per side; pessimistic leg; protocol sha256 `{m['protocol_sha256'][:16]}…`",
+            f"* Limitations (full text at the end): {_limitation_titles(m)}",
             "", "## Primary family (one PRESAMPLE look per strategy)", ""]
     rows = []
     for sid in ("S1", "S2", "S3", "S4", "S5"):
@@ -309,4 +320,4 @@ def recommendations_md_v2(m: dict) -> str:
             f"earliest evaluation {PROTOCOL_V2['chronology']['forward_shadow']['earliest_evaluation']}.",
             "* A licensed point-in-time membership source (U2) would remove the survivorship limitation.",
             "* A verified first-publication earnings source would make S4 evaluable.", ""]
-    return "\n".join(out) + "\n"
+    return "\n".join(out) + "\n" + limitations_md(m)

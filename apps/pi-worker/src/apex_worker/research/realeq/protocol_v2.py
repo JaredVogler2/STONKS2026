@@ -66,7 +66,13 @@ PROTOCOL_V2: dict = {
         "finality_lag_sessions": 2,
         "corporate_action_types": ["forward_split", "reverse_split", "spin_off"],
         "max_requests": 300,
+        "max_requests_scope": "A1: enforced by the adapter on EVERY provider call (bars and corporate actions together); "
+        "exhaustion stops the run before any evaluation; a repeated page token stops it as SOURCE_INVALID",
         "returns": "price-only (dividends not modelled), as protocol-1",
+        "integrity_checks": "A1: corporate actions must be available (else SOURCE_INVALID) and their per-year coverage is "
+        "reported; a split ex-date whose split-adjusted close jumps > 25% is adjustment-suspect and quarantined; "
+        "impossible bars (open or close outside [low, high]) are removed and become missing sessions; SPY must have "
+        "every session (its dates are the session axis) and a median volume >= 20M shares (consolidated, not one venue)",
     },
     "universe": {
         "id": "U1",
@@ -83,6 +89,9 @@ PROTOCOL_V2: dict = {
     },
     "abort_rules": {
         "credentials_missing": "BLOCKED_ALPACA_ACTIONS_SECRETS_MISSING (no synthetic fallback)",
+        "corporate_actions_unavailable": "SOURCE_INVALID (A1)",
+        "benchmark_missing_session": "INSUFFICIENT_HISTORY (A1)",
+        "benchmark_volume_not_consolidated": "SOURCE_INVALID (A1)",
         "auth_or_entitlement_error": "SOURCE_INVALID",
         "feed_not_sip": "SOURCE_INVALID",
         "provider_bar_after_latest_completed_session": "SOURCE_INVALID",
