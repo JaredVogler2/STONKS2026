@@ -70,6 +70,16 @@ COST_STUDY_1 = CostStudyPlan(
 COST_PLANS: dict[str, CostStudyPlan] = {p.plan_id: p for p in (COST_STUDY_1,)}
 
 
+# ---- cost-v3-2: the measured per-side cost model registered with v3-pilot-2 (BEFORE its run) ------------------------
+# Derived from cost-study-1-2026-10-23 (run 39908161943; research-results/discovery-v3/cost-study-1-2026-10-23/), which
+# read no strategy return. Expected cost, not a tail (finding C-1): open = ceil(mean marketable buy at open+1 min versus
+# the daily open, 20.4, + 0.15 fees); close = ceil(mean half-spread at close-1 min, 1.4, + 0.15); stop exits inside a
+# session are NOT measured and keep the conservative 25; SPY sweeps keep 5. Uniform 25 bps stays the stress case.
+COST_MODELS: dict[str, dict[str, float]] = {
+    "cost-v3-2": {"open": 21.0, "close": 2.0, "stop": 25.0, "etf": 5.0, "stress_uniform": 25.0},
+}
+
+
 @dataclass(frozen=True)
 class Event:
     symbol: str

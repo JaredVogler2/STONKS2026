@@ -47,6 +47,7 @@ class PortfolioResult:
     lo: int
     hi: int
     notes: list[str] = field(default_factory=list)
+    stock_traded_notional: float = 0.0  # stock entries plus exits only (no SPY sweeps): pilot-1 finding A-2
 
 
 def _mark(series: np.ndarray, d: int, fallback: float) -> float:
@@ -56,15 +57,31 @@ def _mark(series: np.ndarray, d: int, fallback: float) -> float:
 
 def run_portfolio(trades: pd.DataFrame, closes: dict[str, np.ndarray], spy_open: np.ndarray, spy_close: np.ndarray,
                   lo: int, hi: int, alloc: AllocationSpec = DEFAULT_ALLOCATION, cost_bps: float = 25.0,
-                  idle_cost_bps: float = ETF_COST_BPS, seed: int = 7) -> PortfolioResult:
+                  idle_cost_bps: float = ETF_COST_BPS, seed: int = 7, *, entry_at: str = "open",
+                  entry_cost_bps: float | None = None, exit_cost_bps: float | None = None,
+                  stop_exit_cost_bps: float | None = None) -> PortfolioResult:
     """Trades need symbol, sector, entry_index, exit_index, entry_price, exit_price (raw executable prices) and
-    optionally priority. Prices stay inside this function; results hold returns and ratios only."""
-    c, ci = cost_bps / 1e4, idle_cost_bps / 1e4
+    optionally priority and exit_kind (the leg outcome). Prices stay inside this function; results hold returns and
+    ratios only.
+
+    Pilot-2 options (defaults reproduce the pilot-1 book exactly): `entry_at="close"` funds entries at the entry
+    session's CLOSE (SPY sold at that close; positions bought at the close carry no intraday P&L), after the session's
+    exits, which still cannot fund same-session entries (conservative). Per-side costs can differ by side: entries
+    (`entry_cost_bps`), time/data-end exits (`exit_cost_bps`) and STOP/TARGET exits inside the session
+    (`stop_exit_cost_bps`); each defaults to `cost_bps`."""
+    if entry_at not in ("open", "close"):
+        raise ValueError("entry_at must be open or close")
+    c_in = (cost_bps if entry_cost_bps is None else entry_cost_bps) / 1e4
+    c_out = (cost_bps if exit_cost_bps is None else exit_cost_bps) / 1e4
+    c_stop = (cost_bps if stop_exit_cost_bps is None else stop_exit_cost_bps) / 1e4
+    ci = idle_cost_bps / 1e4
     idle_spy = alloc.idle_capital == "SPY"
     t = trades.copy() if len(trades) else pd.DataFrame(columns=["symbol", "sector", "entry_index", "exit_index",
                                                                 "entry_price", "exit_price", "priority"])
     if "priority" not in t:
         t["priority"] = 0.0
+    if "exit_kind" not in t:
+        t["exit_kind"] = "TIME"
     rng = np.random.default_rng(seed)
     t["_tie"] = rng.permutation(len(t)) if len(t) else []
     by_entry: dict[int, list[dict]] = {}
@@ -83,57 +100,71 @@ def run_portfolio(trades: pd.DataFrame, closes: dict[str, np.ndarray], spy_open:
     pos: dict[tuple[int, int], dict] = {}
     skipped = {"slots_full": 0, "duplicate_symbol": 0, "sector_cap": 0, "insufficient_cash": 0}
     rets, eqs, sx, ix = [], [], [], []
-    traded, taken, pnl, cap_days, max_pos = 0.0, 0, 0.0, 0.0, 0
+    traded, stock_traded, taken, pnl, cap_days, max_pos = 0.0, 0.0, 0, 0.0, 0.0, 0
     for d in range(lo, hi + 1):
         spy_px_open = so[d] if math.isfinite(so[d]) else _mark(sc, d - 1, 1.0)
+        fund_px = spy_px_open if entry_at == "open" else _mark(sc, d, spy_px_open)  # where SPY is sold to fund entries
+        mark_day = d - 1 if entry_at == "open" else d  # sector-cap marks known when the entry order is placed
         start_cash = cash
-        start_spy = spy_units * spy_px_open * (1 - ci) if idle_spy else 0.0
-        for i, tr in enumerate(by_entry.get(d, ())):
-            if len(pos) >= alloc.slots:
-                skipped["slots_full"] += 1
+        start_spy = spy_units * fund_px * (1 - ci) if idle_spy else 0.0
+
+        # pilot-1 order: open entries, then the session's exits (a fill-bar stop included); close entries: the exits
+        # first (a close fill cannot exit before the next session), and their proceeds stay out of this close's
+        # entries because start_cash was fixed above (conservative)
+        for phase in (("enter", "leave") if entry_at == "open" else ("leave", "enter")):
+            if phase == "leave":
+                for k, p in list(pos.items()):
+                    if p["exit_index"] != d:
+                        continue
+                    c = c_stop if p["exit_kind"] in ("STOP", "TARGET") else c_out
+                    gross = p["units"] * p["exit_price"]
+                    proceeds = gross * (1 - c)
+                    costs += gross * c
+                    cash += proceeds
+                    traded += proceeds
+                    stock_traded += proceeds
+                    pnl += proceeds - p["cost_in"]
+                    del pos[k]
                 continue
-            if any(p["symbol"] == tr["symbol"] for p in pos.values()):
-                skipped["duplicate_symbol"] += 1
-                continue
-            avail = start_cash + start_spy
-            want = prev_eq / alloc.slots * alloc.max_exposure
-            amount = min(avail, want)
-            if amount < 0.5 * want:
-                skipped["insufficient_cash"] += 1
-                continue
-            sec_val = sum(p["units"] * _mark(marks[p["symbol"]], d - 1, p["entry"]) for p in pos.values()
-                          if p["sector"] == tr["sector"])
-            if tr["sector"] is not None and (sec_val + amount) > alloc.sector_cap * prev_eq + 1e-12:
-                skipped["sector_cap"] += 1
-                continue
-            from_cash = min(start_cash, amount)
-            from_spy = amount - from_cash
-            if from_spy > 0:  # sell SPY at this session's open to fund the rest
-                sell_units = from_spy / (spy_px_open * (1 - ci))
-                spy_units -= sell_units
-                costs += sell_units * spy_px_open * ci
-                traded += sell_units * spy_px_open
-                start_spy -= from_spy
-            start_cash -= from_cash
-            cash -= from_cash
-            units = amount / (float(tr["entry_price"]) * (1 + c))
-            costs += amount - units * float(tr["entry_price"])
-            pos[(d, i)] = {"symbol": tr["symbol"], "sector": tr["sector"], "units": units, "entry": float(tr["entry_price"]),
-                           "cost_in": amount, "exit_index": int(tr["exit_index"]), "exit_price": float(tr["exit_price"])}
-            traded += amount
-            taken += 1
-        max_pos = max(max_pos, len(pos))
-        if len(pos) > alloc.slots:
-            raise AssertionError("book holds more positions than slots")
-        for k, p in list(pos.items()):
-            if p["exit_index"] == d:
-                gross = p["units"] * p["exit_price"]
-                proceeds = gross * (1 - c)
-                costs += gross * c
-                cash += proceeds
-                traded += proceeds
-                pnl += proceeds - p["cost_in"]
-                del pos[k]
+            for i, tr in enumerate(by_entry.get(d, ())):
+                if len(pos) >= alloc.slots:
+                    skipped["slots_full"] += 1
+                    continue
+                if any(p["symbol"] == tr["symbol"] for p in pos.values()):
+                    skipped["duplicate_symbol"] += 1
+                    continue
+                avail = start_cash + start_spy
+                want = prev_eq / alloc.slots * alloc.max_exposure
+                amount = min(avail, want)
+                if amount < 0.5 * want:
+                    skipped["insufficient_cash"] += 1
+                    continue
+                sec_val = sum(p["units"] * _mark(marks[p["symbol"]], mark_day, p["entry"]) for p in pos.values()
+                              if p["sector"] == tr["sector"])
+                if tr["sector"] is not None and (sec_val + amount) > alloc.sector_cap * prev_eq + 1e-12:
+                    skipped["sector_cap"] += 1
+                    continue
+                from_cash = min(start_cash, amount)
+                from_spy = amount - from_cash
+                if from_spy > 0:  # sell SPY (at this session's open, or its close for close entries) to fund the rest
+                    sell_units = from_spy / (fund_px * (1 - ci))
+                    spy_units -= sell_units
+                    costs += sell_units * fund_px * ci
+                    traded += sell_units * fund_px
+                    start_spy -= from_spy
+                start_cash -= from_cash
+                cash -= from_cash
+                units = amount / (float(tr["entry_price"]) * (1 + c_in))
+                costs += amount - units * float(tr["entry_price"])
+                pos[(d, i)] = {"symbol": tr["symbol"], "sector": tr["sector"], "units": units,
+                               "entry": float(tr["entry_price"]), "cost_in": amount, "exit_index": int(tr["exit_index"]),
+                               "exit_price": float(tr["exit_price"]), "exit_kind": str(tr["exit_kind"])}
+                traded += amount
+                stock_traded += amount
+                taken += 1
+            max_pos = max(max_pos, len(pos))  # measured right after the entries, as in pilot 1
+            if len(pos) > alloc.slots:
+                raise AssertionError("book holds more positions than slots")
         if idle_spy and cash > 0 and math.isfinite(sc[d]):  # sweep the close's cash into SPY
             buy_units = cash / (sc[d] * (1 + ci))
             costs += cash - buy_units * sc[d]
@@ -154,7 +185,36 @@ def run_portfolio(trades: pd.DataFrame, closes: dict[str, np.ndarray], spy_open:
         cap_days += val
         prev_eq = eq
     return PortfolioResult(np.array(rets), np.array(eqs), np.array(sx), np.array(ix), taken, skipped, traded, costs, pnl,
-                           cap_days, max_pos, lo, hi)
+                           cap_days, max_pos, lo, hi, stock_traded_notional=stock_traded)
+
+
+def close_rebalance_returns(weights: pd.DataFrame, closes: dict[str, pd.Series], cost_bps: float
+                            ) -> tuple[pd.Series, pd.Series]:
+    """(daily net return, end-of-day exposure) of a target-weight book whose decision row at t (data through the close
+    of t) is traded at the CLOSE of t + 1: one session later than quant_v2.allocation_returns, which trades at the next
+    open. The held weights drift with prices; costs are charged on the traded weight at that close."""
+    cols, idx = list(weights.columns), weights.index
+    c = pd.DataFrame({s: closes[s].reindex(idx) for s in cols}).astype(float).ffill().to_numpy(float)
+    w = weights.to_numpy(float)
+    has = ~np.all(np.isnan(w), axis=1)
+    cst = cost_bps / 1e4
+    cur = np.zeros(len(cols))
+    rets, expo = np.zeros(len(idx)), np.zeros(len(idx))
+    pending = None
+    for i in range(1, len(idx)):
+        day = np.nan_to_num(c[i] / c[i - 1] - 1)
+        r = float(cur @ day)
+        val = cur * (1 + day)
+        cur = val / (1 + r) if (1 + r) > 0 else val
+        traded = 0.0
+        if pending is not None:  # the previous close's decision, executed at this close
+            traded = float(np.abs(pending - cur).sum())
+            cur, pending = pending.copy(), None
+        rets[i] = (1 + r) * (1 - cst * traded) - 1
+        expo[i] = float(cur.sum())
+        if has[i]:
+            pending = np.nan_to_num(w[i])
+    return pd.Series(rets, index=idx), pd.Series(expo, index=idx)
 
 
 # ---- benchmarks ---------------------------------------------------------------------------------------------------------
@@ -207,6 +267,8 @@ def describe_portfolio(port: PortfolioResult) -> dict:
                 if len(port.stock_exposure) else None,
                 "trades_taken": port.taken, "trades_skipped": dict(port.skipped), "max_positions": port.max_positions,
                 "turnover_per_year": _r(port.traded_notional / eq_mean / max(len(port.returns) / TRADING_DAYS, 1e-9), 3),
+                "stock_turnover_per_year": _r(port.stock_traded_notional / eq_mean
+                                              / max(len(port.returns) / TRADING_DAYS, 1e-9), 3),
                 "costs_paid": _r(port.costs_paid), "stock_pnl": _r(port.stock_pnl),
                 "net_return_per_capital_day": _r(port.stock_pnl / port.deployed_capital_days, 8)
                 if port.deployed_capital_days > 0 else None}
