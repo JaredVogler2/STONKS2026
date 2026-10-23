@@ -104,9 +104,11 @@ uv run apex research discovery costs --plan cost-study-1 --source fixture --expe
 |---|---|---|---|---|---|---|
 | Alpaca Market Data, historical bars | `/v2/stocks/bars`, `feed=sip`, 1Day | Yes: protocol-2 run 39849016753, pilot 1 run 39884381394 | Vendor revisions possible; the dataset hash records each fetch | split (studies); raw (this study) | Runner temp only; aggregates and hashes published | $0 (Basic) |
 | Alpaca Market Data, corporate actions | `/v1beta1/corporate-actions` | Yes: protocol-2 quarantine | Revisions possible | — | Runner temp only; counts published | $0 |
-| Alpaca Market Data, one-minute bars | `/v2/stocks/bars`, `feed=sip`, 1Min | **Unverified until this study runs** | Revisions possible | raw | Runner temp only; aggregates published | $0 |
-| Alpaca Market Data, historical quotes | `/v2/stocks/quotes`, `feed=sip` | **Unverified until this study runs** | — | — | Runner temp only; aggregates published | $0 |
+| Alpaca Market Data, one-minute bars | `/v2/stocks/bars`, `feed=sip`, 1Min | Yes: cost-study-1 run 39908161943 (210/210 events) | Revisions possible | raw | Runner temp only; aggregates published | $0 |
+| Alpaca Market Data, historical quotes | `/v2/stocks/quotes`, `feed=sip` | Yes: cost-study-1 run 39908161943 (210/210 events, 4 instants each) | — | — | Runner temp only; aggregates published | $0 |
 | Point-in-time index membership (U2) | none identified | — | — | — | — | **SOURCE_BLOCKED** |
 | Point-in-time earnings and event timestamps | none identified | — | — | — | — | **SOURCE_BLOCKED** |
+
+**Results.** [`cost-study-1-2026-10-23`](../../research-results/discovery-v3/cost-study-1-2026-10-23/REVIEW.md): about 10.5 bps per side on average for open-entry and close-exit marketable orders. The registered p90 rule gives 36 bps but is not adopted (finding C-1).
 
 **Redistribution.** Group display or redistribution of any market data is **not** licensed. The `ALLOW_EXTERNAL_MARKET_DATA_REDISPLAY` switch stays off.
