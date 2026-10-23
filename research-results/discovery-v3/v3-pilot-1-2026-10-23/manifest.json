@@ -1,0 +1,79 @@
+{
+ "code_sha": "dddf3525e537c58dd33afb602bf525c27202b2e4",
+ "experiment_id": "v3-pilot-1-2026-10-23",
+ "frozen_at": "2026-10-23T01:34:22Z",
+ "max_evidence_tier": "DEV_DIAGNOSTIC",
+ "objective": {
+  "alpha": 0.05,
+  "constraints": {
+   "leverage": 0.0,
+   "max_drawdown_floor": -0.3,
+   "max_positions": 10,
+   "min_avg_exposure": 0.05,
+   "sector_cap": 0.3,
+   "turnover_per_year_max": 40.0
+  },
+  "minimum_effect_annual": 0.01,
+  "objective_id": "obj-v3-1",
+  "principal": "annualised log growth minus the investable alternative (exposure-matched SPY/cash for cash-idle books, SPY buy-and-hold for SPY-idle books), net 25 bps/side, pessimistic fills",
+  "scenarios": {
+   "balanced": {
+    "l_dd": 0.3,
+    "l_es": 0.3,
+    "l_to": 0.001
+   },
+   "conservative": {
+    "l_dd": 0.6,
+    "l_es": 0.6,
+    "l_to": 0.002
+   },
+   "growth": {
+    "l_dd": 0.1,
+    "l_es": 0.1,
+    "l_to": 0.0005
+   }
+  }
+ },
+ "objective_sha256": "8911f89efddcac782b02ab2e643db4bdff34745a687484acc99ce2ebec6934bc",
+ "plan_id": "v3-pilot-1",
+ "plan_sha256": "11d0af37c60b46b9393fcffb7b01e0f5ad77ee34fd35f20d92d42524635ae2c7",
+ "provenance": {
+  "adjustment": "split",
+  "corporate_actions": "available",
+  "data_class": "REAL_MARKET_DATA",
+  "dataset_hash": "0339c815532901fc976327cf6ef268b0561c5a60df419f81217afcd978ae651f",
+  "feed": "sip",
+  "fetched_at": "2026-10-23T01:30:47Z",
+  "history_hash": "ebd26bdee6f735737390a8b23b236471a61a7f1ffbf83d529850d04bd9f854bf",
+  "membership_rule": "date_added <= t (current constituents only)",
+  "provider": "alpaca",
+  "rights_note": "derived aggregates only; no vendor OHLCV is stored or published",
+  "survivorship": "DATA_LIMITED_SURVIVORS",
+  "universe_id": "U1",
+  "universe_snapshot_sha256": "0953c557300e41620f5f189b387a2dac64f57908d7e1895fe2e449bac98a4c34",
+  "window_end": "2026-10-20",
+  "window_start": "2016-01-04"
+ },
+ "registry_head_at_freeze": "c748365399f57a87c92d8b89715d4583597d52fb57dc4a2e8d90116e14d7a825",
+ "research_only": true,
+ "schema": "apex-discovery-v3-manifest-1",
+ "status_at_freeze": "FROZEN_BEFORE_METRICS",
+ "trials": [
+  "t-2bbcf8f194806c29",
+  "t-568acbd05a5373ae",
+  "t-5f309a6243743f91",
+  "t-700823083c6db9d0",
+  "t-7220dd98b21957a9",
+  "t-83418bcfda96a241",
+  "t-83b3d60e088e7993",
+  "t-854c27e4761dbc3e",
+  "t-bc6830608ddd6d9d",
+  "t-d09c60af8417670e"
+ ],
+ "window": {
+  "end": "2026-09-18",
+  "note": "2019-10-23 onward was the protocol-2 DEV segment; 2017-2019 PRESAMPLE was evaluated (and exposed) by the official run. Neither is untouched for V3.",
+  "role": "DEV_CONTAMINATED",
+  "start": "2019-10-23"
+ }
+}
