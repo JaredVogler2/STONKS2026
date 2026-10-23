@@ -7,15 +7,19 @@ first period it takes part in), so candidates can be admitted forever. Its evide
 of its lam sub-accounts (assumption-free, `eprocess`), optionally also under a declared and checked loss bound, and
 optionally against its own twin (a negative-control numeraire: the same mask, schedule and sizes, random selection).
 
-Claims (every one holds under continuous monitoring, over every candidate ever admitted):
-* edge: claim k when its assumption-free evidence reaches 1 / (alpha gamma_k); P(any false claim) <= alpha sum(gamma);
-* edge under the declared loss bound: the same threshold on the bounded-loss evidence while the bound holds; a later
-  break voids the claim;
-* mechanism: both the edge evidence and the twin evidence reached the threshold. It is false only if one of the two
-  nulls is true, so its error is also at most alpha gamma_k;
-* selection: the twin evidence alone reached the threshold (the candidate beats its own negative control, which removes
-  beta, sector and universe effects); with a declared twin loss bound, also on the bounded twin evidence while it holds.
-  Each claim type is its own family, with the family-wise guarantee above;
+Claims (every one holds under continuous monitoring, over every candidate ever admitted). Candidate k is tested on up
+to m_k <= 4 e-processes, its claim tests: assumption-free against SPY (always), under the declared loss bound against
+SPY, assumption-free against its twin and under the declared twin loss bound. Its prior mass is split equally across
+them (CLAIM_RULE), so each test claims when its evidence reaches m_k / (alpha gamma_k), and over every claim of every
+candidate ever admitted P(any false claim) <= sum_k m_k alpha gamma_k / m_k = alpha sum(gamma) <= alpha (a union bound:
+it needs no independence between tests or candidates):
+* edge: the assumption-free evidence against SPY reached the threshold;
+* edge under the declared loss bound: the bounded-loss evidence reached it while the bound holds (its guarantee is
+  conditional on the declared bound); a later break voids the claim;
+* selection: the twin evidence reached it (the candidate beats its own negative control, which removes beta, sector
+  and universe effects); likewise on the bounded twin evidence while its bound holds;
+* mechanism: both the assumption-free edge and selection evidence reached the threshold. It is false only if one of
+  those two claims is, so it adds nothing to the error budget;
 * global: G = (1 - sum gamma) + sum gamma_k e_k is a nonnegative supermartingale if no candidate beats SPY.
 
 The paper book, relative to SPY. A prior mass `null_mass` (u) belongs to "no candidate beats SPY" and is held in SPY.
@@ -55,6 +59,9 @@ SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 EDGE, MECHANISM, EDGE_BOUNDED = "EDGE_VS_SPY", "EDGE_AND_MECHANISM", "EDGE_VS_SPY_BOUNDED_LOSS"
 SELECTION, SELECTION_BOUNDED = "SELECTION_VS_TWIN", "SELECTION_VS_TWIN_BOUNDED_LOSS"
 BOOKS = ("evidence_weighted", "mixture")
+# The family-wise rule implemented by `Tournament.threshold`. A series configuration records it, so a changed rule
+# cannot silently apply to an existing series: changing the rule means changing this identifier.
+CLAIM_RULE = "prior-mass-split-equally-across-claim-tests"
 
 
 def evidence_weighted_path(x, log_e, gamma, null_mass: float = 0.5, cost_per_side: float = 0.0002) -> np.ndarray:
@@ -204,9 +211,19 @@ class Tournament:
         self._claims(session)
         return self.report()
 
+    def claim_tests(self, k: str) -> tuple[str, ...]:
+        """The e-processes claims about k are made on. k's prior mass is split equally across them (CLAIM_RULE)."""
+        return tuple(kind for kind, present in ((EDGE, True), (EDGE_BOUNDED, k in self.bounded),
+                                                 (SELECTION, k in self.twin),
+                                                 (SELECTION_BOUNDED, k in self.twin_bounded)) if present)
+
+    def threshold(self, k: str) -> float:
+        """The evidence each of k's claim tests needs: m_k / (alpha gamma_k)."""
+        return claim_threshold(self.alpha, self.entries[k].prior_mass / len(self.claim_tests(k)))
+
     def _claims(self, session: str) -> None:
-        for k, entry in self.entries.items():
-            thr, made = math.log(claim_threshold(self.alpha, entry.prior_mass)), self.claims.get(k, {})
+        for k in self.entries:
+            thr, made = math.log(self.threshold(k)), self.claims.get(k, {})
             if EDGE not in made and self.spy[k].log_e_max >= thr:
                 self.claims.setdefault(k, {})[EDGE] = session
             if MECHANISM not in made and k in self.twin and min(self.spy[k].log_e_max, self.twin[k].log_e_max) >= thr:
@@ -224,7 +241,7 @@ class Tournament:
         alloc = self.allocation()
         cands = {}
         for k, entry in self.entries.items():
-            row = {"entry": asdict(entry), "threshold": claim_threshold(self.alpha, entry.prior_mass),
+            row = {"entry": asdict(entry), "claim_tests": list(self.claim_tests(k)), "threshold": self.threshold(k),
                    "vs_spy": self.spy[k].state(), "allocation": alloc.get(k, 0.0), "claims": self.claims.get(k, {})}
             if k in self.twin:
                 row["vs_twin"] = self.twin[k].state()
@@ -235,7 +252,8 @@ class Tournament:
             cands[k] = row
         seen = {k: self.spy[k].e for k in self.entries if self.spy[k].n > 0}
         return {"sessions": self.sessions, "last_session": self.last_session, "book": self.book,
-                "null_mass": self.null_mass, "alpha": self.alpha, "book_relative_wealth": self.book_relative_wealth,
+                "null_mass": self.null_mass, "alpha": self.alpha, "claim_rule": CLAIM_RULE,
+                "book_relative_wealth": self.book_relative_wealth,
                 "global_e": self.global_e, "global_p_anytime": min(1.0, math.exp(-self.log_g_max)),
                 "mass_unassigned": 1.0 - self.mass_admitted, "allocation_spy": alloc["SPY"], "candidates": cands,
                 "e_bh_now": e_bh(seen, self.alpha) if seen else [],

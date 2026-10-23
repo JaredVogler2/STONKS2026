@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 
 from apex_worker.discovery.v3.agents import explicit_mask
+from apex_worker.evidence.tournament import CLAIM_RULE
 from apex_worker.research.realeq import universe_v2 as U
 from apex_worker.research.training_data import BENCHMARK
 
@@ -60,8 +61,10 @@ CANDIDATES: tuple[dict, ...] = (
     {"candidate_id": "ew", "book": "ew", "twin": None, "prior_mass": 0.05, "loss_bound": 0.05, "twin_loss_bound": None,
      "mechanism": "equal weight over the explicit mask: the tilts' common twin, as its own claim against SPY"},
 )
+# claim_rule: each candidate's prior mass is split equally across its claim tests (4 for a candidate with a twin and
+# both loss bounds, 2 for ew), so every cohort-0 claim needs evidence 800 and P(any false claim, ever) <= alpha.
 TOURNAMENT = {"book": "evidence_weighted", "null_mass": 0.5, "alpha": 0.05,
-              "lambdas": [1 / 16, 1 / 8, 1 / 4, 1 / 2, 3 / 4, 1.0], "cost_per_side": 0.0002}
+              "lambdas": [1 / 16, 1 / 8, 1 / 4, 1 / 2, 3 / 4, 1.0], "cost_per_side": 0.0002, "claim_rule": CLAIM_RULE}
 COSTS_BPS = {"stock_close": 2.0, "spy": 5.0, "cash": 0.0}  # per side, cost-v3-2
 FEATURES = {"ret_60": "60-session log return (features.compute)", "ret_5": "5-session log return (features.compute)",
             "high_252": "close / max(close over the last 252 sessions, t included) - 1, from split-adjusted closes"}

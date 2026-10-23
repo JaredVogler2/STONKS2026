@@ -22,13 +22,14 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import ClassVar
 
 import pandas as pd
 
 from apex_worker.market.calendar import MarketCalendar
 from apex_worker.research.forward import frozen as F
 from apex_worker.research.forward import windows as W
-from apex_worker.research.forward.health import health
+from apex_worker.research.forward.health import FROZEN_READING, health
 from apex_worker.research.forward.records import (
     ATTEMPT_FAILED,
     DECISION,
@@ -92,6 +93,7 @@ class FrozenLane:
     decisions_from: date = F.DECISIONS_FROM
     data_class: str = "REAL_MARKET_DATA"
     check_inputs: bool = True
+    reading: ClassVar[dict] = FROZEN_READING  # outcomes are read at the registered looks only
 
     @classmethod
     def fixture(cls, decisions_from: date = F.DECISIONS_FROM) -> FrozenLane:
@@ -248,7 +250,7 @@ class Recorder:
         finally:
             self._save_outbox()
         rep.health = health(ledger.records, anchors, self.cal, self.clock(), self.lane.decisions_from,
-                            [m for m in rep.messages if m.startswith("INTEGRITY")])
+                            [m for m in rep.messages if m.startswith("INTEGRITY")], self.lane.reading)
         rep.provider_requests = self.source.requests_used
         rep.github_requests = int(getattr(self.store.api, "requests", 0))
         rep.finished_at = W.iso(self.clock())

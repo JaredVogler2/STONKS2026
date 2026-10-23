@@ -9,11 +9,17 @@
 | Code | - Decision logic: `apex_worker/discovery/v3/tournament_books.py`.<br>- Lane, replay and recorder: `apex_worker/research/forward/tournament_lane.py`.<br>- Registry entry: `research/forward/exploratory.py::EPA_TOURNAMENT`.<br>- Engine: `apex_worker/evidence/` |
 | Workflow | `.github/workflows/apex-evidence-tournament.yml`, weekdays at 18:42 and 22:22 New York time |
 | Ledger | Its own GitHub issue, "APEX forward-shadow ledger · v3x-epa-tournament-v1 · vol 1", created by the first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
-| Approved | By the owner, 2026-10-23 |
+| Approved | By the owner, 2026-10-23. Corrected before genesis, the same day: each candidate's prior mass is split across its claim tests, so every claim of every candidate shares one α (§1). The genesis record carries the corrected configuration |
 
 ## 1. Registered slate (cohort 0)
 
-The slate is fixed in the series configuration, and its sha256 is in the genesis record. Prior mass totals **0.45**. The other **0.55** is reserved for later cohorts (§8). A claim needs evidence of 1/(0.05 × prior mass), the online family-wise threshold at α = 0.05: 200 for a mass of 0.10, and 400 for 0.05.
+The slate is fixed in the series configuration, and its sha256 is in the genesis record. Prior mass totals **0.45**. The other **0.55** is reserved for later cohorts (§8).
+
+**Claims.** A candidate is tested up to four ways: against SPY and against its twin, each assumption-free and under its declared loss bound. Its prior mass is split equally across those claim tests (`claim_rule` in the configuration), so each test needs evidence of tests / (0.05 × prior mass):
+- 4 / (0.05 × 0.10) = **800** for `g2` and the three tilts;
+- 2 / (0.05 × 0.05) = **800** for `ew` (against SPY only).
+
+Over every test of every candidate ever admitted, the chance of any false claim is then at most α Σγ ≤ 0.05 (a union bound, valid under any dependence). Claims under a loss bound hold while the bound holds; a break voids them.
 
 | Candidate | Book | Twin (negative control) | Prior mass | Loss bound vs SPY | Loss bound vs twin | Rebalance | Why it is in the slate |
 |---|---|---|---|---|---|---|---|
@@ -91,7 +97,7 @@ The inputs come from a light panel with the same definitions as `features.comput
 Most of the slate will show weak evidence for years. That is the market's information limit, not a malfunction (method §2):
 - **G2:** about 35 years, even if its DEV estimate were exactly real.
 - **A diversified tilt with a real IR of 1.5:** a simulated median of about 7 years to evidence 20 under its loss bound; IR 1.0 takes about 12 years.
-- **Allocation moves earlier than claims.** The paper allocation follows evidence continuously, while claims need 200× (or 400×) evidence.
+- **Allocation moves earlier than claims.** The paper allocation follows evidence continuously, while a claim needs 800× evidence on one test.
 - **Reading the job summary or the ledger at any time is valid.** No result here authorizes trading.
 
 ## 6. Activation and pausing (owner)

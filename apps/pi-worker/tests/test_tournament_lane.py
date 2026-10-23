@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from apex_worker.discovery.v3 import tournament_books as TB
+from apex_worker.evidence.tournament import CLAIM_RULE
 from apex_worker.research.forward import exploratory as X
 from apex_worker.research.forward import tournament_lane as T
 from apex_worker.research.forward.records import canonical, clean, publication_problems, verify_chain
@@ -23,6 +24,7 @@ def test_the_policy_is_registered_exploratory_research_only_and_separate():
     assert cfg["lane"] == "EXPLORATORY" and cfg["evidence_tier"] == "PROSPECTIVE_EXPLORATORY"
     assert cfg["confirmatory"] is False and cfg["orders"] == "none" and cfg["group_actionable"] is False
     assert cfg["decisions_from"] == T.DECISIONS_FROM.isoformat() and cfg["golden_fingerprint"] == T.PINNED_FINGERPRINT
+    assert cfg["policy"]["parameters"]["tournament"]["claim_rule"] == CLAIM_RULE  # declared in the genesis record
     assert sum(c.prior_mass for c in T.CANDIDATES) == pytest.approx(0.45)  # 0.55 reserved for later admissions
     assert {c.book for c in T.CANDIDATES} | {c.twin for c in T.CANDIDATES if c.twin} <= set(TB.BOOKS)
     X.assert_separate([T.SERIES_ID])
@@ -120,6 +122,13 @@ def test_the_tournament_state_is_a_pure_function_of_the_posted_returns():
     assert a["sessions"] == 60 and a["orders"] == "none" and set(a["candidates"]) == {c.candidate_id for c in T.CANDIDATES}
     assert sum(c["allocation"] for c in a["candidates"].values()) + a["allocation_spy"] == pytest.approx(1.0)
     assert a["candidates"]["ew"]["vs_twin"] is None and a["candidates"]["g2"]["vs_twin_bounded_loss"] is not None
+    # each candidate's mass is split across its claim tests: every cohort-0 claim needs evidence 800, and the whole
+    # family (every test of every candidate) spends alpha * 0.45 of the error budget
+    assert a["claim_rule"] == CLAIM_RULE
+    assert {k: len(c["claim_tests"]) for k, c in a["candidates"].items()} == {"g2": 4, "mom-tilt": 4, "rev-tilt": 4,
+                                                                              "hi52-tilt": 4, "ew": 2}
+    assert all(c["threshold"] == pytest.approx(800.0) for c in a["candidates"].values())
+    assert sum(len(c["claim_tests"]) / c["threshold"] for c in a["candidates"].values()) == pytest.approx(0.05 * 0.45)
     json.dumps(a)
 
 
@@ -162,4 +171,6 @@ def test_a_dry_run_posts_nothing(tmp_path):
                "--store-file", str(tmp_path / "ledger.json"), "--outbox", str(tmp_path / "outbox.json")])
     assert rc == 0
     assert not (tmp_path / "ledger.json").exists() and not (tmp_path / "outbox.json").exists()
-    assert "DRY RUN: nothing was posted" in (tmp_path / "s.md").read_text()
+    md = (tmp_path / "s.md").read_text()
+    assert "DRY RUN: nothing was posted" in md
+    assert "| Reading | anytime-valid evidence" in md and "first powered look" not in md  # not the frozen lane's look

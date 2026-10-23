@@ -20,15 +20,17 @@ import hashlib
 import math
 from dataclasses import dataclass
 from datetime import date
+from typing import ClassVar
 
 import pandas as pd
 
 from apex_worker.discovery.v3 import tournament_books as TB
-from apex_worker.evidence.tournament import Tournament
+from apex_worker.evidence.tournament import CLAIM_RULE, Tournament
 from apex_worker.market.calendar import MarketCalendar
 from apex_worker.research.forward import exploratory as X
 from apex_worker.research.forward import windows as W
 from apex_worker.research.forward.frozen import WINDOW_ANCHOR, WINDOW_ANCHOR_INDEX, config_sha256
+from apex_worker.research.forward.health import ANYTIME_READING
 from apex_worker.research.forward.recorder import Recorder, RunReport, _Stop
 from apex_worker.research.forward.records import DECISION, OUTCOME, Ledger, canonical, clean
 from apex_worker.research.forward.source import DecisionData, SourceUnavailable
@@ -93,6 +95,7 @@ class TournamentLane:
     decisions_from: date = DECISIONS_FROM
     data_class: str = "REAL_MARKET_DATA"
     check_inputs: bool = False
+    reading: ClassVar[dict] = ANYTIME_READING  # anytime-valid evidence: no registered look
 
     @classmethod
     def fixture(cls, decisions_from: date = DECISIONS_FROM) -> TournamentLane:
@@ -174,6 +177,8 @@ def replay(decisions: list[dict], closes: pd.DataFrame, quarantine: dict[str, li
 
 def tournament_state(sessions: dict[str, dict]) -> dict:
     """The tournament after every posted session's returns, in session order (a pure function of the ledger)."""
+    if TOURNAMENT["claim_rule"] != CLAIM_RULE:
+        raise ValueError(f"the series declares claim rule {TOURNAMENT['claim_rule']!r}; the engine implements {CLAIM_RULE!r}")
     t = Tournament(book=TOURNAMENT["book"], null_mass=TOURNAMENT["null_mass"], alpha=TOURNAMENT["alpha"],
                    lambdas=tuple(TOURNAMENT["lambdas"]), cost_per_side=TOURNAMENT["cost_per_side"])
     days = sorted(sessions)
@@ -191,10 +196,11 @@ def tournament_state(sessions: dict[str, dict]) -> dict:
         return None if st is None else {k: st[k] for k in ("e", "e_max", "p_anytime", "status")}
 
     return {"sessions": rep["sessions"], "last_session": rep["last_session"], "book": rep["book"],
-            "book_relative_wealth": rep["book_relative_wealth"], "global_e": rep["global_e"],
+            "claim_rule": rep["claim_rule"], "book_relative_wealth": rep["book_relative_wealth"], "global_e": rep["global_e"],
             "global_p_anytime": rep["global_p_anytime"], "allocation_spy": rep["allocation_spy"],
             "e_bh_now": rep["e_bh_now"],
-            "candidates": {k: {"prior_mass": r["entry"]["prior_mass"], "threshold": r["threshold"],
+            "candidates": {k: {"prior_mass": r["entry"]["prior_mass"], "claim_tests": r["claim_tests"],
+                               "threshold": r["threshold"],
                                "allocation": r["allocation"], "claims": r["claims"], "vs_spy": ev(r["vs_spy"]),
                                "vs_spy_bounded_loss": ev(r.get("vs_spy_bounded_loss")), "vs_twin": ev(r.get("vs_twin")),
                                "vs_twin_bounded_loss": ev(r.get("vs_twin_bounded_loss"))}
@@ -296,11 +302,18 @@ def books_summary_md(records: list[dict]) -> str:
     st = outs[-1]["body"]["tournament"]
     lines = [f"\n### Tournament after {st['last_session']} ({st['sessions']} sessions; paper, research only)\n",
              f"Book vs SPY: {st['book_relative_wealth']:.4f} · global evidence {st['global_e']:.3f} · SPY share "
-             f"{st['allocation_spy']:.3f}\n", "| Candidate | e vs SPY | e vs twin | allocation | claims |",
-             "|---|---|---|---|---|"]
+             f"{st['allocation_spy']:.3f}\n",
+             "Evidence: assumption-free · under the declared loss bound. A claim needs the threshold on one test.\n",
+             "| Candidate | e vs SPY | e vs twin | threshold | allocation | claims |", "|---|---|---|---|---|---|"]
+
+    def pair(free: dict | None, bounded: dict | None) -> str:
+        if free is None:
+            return "—"
+        return f"{free['e']:.3f} · {bounded['e']:.3f}" if bounded else f"{free['e']:.3f}"
+
     for k, c in st["candidates"].items():
-        tw = f"{c['vs_twin']['e']:.3f}" if c["vs_twin"] else "—"
-        lines.append(f"| {k} | {c['vs_spy']['e']:.3f} | {tw} | {c['allocation']:.3f} | "
+        lines.append(f"| {k} | {pair(c['vs_spy'], c['vs_spy_bounded_loss'])} | "
+                     f"{pair(c['vs_twin'], c['vs_twin_bounded_loss'])} | {c['threshold']:.0f} | {c['allocation']:.3f} | "
                      f"{', '.join(c['claims']) or '—'} |")
     return "\n".join(lines) + "\n"
 

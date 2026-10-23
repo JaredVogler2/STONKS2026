@@ -229,7 +229,7 @@ def cmd_health(args) -> int:
     except StoreError as exc:
         print(f"STORE: {exc}", file=sys.stderr)
         return EXIT["STORE"]
-    h = health(rr.records, rr.anchors, cal, datetime.now(UTC), lane.decisions_from, rr.problems)
+    h = health(rr.records, rr.anchors, cal, datetime.now(UTC), lane.decisions_from, rr.problems, lane.reading)
     print(markdown(h) if args.markdown else json.dumps(h, indent=1, sort_keys=True))
     return 0
 
