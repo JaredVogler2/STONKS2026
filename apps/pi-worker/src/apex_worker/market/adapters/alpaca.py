@@ -251,6 +251,16 @@ class AlpacaAdapter:
     ) -> dict[str, pd.DataFrame]:
         return await self._bars(symbols, timeframe, start, end, "raw", feed, Priority.NORMAL)
 
+    async def get_quotes(self, symbol: str, start: datetime, end: datetime, *, feed: str = "sip", limit: int = 50,
+                         sort: str = "desc") -> list[dict]:
+        """ONE bounded request for historical NBBO quotes in [start, end] (no paging: research measurements read only
+        the few quotes around an instant). Raw provider records; callers keep derived numbers only."""
+        params = {"symbols": symbol, "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "end": self._clamp_end(end, feed).strftime("%Y-%m-%dT%H:%M:%SZ"), "limit": limit, "feed": feed,
+                  "sort": sort}
+        data = await self._get(f"{DATA_BASE}/v2/stocks/quotes", params, Priority.OPTIONAL)
+        return list(((data.get("quotes") or {}) if isinstance(data, dict) else {}).get(symbol) or [])
+
     async def get_latest(self, symbols: list[str], feed: str = "iex") -> dict[str, LatestPrint]:
         out: dict[str, LatestPrint] = {}
         for i in range(0, len(symbols), BATCH):

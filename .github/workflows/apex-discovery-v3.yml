@@ -12,6 +12,9 @@
 #   and refused here. History before 2026-10-23 is DEV_CONTAMINATED: results are diagnostics, never validation.
 # * Secrets: ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY of the `real-equities-research` environment (deployment branch
 #   main), in the research step only; missing keys fail the run, no synthetic fallback. No raw OHLCV leaves the runner.
+# * A `cost-study-*` plan runs the registered execution-cost measurement instead (docs/discovery-v3/
+#   EXECUTION_COST_STUDY.md): bounded historical SIP quotes and one-minute bars for a seeded sample of entry sessions,
+#   aggregates only (cost_study.json, COST_STUDY.md); an unentitled endpoint ends it SOURCE_BLOCKED, never estimated.
 # * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-discovery-v3
@@ -91,12 +94,20 @@ jobs:
         run: |
           if ! [[ "$PLAN" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "::error::plan must be a registered slug"; exit 5; fi
           if ! [[ "$EXPERIMENT_ID" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "::error::experiment_id must be a slug"; exit 5; fi
-          uv run --no-sync apex research discovery run --plan "$PLAN" --source alpaca \
+          cmd=run
+          if [[ "$PLAN" == cost-study-* ]]; then cmd=costs; fi  # registered execution-cost measurement (PR-D)
+          set +e
+          uv run --no-sync apex research discovery "$cmd" --plan "$PLAN" --source alpaca \
             --experiment-id "$EXPERIMENT_ID" --out "$APEX_OUT/report"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 2 ]; then echo "::warning title=SOURCE_BLOCKED::the provider refused a required endpoint; see the report"; fi
+          exit "$rc"
       - name: Job summary
         if: always()
         run: |
           if [ -f "$APEX_OUT/report/TRIAL_INDEX.md" ]; then cat "$APEX_OUT/report/TRIAL_INDEX.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f "$APEX_OUT/report/COST_STUDY.md" ]; then cat "$APEX_OUT/report/COST_STUDY.md" >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f "$APEX_OUT/budget.json" ]; then { echo; echo '```json'; cat "$APEX_OUT/budget.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"; fi
       - name: Upload the aggregate research files (short retention)
         if: always()
@@ -110,5 +121,7 @@ jobs:
             ${{ runner.temp }}/apex-discovery/report/frontier.json
             ${{ runner.temp }}/apex-discovery/report/TRIAL_INDEX.md
             ${{ runner.temp }}/apex-discovery/report/data_quality_summary.json
+            ${{ runner.temp }}/apex-discovery/report/cost_study.json
+            ${{ runner.temp }}/apex-discovery/report/COST_STUDY.md
           retention-days: 7
           if-no-files-found: ignore
