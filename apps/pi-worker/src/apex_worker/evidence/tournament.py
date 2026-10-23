@@ -13,6 +13,9 @@ Claims (every one holds under continuous monitoring, over every candidate ever a
   break voids the claim;
 * mechanism: both the edge evidence and the twin evidence reached the threshold. It is false only if one of the two
   nulls is true, so its error is also at most alpha gamma_k;
+* selection: the twin evidence alone reached the threshold (the candidate beats its own negative control, which removes
+  beta, sector and universe effects); with a declared twin loss bound, also on the bounded twin evidence while it holds.
+  Each claim type is its own family, with the family-wise guarantee above;
 * global: G = (1 - sum gamma) + sum gamma_k e_k is a nonnegative supermartingale if no candidate beats SPY.
 
 The paper book, relative to SPY. A prior mass `null_mass` (u) belongs to "no candidate beats SPY" and is held in SPY.
@@ -50,6 +53,7 @@ from apex_worker.evidence.eprocess import (
 
 SLUG = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 EDGE, MECHANISM, EDGE_BOUNDED = "EDGE_VS_SPY", "EDGE_AND_MECHANISM", "EDGE_VS_SPY_BOUNDED_LOSS"
+SELECTION, SELECTION_BOUNDED = "SELECTION_VS_TWIN", "SELECTION_VS_TWIN_BOUNDED_LOSS"
 BOOKS = ("evidence_weighted", "mixture")
 
 
@@ -80,6 +84,8 @@ class Entry:
     admitted: str  # ISO date of the first settlement the candidate takes part in
     twin: bool = False
     note: str = ""
+    loss_bound: float | None = None  # declared X >= -L against SPY (None: the tournament's default)
+    twin_loss_bound: float | None = None  # declared X >= -L against the twin (None: no bounded twin evidence)
 
 
 class Tournament:
@@ -95,6 +101,7 @@ class Tournament:
         self.spy: dict[str, EProcess] = {}
         self.twin: dict[str, EProcess] = {}
         self.bounded: dict[str, EProcess] = {}
+        self.twin_bounded: dict[str, EProcess] = {}
         self.claims: dict[str, dict] = {}
         self.holdings: dict[str, float] = {}  # evidence-weighted book: candidate weights drifted to the last close
         self.last_session: str | None = None
@@ -105,7 +112,8 @@ class Tournament:
     def mass_admitted(self) -> float:
         return sum(e.prior_mass for e in self.entries.values())
 
-    def admit(self, candidate_id: str, prior_mass: float, session: str, *, twin: bool = False, note: str = "") -> Entry:
+    def admit(self, candidate_id: str, prior_mass: float, session: str, *, twin: bool = False, note: str = "",
+              loss_bound: float | None = None, twin_loss_bound: float | None = None) -> Entry:
         if not SLUG.fullmatch(candidate_id or ""):
             raise ValueError("candidate_id must be a lower-case slug")
         if candidate_id in self.entries:
@@ -114,14 +122,19 @@ class Tournament:
             raise ValueError("a candidate must be admitted before the first period it takes part in")
         if not 0 < prior_mass <= 1 or self.mass_admitted + prior_mass > 1 + 1e-12:
             raise ValueError("prior masses are positive and may not exceed 1 in total")
-        entry = Entry(candidate_id, float(prior_mass), session, twin, note)
+        if twin_loss_bound is not None and not twin:
+            raise ValueError("a twin loss bound needs a twin")
+        bound = self.evidence_loss_bound if loss_bound is None else loss_bound
+        entry = Entry(candidate_id, float(prior_mass), session, twin, note, bound, twin_loss_bound)
         self.entries[candidate_id] = entry
         self.spy[candidate_id] = EProcess(self.lambdas, self.prior, self.cost_per_side)
         if twin:
             self.twin[candidate_id] = EProcess(self.lambdas, self.prior, self.cost_per_side)
-        if self.evidence_loss_bound is not None:  # a test statistic, not a portfolio: no rebalancing charge
-            self.bounded[candidate_id] = EProcess(bounded_lambdas(self.evidence_loss_bound), None, 0.0,
-                                                  self.evidence_loss_bound)
+        # bounded-loss evidence is a test statistic, not a portfolio: no rebalancing charge
+        if bound is not None:
+            self.bounded[candidate_id] = EProcess(bounded_lambdas(bound), None, 0.0, bound)
+        if twin_loss_bound is not None:
+            self.twin_bounded[candidate_id] = EProcess(bounded_lambdas(twin_loss_bound), None, 0.0, twin_loss_bound)
         return entry
 
     def active(self, session: str) -> list[str]:
@@ -182,7 +195,10 @@ class Tournament:
             if k in self.bounded:
                 self.bounded[k].update(xs[k], session)
             if k in self.twin:
-                self.twin[k].update(float(relative_return(returns[k], twin_returns[k])), session)
+                xt = float(relative_return(returns[k], twin_returns[k]))
+                self.twin[k].update(xt, session)
+                if k in self.twin_bounded:
+                    self.twin_bounded[k].update(xt, session)
         self.last_session, self.sessions = session, self.sessions + 1
         self.log_g_max = max(self.log_g_max, math.log(self.global_e))
         self._claims(session)
@@ -195,11 +211,14 @@ class Tournament:
                 self.claims.setdefault(k, {})[EDGE] = session
             if MECHANISM not in made and k in self.twin and min(self.spy[k].log_e_max, self.twin[k].log_e_max) >= thr:
                 self.claims.setdefault(k, {})[MECHANISM] = session
-            b = self.bounded.get(k)
-            if b is not None and b.status != VALID and EDGE_BOUNDED in made:
-                made[EDGE_BOUNDED] = f"VOID: loss bound broken on {b.violation['label']}"
-            elif b is not None and b.status == VALID and EDGE_BOUNDED not in made and b.log_e_max >= thr:
-                self.claims.setdefault(k, {})[EDGE_BOUNDED] = session
+            if SELECTION not in made and k in self.twin and self.twin[k].log_e_max >= thr:
+                self.claims.setdefault(k, {})[SELECTION] = session
+            for kind, b in ((EDGE_BOUNDED, self.bounded.get(k)), (SELECTION_BOUNDED, self.twin_bounded.get(k))):
+                made = self.claims.get(k, {})
+                if b is not None and b.status != VALID and kind in made:
+                    made[kind] = f"VOID: loss bound broken on {b.violation['label']}"
+                elif b is not None and b.status == VALID and kind not in made and b.log_e_max >= thr:
+                    self.claims.setdefault(k, {})[kind] = session
 
     def report(self) -> dict:
         alloc = self.allocation()
@@ -211,6 +230,8 @@ class Tournament:
                 row["vs_twin"] = self.twin[k].state()
             if k in self.bounded:
                 row["vs_spy_bounded_loss"] = self.bounded[k].state()
+            if k in self.twin_bounded:
+                row["vs_twin_bounded_loss"] = self.twin_bounded[k].state()
             cands[k] = row
         seen = {k: self.spy[k].e for k in self.entries if self.spy[k].n > 0}
         return {"sessions": self.sessions, "last_session": self.last_session, "book": self.book,

@@ -66,8 +66,22 @@ class ExploratoryPolicy:
         return hashlib.sha256(canonical(self.config())).hexdigest()
 
 
-# Registered exploratory policies (append-only; PR-C registers the first after its DEV pilot). Empty in PR-A.
-EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = ()
+def _epa_tournament() -> ExploratoryPolicy:
+    from apex_worker.discovery.v3 import tournament_books as TB
+
+    return ExploratoryPolicy(
+        policy_id="epa-tournament", major_version=1, hypothesis_id="H-EPA-001", registration="EXPLORATORY_REGISTERED",
+        mechanism="a prospective evidence tournament: paper capital follows anytime-valid evidence earned against SPY and "
+                  "against each candidate's negative-control twin (docs/evidence/EVIDENCE_TOURNAMENT.md)",
+        decide_ref="apex_worker.discovery.v3.tournament_books.decide", feature_schema_sha256=TB.FEATURE_SCHEMA_SHA256,
+        parameters={"books": TB.BOOKS, "candidates": list(TB.CANDIDATES), "tournament": TB.TOURNAMENT,
+                    "costs_bps_per_side": TB.COSTS_BPS},
+        universe="U1")
+
+
+# Registered exploratory policies (append-only). The first: the evidence tournament (docs/evidence/TOURNAMENT_LANE.md).
+EPA_TOURNAMENT = _epa_tournament()
+EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = (EPA_TOURNAMENT,)
 
 
 def label_body(body: dict) -> dict:

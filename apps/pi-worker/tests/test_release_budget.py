@@ -8,6 +8,8 @@ import pytest
 from apex_worker.release import cli as rcli
 from apex_worker.release.budget import EXIT_SKIP, PROFILE, decide, max_possible_month, minutes_between
 from apex_worker.release.schedule import (
+    EVIDENCE_TOURNAMENT,
+    EVIDENCE_TOURNAMENT_RETRY,
     FORWARD_SHADOW,
     FORWARD_SHADOW_RETRY,
     FORWARD_SHADOW_WEEKEND,
@@ -47,9 +49,12 @@ def test_max_possible_month_is_timeout_times_frequency():
     train = 45 * runs_in_month(WEEKLY_TRAIN, now)
     drift = 10 * runs_in_month(WEEKDAY_DRIFT, now)
     forward = 12 * sum(runs_in_month(s, now) for s in (FORWARD_SHADOW, FORWARD_SHADOW_RETRY, FORWARD_SHADOW_WEEKEND))
-    assert max_possible_month(now) == train + drift + forward
-    assert max_possible_month(now, "auto") == train + drift + forward + 10 * runs_in_month(WEEKLY_TRAIN, now)
-    assert max_possible_month(now, "auto") < 1500  # the default budget covers the worst case of every APEX workflow
+    tournament = 8 * sum(runs_in_month(s, now) for s in (EVIDENCE_TOURNAMENT, EVIDENCE_TOURNAMENT_RETRY))
+    assert max_possible_month(now) == train + drift + forward + tournament
+    assert max_possible_month(now, "auto") == train + drift + forward + tournament + 10 * runs_in_month(WEEKLY_TRAIN, now)
+    # the default budget covers the worst case of every APEX workflow, in every month of the next two years
+    worst = max(max_possible_month(utc(2026 + (11 + i) // 12, (11 + i) % 12 + 1, 15), "auto") for i in range(24))
+    assert max_possible_month(now, "auto") <= worst < 1500
 
 
 def test_required_job_proceeds_until_its_own_timeout_would_exceed_budget():
@@ -67,9 +72,12 @@ def test_optional_drift_reserves_remaining_required_runs_and_fails_safe():
     # 21 weekday evenings Mon 2 Nov .. Mon 30 Nov at 18:12 ET; the 21:52 ET retry of 30 Nov is 02:52 UTC on 1 Dec;
     # Saturdays 7, 14, 21, 28 Nov at 12:12 ET
     assert fwd == 12 * (21 + 20 + 4)
-    edge = 1500 - 10 - 180 - fwd
+    # the evidence tournament: 21 weekday evenings at 18:42 ET; the 22:22 ET retry of 30 Nov is 03:22 UTC on 1 Dec
+    tour = 8 * sum(remaining_runs_in_month(s, now) for s in (EVIDENCE_TOURNAMENT, EVIDENCE_TOURNAMENT_RETRY))
+    assert tour == 8 * (21 + 20)
+    edge = 1500 - 10 - 180 - fwd - tour
     d = decide("drift", now, budget_minutes=1500, measured_minutes=edge)
-    assert d.proceed and d.remaining_required_worst_case == 180 + fwd  # the forward shadow is reserved before drift
+    assert d.proceed and d.remaining_required_worst_case == 180 + fwd + tour  # prospective lanes reserved before drift
     low = decide("drift", now, budget_minutes=1500, measured_minutes=edge + 1)
     assert not low.proceed and "budget low" in low.reason
     assert not decide("drift", now, measured_minutes=None).proceed  # unknown => skip optional work
@@ -102,6 +110,8 @@ def test_profile_matches_schedules():
     assert keys["forward_shadow"].schedule is FORWARD_SHADOW and not keys["forward_shadow"].optional
     assert keys["forward_shadow_retry"].schedule is FORWARD_SHADOW_RETRY and not keys["forward_shadow_retry"].optional
     assert keys["forward_shadow_weekend"].schedule is FORWARD_SHADOW_WEEKEND
+    assert keys["evidence_tournament"].schedule is EVIDENCE_TOURNAMENT and not keys["evidence_tournament"].optional
+    assert keys["evidence_tournament_retry"].schedule is EVIDENCE_TOURNAMENT_RETRY
 
 
 def test_budget_cli_uses_server_policy_and_exit_codes(tmp_path, monkeypatch):

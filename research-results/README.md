@@ -17,7 +17,7 @@ No hypothesis is validated. Do not treat synthetic smoke tests or market-data re
 - **The finding:** the strongest assumption-free, anytime-valid evidence that a candidate beats SPY equals the relative wealth of an unlevered paper portfolio. Evidence is money.
 - **Consequence:** even G2's DEV estimate, taken at face value, would need about 35 years of prospective data.
 - **The proposal:** a prospective evidence tournament. Backtests only set priors, paper capital follows earned evidence, and claims stay valid under continuous monitoring. Candidates are designed for information rate.
-- **Status:** an engine with a synthetic battery ([results](../docs/evidence/EPA_BATTERY.md)). Nothing is activated, and no real data was read.
+- **Status:** an engine with a synthetic battery ([results](../docs/evidence/EPA_BATTERY.md)), and the prospective lane `v3x-epa-tournament-v1` ([registration](../docs/evidence/TOURNAMENT_LANE.md); paper, `PROSPECTIVE_EXPLORATORY`). The lane records only once the owner activates it; until then its runs are dry rehearsals.
 
 The coding agent's execution contract is [Phase 14 — Real Equity Validation](../build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md).
 

@@ -123,15 +123,22 @@ jobs:
         run: uv sync --locked --no-dev
       - name: Smoke (SYNTHETIC_FIXTURE_DEMO)
         run: uv run --no-sync apex research forward-shadow smoke --out "$RUNNER_TEMP/forward-smoke"
+      - name: Evidence tournament lane smoke (DEMO; docs/evidence/TOURNAMENT_LANE.md)
+        run: uv run --no-sync apex research forward-shadow tournament-smoke --out "$RUNNER_TEMP/tournament-smoke"
       - name: Job summary
         if: always()
-        run: if [ -f "$RUNNER_TEMP/forward-smoke/summary.md" ]; then cat "$RUNNER_TEMP/forward-smoke/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
-      - name: Upload the DEMO ledger (synthetic; 7-day retention)
+        run: |
+          for f in "$RUNNER_TEMP/forward-smoke/summary.md" "$RUNNER_TEMP/tournament-smoke/summary.md"; do
+            if [ -f "$f" ]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
+          done
+      - name: Upload the DEMO ledgers (synthetic; 7-day retention)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: forward-shadow-smoke-demo-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/forward-smoke/
+          path: |
+            ${{ runner.temp }}/forward-smoke/
+            ${{ runner.temp }}/tournament-smoke/
           retention-days: 7
           if-no-files-found: ignore
 

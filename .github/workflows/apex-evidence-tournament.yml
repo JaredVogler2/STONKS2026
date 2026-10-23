@@ -1,0 +1,138 @@
+# Prospective evidence tournament: the exploratory lane v3x-epa-tournament-v1 (docs/evidence/TOURNAMENT_LANE.md;
+# method docs/evidence/EVIDENCE_TOURNAMENT.md). Paper books only.
+#
+#   two weekday attempts after the NYSE close -> verify every stored record and the hash chain -> post any record whose
+#   earlier post GitHub did not confirm (same digest) -> MISSED_OBSERVATION for every session whose window closed without
+#   a decision -> DECISION for the session whose window is open (each paper book's target weights from fresh Alpaca
+#   historical SIP bars through t, traded at the close of t + 1) -> OUTCOME for decisions whose 2-session finality lag
+#   has passed (daily net returns replayed from the committed targets on final bars, and the tournament's evidence,
+#   allocation and claims) -> job summary -> short-retention report artifact.
+#
+# * Research only, PROSPECTIVE_EXPLORATORY, never confirmatory: no orders, no alerts, no Discord, no promotion, no
+#   group-actionable output. Its own series, chain and ledger issue ("APEX forward-shadow ledger ·
+#   v3x-epa-tournament-v1 · vol 1"); the frozen lane (apex-forward-shadow.yml) is untouched.
+# * ACTIVATION: until the owner sets the repository variable APEX_TOURNAMENT_LANE to "on" (Settings -> Secrets and
+#   variables -> Actions -> Variables), every run is a DRY RUN against an in-memory ledger that is discarded: it rehearses
+#   the real data path and posts nothing. Removing the variable pauses recording (later sessions are recorded as missed).
+# * Token: contents: read + issues: write ONLY (never commits, pushes or opens PRs). Secrets: only ALPACA_API_KEY_ID /
+#   ALPACA_API_SECRET_KEY of the `real-equities-research` environment (deployment branch main), exposed to the recorder
+#   step only and never echoed; missing keys fail the run; no synthetic fallback. No raw OHLCV leaves the runner; the
+#   store refuses raw bar fields and secrets.
+# * Max runtime: timeout-minutes 8 x 2 weekday attempts (= 368 min in a 23-weekday month), reserved in the budget
+#   forecast (apex_worker.release.budget); expected ~3-4 min for a decision run, ~1 min for a no-op retry.
+# Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in the trailing comment).
+name: apex-evidence-tournament
+
+on:
+  schedule:
+    # 18:42 and 22:22 America/New_York on weekdays: after the forward shadow's attempts, at least 90 minutes after a
+    # 16:00 close and well before the next 09:30 open. Holidays: the recorder finds no session and does nothing.
+    - cron: "42 18 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "22 22 * * 1-5"
+      timezone: "America/New_York"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this manual run (it records exactly what a scheduled run would at this moment; it never back-fills)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One recorder at a time (records are chained); never cancels a run in progress.
+concurrency:
+  group: apex-evidence-tournament
+  cancel-in-progress: false
+
+jobs:
+  tournament:
+    name: tournament (exploratory, paper)
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment: real-equities-research
+    permissions:
+      contents: read
+      issues: write
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RESEARCH_ONLY: "true"
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Record start
+        working-directory: .
+        run: |
+          echo "APEX_OUT=$RUNNER_TEMP/apex-tournament" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-tournament"
+          echo "[]" > "$RUNNER_TEMP/apex-tournament/outbox.json"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Restore the outbox (unconfirmed records only; no market data)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-tournament/outbox.json
+          key: apex-tournament-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: apex-tournament-outbox-
+      - name: Evidence tournament (research only, paper books)
+        id: record
+        timeout-minutes: 6
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          TOURNAMENT_LANE: ${{ vars.APEX_TOURNAMENT_LANE }}
+        run: |
+          store=dry
+          if [ "$TOURNAMENT_LANE" = "on" ]; then store=github; fi
+          echo "store=$store" >> "$GITHUB_OUTPUT"
+          set +e
+          uv run --no-sync apex research forward-shadow run --lane tournament --store "$store" --source alpaca \
+            --outbox "$APEX_OUT/outbox.json" --report-json "$APEX_OUT/report.json" --summary-md "$APEX_OUT/summary.md"
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0) ;;
+            3) echo "::warning title=SOURCE_PENDING::the decision bar is not final yet; the next attempt retries before the deadline" ;;
+            4) echo "::error title=MISSED_OBSERVATION::a session closed without a recorded decision (see the job summary)"; exit 4 ;;
+            5) echo "::error title=SOURCE_INVALID::market data unavailable, not entitled or credentials missing (see the job summary)"; exit 5 ;;
+            6) echo "::error title=INTEGRITY::the ledger or series configuration do not verify; nothing was recorded"; exit 6 ;;
+            7) echo "::error title=ANCHOR_PENDING::GitHub did not confirm a record; it is kept in the outbox and re-posted next run"; exit 7 ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$APEX_OUT/summary.md" ]; then cat "$APEX_OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Save the outbox
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-tournament/outbox.json
+          key: apex-tournament-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload the run report (digests, anchors, counts and paper returns; no market data)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-tournament-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apex-tournament/report.json
+            ${{ runner.temp }}/apex-tournament/summary.md
+            ${{ runner.temp }}/apex-tournament/outbox.json
+          retention-days: 30
+          if-no-files-found: ignore
