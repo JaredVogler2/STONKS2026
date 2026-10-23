@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Registered, not yet run.** The plan below is committed before the run that measures it |
+| Status | **Run** on 2026-10-23 ([run 39999238748](https://github.com/JaredVogler2/STONKS2026/actions/runs/39999238748), code `7c87dc6`, the plan below unchanged). Results and reviewer notes: [`research-results/discovery-v3/design-study-1-2026-10-23/`](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md). The plan was committed (PR #32) before the run |
 | Plan sha256 | `d5fef5eb047d5854eeb65bc6a828fd3faacdb5df0618d2a7478a344257fd7689` (`apex_worker/discovery/v3/design.py::DESIGN_STUDY_1`; a changed plan needs a new plan id) |
 | Kind | A **measurement** of risk, not a strategy test. Nothing is selected on returns |
 | Data | Protocol-2's SIP path (`discovery.v3.pipeline.load_data`), DEV decisions 2019-10-23 → data end − 22 sessions: `DEV_CONTAMINATED`, tier `DEV_DIAGNOSTIC`. PRESAMPLE is never evaluated |
@@ -87,7 +87,7 @@ The output is a **proposal** for a later, separately registered cohort of the ev
 
 - **Alpha.** The study measures noise, not edge. Whether a neutral design earns its alpha is the prospective tournament's question. DEV means are contaminated twice and are diagnostics only.
 - **Future worst sessions.** The worst DEV session includes March 2020, but a future crash can be worse. The safety factor of 2 is a declared judgement. A break voids that design's bounded evidence, not its assumption-free evidence.
-- **Survivorship.** U1 is today's S&P 500 list with `date_added` membership, so names removed before today are missing on DEV. Their blow-ups are not in the worst-session statistics. In a ±50% tilt of about 450 names, one name carries at most 0.5/450 ≈ 0.11% of active weight, so a −50% day moves X by about −0.06%.
+- **Survivorship.** U1 is today's S&P 500 list with `date_added` membership, so names removed before today are missing on DEV. Their blow-ups are not in the worst-session statistics. In a ±50% tilt of about 450 names, one name carries at most 0.5/450 ≈ 0.11% of active weight, so a −50% day moves X by about −0.06%. (Measured: 361 names on average, so 0.14% and about −0.07%.)
 - **Dividends.** Prices are split-adjusted only, as in cohort 0 (price returns).
 
 ## 6. Publication
