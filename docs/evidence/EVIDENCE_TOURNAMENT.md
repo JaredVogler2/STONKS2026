@@ -241,9 +241,10 @@ Unit tests:
    - It runs in its own workflow and ledger, labelled `PROSPECTIVE_EXPLORATORY` and NO_TRADE.
    - It records once the owner sets the repository variable `APEX_TOURNAMENT_LANE` to `on`; until then every run is a dry rehearsal.
    - S1 and S3 books are planned as a later cohort.
-2. **Wire the SEC pipeline into prospective candidates:** Form 4 insider purchases and 8-K item 2.02 earnings timing. It is point-in-time when recorded live.
-3. **Total-return data** (`adjustment="all"`) for the forward lane ([review](CODEBASE_REVIEW.md), C-4).
-4. **Optional improvements:** an adaptive bettor (online Newton step) in place of the fixed grid, to cut the grid's prior penalty.
+2. **Design for information rate: registered** ([DESIGN_STUDY_1.md](DESIGN_STUDY_1.md)). A DEV measurement of risk only: how much sector-, beta- and size-neutral tilts lower the tracking error and the worst session against their twin. Its proposal is for a later cohort, as its own series.
+3. **Wire the SEC pipeline into prospective candidates:** Form 4 insider purchases and 8-K item 2.02 earnings timing. It is point-in-time when recorded live.
+4. **Total-return data** (`adjustment="all"`) for the forward lane ([review](CODEBASE_REVIEW.md), C-4).
+5. **Optional improvements:** an adaptive bettor (online Newton step) in place of the fixed grid, to cut the grid's prior penalty.
 
 ## References
 

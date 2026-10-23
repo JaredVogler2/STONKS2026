@@ -3,6 +3,8 @@
   plans     list the registered plans and their sha256 (a plan is committed before the run that evaluates it)
   run       one bounded DEV experiment: --plan ID --source alpaca|fixture --experiment-id SLUG --out DIR
   costs     the registered execution-cost measurement (cost-study-*): same arguments; aggregates only
+  design    the registered design measurement (design-study-*): tracking error and worst sessions of tilt designs
+            against their twin (docs/evidence/DESIGN_STUDY_1.md); same arguments; aggregates only
 """
 
 from __future__ import annotations
@@ -15,11 +17,13 @@ from pathlib import Path
 
 def cmd_plans(args) -> int:
     from apex_worker.discovery.v3.costs import COST_PLANS
+    from apex_worker.discovery.v3.design import DESIGN_PLANS
     from apex_worker.discovery.v3.plans import PLANS
 
     out = {k: {"title": p.title, "sha256": p.sha256(), "fixture_only": p.fixture_only,
                "hypotheses": [h.hypothesis_id for h in p.hypotheses]} for k, p in PLANS.items()}
     out |= {k: {"title": p.title, "sha256": p.sha256(), "kind": "measurement"} for k, p in COST_PLANS.items()}
+    out |= {k: {"title": p.title, "sha256": p.sha256(), "kind": "measurement"} for k, p in DESIGN_PLANS.items()}
     print(json.dumps(out, indent=1))
     return 0
 
@@ -78,6 +82,30 @@ def cmd_costs(args) -> int:
     return {"COMPLETED": 0, "SOURCE_BLOCKED": 2}.get(summary["status"], 3)
 
 
+def cmd_design(args) -> int:
+    from apex_worker.discovery.v3.design import DESIGN_PLANS, run_design_study
+    from apex_worker.discovery.v3.pipeline import load_data
+    from apex_worker.research.realeq.data import RunStop
+
+    if args.plan not in DESIGN_PLANS:
+        print(f"unknown design study {args.plan}; registered: {sorted(DESIGN_PLANS)}", file=sys.stderr)
+        return 5
+    if (why := _guard(args)) is not None:
+        print(why, file=sys.stderr)
+        return 5
+    try:
+        data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
+    except RunStop as stop:
+        print(f"{stop.status}: {stop.reason}", file=sys.stderr)
+        return 2 if "BLOCKED" in stop.status else 3
+    out = Path(args.out)
+    summary = run_design_study(DESIGN_PLANS[args.plan], data, out, experiment_id=args.experiment_id,
+                               progress=lambda m: print(m, flush=True))
+    (out / "data_quality_summary.json").write_text(json.dumps(data.data_quality, indent=1, sort_keys=True, default=str))
+    print(json.dumps(summary, indent=1, default=str))
+    return 0
+
+
 def cmd_run(args) -> int:
     from apex_worker.discovery.v3.pipeline import load_data, run_experiment
     from apex_worker.discovery.v3.plans import PLANS
@@ -127,3 +155,11 @@ def register(rsub) -> None:
     c.add_argument("--per-sector", type=int, default=6, help="fixture only: synthetic stocks per sector")
     c.add_argument("--max-requests", type=int, default=None, help="daily-bar download cap (the study has its own)")
     c.set_defaults(func=cmd_costs)
+    g = sub.add_parser("design", help="run a registered design measurement (aggregates only)")
+    g.add_argument("--plan", required=True)
+    g.add_argument("--source", choices=["alpaca", "fixture"], required=True)
+    g.add_argument("--experiment-id", required=True)
+    g.add_argument("--out", required=True)
+    g.add_argument("--per-sector", type=int, default=6, help="fixture only: synthetic stocks per sector")
+    g.add_argument("--max-requests", type=int, default=None)
+    g.set_defaults(func=cmd_design)
