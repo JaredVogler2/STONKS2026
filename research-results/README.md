@@ -7,6 +7,8 @@
 
 The frozen forward shadow (`qv2a1-frozen-v1`) records prospective decisions from 2026-10-23.
 
+The first **measured** execution cost (`cost-study-1-2026-10-23`) is about 10.5 bps per side for open-entry and close-exit marketable orders, against the 25 bps assumed by every study above. It is a measurement and changes no published disposition.
+
 No hypothesis is validated. Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
 
 The coding agent's execution contract is [Phase 14 — Real Equity Validation](../build-prompts/14_REAL_EQUITIES_VALIDATION_EXECUTION.md).
@@ -48,3 +50,4 @@ For independent scrutiny, [real-equities/ADVERSARIAL_REVIEW_BRIEF.md](real-equit
 | Batch | Run | Code | Data | Result |
 |---|---|---|---|---|
 | [`v3-pilot-1-2026-10-23`](discovery-v3/v3-pilot-1-2026-10-23/) ([review](discovery-v3/v3-pilot-1-2026-10-23/REVIEW.md), [decision report](discovery-v3/v3-pilot-1-2026-10-23/DECISION_REPORT.md)) | [39884381394](https://github.com/JaredVogler2/STONKS2026/actions/runs/39884381394), 2026-10-23 | `dddf352`, plan `v3-pilot-1` (`11d0af37…`), `obj-v3-1` | Alpaca SIP daily, split-adjusted, U1 survivors; DEV 2019-10-23 → 2026-09-18; dataset `0339c815…` (the protocol-2 run's) | **NO_TRADE.** 10/10 REJECTED_DEV against SPY or exposure-matched SPY/cash, net 25 bps per side. Best primaries: F2 dispersion-gated −1.4 pp/yr, F5 momentum −1.9 pp/yr, F9 regime abstention −2.5 pp/yr (with a −23% drawdown against SPY's −34%). Friction is binding: F2 and F5 beat SPY only at zero cost |
+| [`cost-study-1-2026-10-23`](discovery-v3/cost-study-1-2026-10-23/) ([review](discovery-v3/cost-study-1-2026-10-23/REVIEW.md); a **measurement**, not a trial) | [39908161943](https://github.com/JaredVogler2/STONKS2026/actions/runs/39908161943), 2026-10-23 | `43cffcb`, plan `cost-study-1` (`94477312…`) | Alpaca historical SIP NBBO quotes and one-minute bars; 210 seeded entry sessions from U1 on DEV dates | **Measured execution cost.** Marketable entry at open + 1 min plus exit at close − 1 min: about **10.5 bps per side** on average (95% CI 7.3–13.4) against the assumed 25. The entry leg is about 20 bps and the exit about 0.4. Near-open VWAP averages the open (−0.2 bps). The registered p90 rule (36 bps) is dominated by price noise and is not adopted |
