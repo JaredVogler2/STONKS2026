@@ -1,7 +1,8 @@
 """Forward-shadow health: what has actually been recorded, anchored, missed and matured. Counts only.
 
-Outcome VALUES are never summarised here: the ledger holds them, and the registered look is the first time they are
-aggregated (interim looks would be descriptive at best and invite peeking). `status`:
+Outcome VALUES are never summarised here: the ledger holds them. For the frozen lane the registered look is the first
+time they are aggregated (interim looks would be descriptive at best and invite peeking); a lane with anytime-valid
+evidence declares its own `reading` (the tournament summarises its evidence elsewhere, valid at any time). `status`:
 * SETUP_REQUIRED   no genesis record exists (the recorder has never run successfully);
 * INTEGRITY_FAILURE the chain or a stored record does not verify;
 * RUNNING          one of the last 3 closed windows has a DECISION whose anchor GitHub created before the deadline;
@@ -19,10 +20,16 @@ from apex_worker.research.forward.records import ATTEMPT_FAILED, DECISION, GENES
 REGISTERED_STATUS_CHECK = "2027-04-30"  # PROTOCOL_V2.chronology.forward_shadow.earliest_evaluation (status/integrity)
 FIRST_POWERED_LOOK = "about late October 2028 (480 decision sessions with matured labels; FORWARD_SHADOW_PLAN.md)"
 RUNNER_MINUTES_PER_RUN = {"decision_run_estimate": 4, "no_op_run_estimate": 1}
+# How a lane's outcomes may be read: the frozen lane's registered looks (the default), or anytime-valid evidence.
+FROZEN_READING = {"registered_status_check": REGISTERED_STATUS_CHECK, "first_powered_look": FIRST_POWERED_LOOK,
+                  "outcome_values": "recorded in the ledger, deliberately not summarised before the registered look"}
+ANYTIME_READING = {"registered_status_check": None, "first_powered_look": None,
+                   "outcome_values": "anytime-valid evidence: reading it at any time is valid (no registered look); "
+                   "docs/evidence/TOURNAMENT_LANE.md section 5"}
 
 
 def health(records: list[dict], anchors: dict, cal: MarketCalendar, now: datetime, decisions_from: date,
-           problems: list[str] | None = None) -> dict:
+           problems: list[str] | None = None, reading: dict | None = None) -> dict:
     problems = problems or []
     by_type: dict[str, list[dict]] = {}
     for r in records:
@@ -69,8 +76,7 @@ def health(records: list[dict], anchors: dict, cal: MarketCalendar, now: datetim
         "next_maturity_session": W.maturity_session(cal, date.fromisoformat(pending[0])).isoformat() if pending else None,
         "planned_signals_by_arm": planned, "head": {"seq": head["seq"], "digest": head["digest"]} if head else None,
         "chain_problems": problems[:10], "edited_comments": sum(1 for a in anchors.values() if a.edited),
-        "registered_status_check": REGISTERED_STATUS_CHECK, "first_powered_look": FIRST_POWERED_LOOK,
-        "outcome_values": "recorded in the ledger, deliberately not summarised before the registered look",
+        **(reading or FROZEN_READING),
         "trading": "research only: no orders, no alerts, no group-actionable output",
     }
 
@@ -88,7 +94,8 @@ def markdown(h: dict, report: dict | None = None) -> str:
              f"| Outcomes recorded / pending | {h['outcomes_recorded']} / {h['outcomes_pending']} |",
              f"| Next maturity | {h['next_maturity_session'] or '—'} |",
              f"| Chain head | {('seq ' + str(h['head']['seq']) + ' · ' + h['head']['digest'][:16] + '…') if h['head'] else '—'} |",
-             f"| Registered status check / first powered look | {h['registered_status_check']} / {h['first_powered_look']} |"]
+             f"| Registered status check / first powered look | {h['registered_status_check']} / {h['first_powered_look']} |"
+             if h["registered_status_check"] is not None else f"| Reading | {h['outcome_values']} |"]
     if rep:
         lines += ["", f"Run status **{rep.get('status')}** (exit {rep.get('exit_code')}); provider requests "
                   f"{rep.get('provider_requests', 0)}; GitHub API requests {rep.get('github_requests', 0)}."]

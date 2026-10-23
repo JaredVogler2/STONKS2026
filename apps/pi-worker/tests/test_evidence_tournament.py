@@ -9,7 +9,16 @@ import numpy as np
 import pytest
 
 from apex_worker.evidence.eprocess import FREE_LAMBDAS, eprocess_path, relative_return
-from apex_worker.evidence.tournament import EDGE, EDGE_BOUNDED, MECHANISM, Tournament, evidence_weighted_path
+from apex_worker.evidence.tournament import (
+    CLAIM_RULE,
+    EDGE,
+    EDGE_BOUNDED,
+    MECHANISM,
+    SELECTION,
+    SELECTION_BOUNDED,
+    Tournament,
+    evidence_weighted_path,
+)
 
 
 def _days(n, start=0):
@@ -134,7 +143,7 @@ def test_claims_edge_mechanism_and_bounded_void():
     days = _days(1500)
     r_s, rc = _paths(rng, 1500, {"skill": 0.8, "beta": 0.8}, te=0.12)
     twin = {"skill": r_s, "beta": rc["beta"]}  # "beta" has no selection skill: it equals its own twin
-    t = Tournament(evidence_loss_bound=0.25, alpha=0.2)  # threshold 1 / (0.2 * 0.5) = 10
+    t = Tournament(evidence_loss_bound=0.25, alpha=0.6)  # 3 claim tests each: threshold 3 / (0.6 * 0.5) = 10
     t.admit("skill", 0.5, days[0], twin=True)
     t.admit("beta", 0.5, days[0], twin=True)
     for i, d in enumerate(days):
@@ -146,6 +155,24 @@ def test_claims_edge_mechanism_and_bounded_void():
     assert t.report()["candidates"]["skill"]["threshold"] == pytest.approx(10.0)
     t.settle("2028-01-01", 0.0, {"skill": -0.3, "beta": 0.0}, {"skill": 0.0, "beta": 0.0})  # breaks X >= -0.25
     assert t.claims["skill"][EDGE_BOUNDED].startswith("VOID") and t.bounded["skill"].status != "VALID"
+
+
+def test_every_claim_test_of_every_candidate_shares_one_error_budget():
+    t = Tournament(alpha=0.05)
+    t.admit("full", 0.1, "2027-01-04", twin=True, loss_bound=0.05, twin_loss_bound=0.03)
+    t.admit("free", 0.2, "2027-01-04")
+    t.admit("twin", 0.1, "2027-01-04", twin=True)
+    t.admit("bounded", 0.05, "2027-01-04", loss_bound=0.05)
+    tests = {k: t.claim_tests(k) for k in t.entries}
+    assert tests == {"full": (EDGE, EDGE_BOUNDED, SELECTION, SELECTION_BOUNDED), "free": (EDGE,),
+                     "twin": (EDGE, SELECTION), "bounded": (EDGE, EDGE_BOUNDED)}
+    assert {k: t.threshold(k) for k in t.entries} == pytest.approx({"full": 800, "free": 100, "twin": 400,
+                                                                     "bounded": 800})
+    # union bound over every claim test of every candidate: sum of 1 / threshold = alpha * sum(gamma) <= alpha
+    budget = sum(len(tests[k]) / t.threshold(k) for k in t.entries)
+    assert budget == pytest.approx(0.05 * t.mass_admitted) and budget <= t.alpha
+    rep = t.report()
+    assert rep["claim_rule"] == CLAIM_RULE and rep["candidates"]["full"]["claim_tests"] == list(tests["full"])
 
 
 def test_global_null_size_and_pathwise_regret():

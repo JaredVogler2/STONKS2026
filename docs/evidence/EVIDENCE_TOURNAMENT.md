@@ -26,7 +26,7 @@
 - **Backtests become priors.** A backtest can only set a candidate's prior mass, never its evidence. That is valid even on contaminated DEV.
 - **Evidence is earned.** Each candidate's evidence is earned paper wealth against SPY. A twin numeraire separates selection skill from beta and universe effects.
 - **Capital follows evidence.** The paper book holds each candidate in proportion to its prior times its evidence.
-- **Claims are anytime-valid.** Over every candidate ever admitted, the chance of a false claim stays at most α, under continuous monitoring and unlimited admissions.
+- **Claims are anytime-valid.** Over every candidate ever admitted, and every way each one is tested, the chance of a false claim stays at most α, under continuous monitoring and unlimited admissions (§3.3).
 
 **The design rule (§4).** Evidence arrives at most at IR²/2 a year, and approaches that rate only with a declared, checked bound on one-session losses. So candidates should be designed for **information rate**, not for return:
 - diversified, low-tracking-error tilts or twin-paired books;
@@ -145,13 +145,26 @@ Candidate k is admitted with prior mass γ_k. It takes part from a stated sessio
 
 All claims are online: they hold under continuous monitoring, over every candidate ever admitted.
 
+**One error budget for every claim.** Candidate k is tested on up to m_k ≤ 4 e-processes, its *claim tests*:
+- `vs_spy`, always;
+- `vs_spy_bounded_loss`, with a declared loss bound;
+- `vs_twin`, with a twin;
+- `vs_twin_bounded_loss`, with a declared twin loss bound.
+
+Its prior mass γ_k is split equally across them (`CLAIM_RULE` in `evidence/tournament.py`, recorded in a series configuration). Each test therefore claims at evidence **m_k/(α γ_k)**. By a union bound, which needs no independence between tests or candidates, P(any false claim, any test, any candidate, ever) ≤ Σ_k m_k · α γ_k / m_k = α Σγ ≤ α.
+
 | Claim | Condition | Error guarantee |
 |---|---|---|
-| `EDGE_VS_SPY` | sup e_k ≥ 1/(α γ_k) | P(any false claim, any candidate, ever) ≤ α Σγ ≤ α |
-| `EDGE_VS_SPY_BOUNDED_LOSS` | The same, on the bounded evidence while the bound holds | ≤ α γ_k under the declared assumption; void if it breaks |
-| `EDGE_AND_MECHANISM` | Both `vs_spy` and `vs_twin` have reached the threshold | ≤ α γ_k: the conjunction is false only if one of its nulls is true |
+| `EDGE_VS_SPY` | sup `vs_spy` ≥ m_k/(α γ_k) | ≤ α γ_k/m_k |
+| `EDGE_VS_SPY_BOUNDED_LOSS` | The same on `vs_spy_bounded_loss`, while the bound holds | ≤ α γ_k/m_k under the declared bound; void if it breaks |
+| `SELECTION_VS_TWIN` | sup `vs_twin` ≥ m_k/(α γ_k): the candidate beats its own negative control | ≤ α γ_k/m_k |
+| `SELECTION_VS_TWIN_BOUNDED_LOSS` | The same on `vs_twin_bounded_loss`, while the bound holds | ≤ α γ_k/m_k under the declared bound; void if it breaks |
+| `EDGE_AND_MECHANISM` | Both `EDGE_VS_SPY` and `SELECTION_VS_TWIN` hold | Nothing extra: it is false only if one of those two claims is |
+| All of the above | — | P(any false claim) ≤ α Σγ ≤ α |
 | Global | G = (1 − Σγ) + Σ γ_k e_k ≥ 1/α | ≤ α if no candidate beats SPY |
 | `e_bh_now` | e-BH over the current e-values | FDR ≤ α at a fixed or stopping time, under arbitrary dependence |
+
+Splitting the mass costs at most log 4 ≈ 1.4 nats of evidence per claim, against a candidate tested only one way. Testing several ways without splitting it would let the family's error grow to m_k α.
 
 A claim is a statistical statement on paper. **It authorizes nothing.** Live use would still need independent scientific, operational and legal review and an explicit owner decision.
 

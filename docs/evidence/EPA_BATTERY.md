@@ -63,6 +63,9 @@ Setup: 400 paths of 30 years per case. The bet is unknown (λ-grid mixture), com
 - Candidate 0's alpha is given as (backtest / deployment years 0–3 / deployment years 3–10). Every other candidate carries the world's null alpha (its costs).
 - A **mirage** is an edge that exists only in the backtest: survivorship, forking paths or overfitting. That is the program's situation on DEV.
 - Tournament policies (P2–P2d) admit all 10 candidates at the start of deployment with null mass 0.5. Their claims need evidence of 1/(0.05 γ_k), which is 200 under a uniform prior.
+  - Each policy claims on one test per candidate, so that threshold controls its family.
+  - The prospective lane claims on up to four tests per candidate, against SPY and against the twin, each assumption-free and bounded. It splits γ_k equally across them, so each test needs m_k/(0.05 γ_k) ([TOURNAMENT_LANE.md](TOURNAMENT_LANE.md) §1).
+  - Its false-claim rate can therefore only be lower than the rates below, and its claims come later by at most log 4 ≈ 1.4 nats of evidence.
 
 **Policies.**
 - P1 holds the candidate with the best backtest log growth.
