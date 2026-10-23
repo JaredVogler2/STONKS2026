@@ -63,6 +63,11 @@ FORWARD_SHADOW = Schedule("forward_shadow", frozenset({0, 1, 2, 3, 4}), time(18,
 FORWARD_SHADOW_RETRY = Schedule("forward_shadow_retry", frozenset({0, 1, 2, 3, 4}), time(21, 52), timedelta(hours=4))
 # Saturday retry: a Friday session's window stays open until Monday's open, so one more attempt protects it
 FORWARD_SHADOW_WEEKEND = Schedule("forward_shadow_weekend", frozenset({5}), time(12, 12), timedelta(hours=4))
+# Evidence tournament (apex-evidence-tournament.yml): the exploratory lane's two weekday attempts, after the forward
+# shadow's. Not training runs either; its missed-session alarm is the recorder's MISSED_OBSERVATION record.
+EVIDENCE_TOURNAMENT = Schedule("evidence_tournament", frozenset({0, 1, 2, 3, 4}), time(18, 42), timedelta(hours=4))
+EVIDENCE_TOURNAMENT_RETRY = Schedule("evidence_tournament_retry", frozenset({0, 1, 2, 3, 4}), time(22, 22),
+                                     timedelta(hours=4))
 
 
 def month_bounds(now: datetime) -> tuple[datetime, datetime]:

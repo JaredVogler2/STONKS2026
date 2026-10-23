@@ -23,6 +23,8 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 
 from apex_worker.release.schedule import (
+    EVIDENCE_TOURNAMENT,
+    EVIDENCE_TOURNAMENT_RETRY,
     FORWARD_SHADOW,
     FORWARD_SHADOW_RETRY,
     FORWARD_SHADOW_WEEKEND,
@@ -41,7 +43,7 @@ EXIT_SKIP = 3
 
 @dataclass(frozen=True)
 class JobProfile:
-    key: str  # train | release | drift | forward_shadow | forward_shadow_retry | forward_shadow_weekend
+    key: str  # train | release | drift | forward_shadow[_retry|_weekend] | evidence_tournament[_retry]
     workflow_file: str
     job_id: str
     timeout_minutes: int  # MUST equal the job's timeout-minutes in the workflow file (asserted by tests)
@@ -58,6 +60,11 @@ PROFILE: tuple[JobProfile, ...] = (
     JobProfile("forward_shadow", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW, optional=False),
     JobProfile("forward_shadow_retry", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW_RETRY, optional=False),
     JobProfile("forward_shadow_weekend", "apex-forward-shadow.yml", "record", 12, FORWARD_SHADOW_WEEKEND, optional=False),
+    # the exploratory evidence tournament is prospective too (a missed session is lost), so it is reserved as well
+    JobProfile("evidence_tournament", "apex-evidence-tournament.yml", "tournament", 8, EVIDENCE_TOURNAMENT,
+               optional=False),
+    JobProfile("evidence_tournament_retry", "apex-evidence-tournament.yml", "tournament", 8,
+               EVIDENCE_TOURNAMENT_RETRY, optional=False),
 )
 
 

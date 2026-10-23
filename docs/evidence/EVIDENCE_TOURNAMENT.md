@@ -223,13 +223,11 @@ Unit tests:
 
 ## 7. Next steps (each needs the owner's decision; nothing is activated by this change)
 
-1. **Prospective tournament lane.** A new exploratory series records daily paper-book returns for a registered slate:
-   - G2;
-   - S1 and S3 as books;
-   - two to four high-information tilt designs;
-   - one negative control.
-
-   The tournament state would be hash-chained in the existing recorder, labelled `PROSPECTIVE_EXPLORATORY` and NO_TRADE. It registers a new forward series, so it waits for the owner's go-ahead.
+1. **Prospective tournament lane: implemented** ([TOURNAMENT_LANE.md](TOURNAMENT_LANE.md); owner-approved 2026-10-23).
+   - The series `v3x-epa-tournament-v1` holds G2, three diversified tilts, equal weight and their twins.
+   - It runs in its own workflow and ledger, labelled `PROSPECTIVE_EXPLORATORY` and NO_TRADE.
+   - It records once the owner sets the repository variable `APEX_TOURNAMENT_LANE` to `on`; until then every run is a dry rehearsal.
+   - S1 and S3 books are planned as a later cohort.
 2. **Wire the SEC pipeline into prospective candidates:** Form 4 insider purchases and 8-K item 2.02 earnings timing. It is point-in-time when recorded live.
 3. **Total-return data** (`adjustment="all"`) for the forward lane ([review](CODEBASE_REVIEW.md), C-4).
 4. **Optional improvements:** an adaptive bettor (online Newton step) in place of the fixed grid, to cut the grid's prior penalty.
