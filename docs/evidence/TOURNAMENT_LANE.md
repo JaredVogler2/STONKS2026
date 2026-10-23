@@ -111,7 +111,11 @@ Most of the slate will show weak evidence for years. That is the market's inform
    - records the current session's decision.
 4. **Pause:** delete the variable. Sessions closed while paused are recorded as missed when it is set again; they are never filled in.
 
-**Budget.** Two weekday attempts at most 8 minutes each are reserved in `apex_worker.release.budget`. With them, the worst-case month for every APEX workflow is 1,473 of the default 1,500 minutes. The optional drift job therefore skips more often late in a month.
+**Budget.** Two weekday attempts at most 8 minutes each are reserved in `apex_worker.release.budget`. With them, the worst-case month for every APEX workflow is 1,473 of the default 1,500 minutes, in December 2026. Two consequences:
+- The optional drift job skips more often late in a month.
+- A manual research run (`apex-discovery-v3`, 45-minute timeout, checked before it fetches any data) fits every month of the next two years except December 2026, where 1,473 + 45 > 1,500.
+
+To run research that month, the owner can raise the repository variable `APEX_ACTIONS_MONTHLY_BUDGET`. The default leaves 500 of the 2,000 free private-repository minutes for CI.
 
 ## 7. Limitations (disclosed with the registration)
 
@@ -123,10 +127,11 @@ Most of the slate will show weak evidence for years. That is the market's inform
 ## 8. Later cohorts
 
 The reserved prior mass (0.55) is for candidates admitted after genesis. Planned:
+- **neutralized tilts designed for information rate:** the same signals with sector-, beta- and size-neutral active weights. They are measured first by the registered study [`design-study-1`](DESIGN_STUDY_1.md), whose proposal would use 0.20 of the reserve;
 - the frozen S1 and S3 arms as paper books, for a valid interim reading of the frozen shadow;
 - SEC-event designs: Form 4 insider purchases and 8-K earnings timing, live and point-in-time. These wait for the owner's SEC contact (`APEX_SEC_USER_AGENT`);
 - cap-weighted tilts.
 
-The admission mechanism is not implemented yet:
-- **Intended design:** a cohort is announced inside a `DECISION` record before its first period (its candidates, prior masses and loss bounds, from the reserve). The genesis configuration stays unchanged, and the tournament state reads admissions from the ledger.
-- **Until then:** any change to the slate means a new series.
+**How a cohort is added: as its own series.** This series' slate never changes. A later cohort gets its own series id, genesis, chain and ledger. Its configuration names the earlier cohorts and their masses, and it draws its own masses from the reserve, so the total over every cohort stays at most 1.
+- Claims stay family-wise valid across series. The union bound behind §1 needs only that every mass is fixed before its candidate's first period, and that the masses sum to at most 1.
+- An in-ledger admission inside this series (a cohort announced in a `DECISION` record) would also be valid, but it is not implemented and not needed.
