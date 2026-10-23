@@ -1,5 +1,11 @@
 # 01 — Amazon shopping list (United States)
 
+> **Also running OMEN (the Kalshi scanner) on this Pi?** Use OMEN's combined list and plan instead:
+> [OMEN `docs/PI_HARDWARE.md`](https://github.com/JaredVogler2/OMEN/blob/main/docs/PI_HARDWARE.md).
+> In short: a Pi 5 **4 GB runs both** (measured), **8 GB** is the comfortable choice if you are buying now, and an
+> **SSD replaces the microSD** as the main disk, because three services write databases 24/7. An existing 4 GB
+> setup needs only the SSD.
+
 **Updated:** October 20, 2026. These are **exact compatibility specifications** with Amazon SEARCH links, not fake verified ASINs or guaranteed live Amazon offers. Compare the result you choose to the checklist here BEFORE buying. Prices change. Check the checkout total and seller reputation.
 
 ## Recommended: buy these essentials

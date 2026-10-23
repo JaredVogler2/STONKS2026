@@ -96,6 +96,13 @@ Recommended channel permissions: members can *View Channel* and *Use Application
 bot (and the owner) can *Send Messages* in the alert channels; `#system-status` visible to the owner only. The
 bot must be able to view/send/embed in every mapped channel.
 
+**Sharing the server with OMEN (Kalshi scanner).** The separate [OMEN](https://github.com/JaredVogler2/OMEN)
+repository posts Kalshi plays into this same server, in its own channels: `#kalshi-plays`, `#kalshi-research` and
+`#kalshi-status`. It uses channel webhooks, or this bot's token through REST only, never a second Gateway
+connection, so it does not interfere with `apex-discord-bot`. Do **not** add OMEN's channel keys to
+`APEX_CHANNEL_MAP`: APEX refuses unknown keys. OMEN has its own `OMEN_DISCORD_CHANNEL_MAP` (see OMEN's
+`docs/DISCORD.md`).
+
 ### 2.4 Dry run (no token needed, nothing connects)
 
 ```bash
