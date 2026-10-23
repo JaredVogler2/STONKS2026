@@ -14,6 +14,8 @@ Registered selectors (all read rows <= t only):
 Registered WEIGHTS agents: spy (100% SPY); momentum_weights (equal weight in the top-n by 60-session return, rebalanced
 every `every` sessions, cash in risk-off regimes when `abstain` is set); random_weights (its negative control: n random
 eligible members, same schedule); spy_regime (SPY, cash while the causal regime label is risk-off or a volatility shock).
+Pilot 2 adds momentum_buffered (equal weight in the top-n by 60-session return under an explicit eligibility mask without
+the risk-off breaker, rebalanced every `every` sessions with a rank buffer) and random_buffered (its negative control).
 momentum_top accepts `min_dispersion_pct`: trade only when the cross-sectional dispersion of 20-session returns is at
 or above that percentile of its own trailing year (an opportunity-state gate; idle capital otherwise).
 """
@@ -171,6 +173,66 @@ def w_spy_regime(pre: S.Prepared, b: BoundariesV2, params: dict) -> pd.DataFrame
     return w
 
 
+# ---- pilot 2 (v3-pilot-2): an explicit eligibility mask and low-turnover buffered momentum -------------------------
+def explicit_mask(pre: S.Prepared, *, min_price: float = 10.0, min_dollar_volume: float = 30e6,
+                  min_avg_volume: float = 1e6, min_history: int = 180) -> np.ndarray:
+    """Pilot-1 finding A-1, made explicit: U1 membership at t plus protocol-2's price, liquidity and history floors
+    (signals.candidates.GateConfig defaults), WITHOUT its market-wide risk-off breaker and extension cap. Rows are
+    pre.stocks, columns sessions; every input is a causal feature at t."""
+    from apex_worker.research.realeq.universe_v2 import membership
+
+    mem = membership(pre.sessions, list(pre.stocks))
+    rows = []
+    for s in pre.stocks:
+        f = pre.frames[s]
+        ok = ((f["close"] >= min_price) & (f["dollar_vol_med_20"] >= min_dollar_volume)
+              & (f["avg_vol_20"] >= min_avg_volume) & (f["bars_available"] >= min_history))
+        rows.append(ok.fillna(False).to_numpy(bool) & mem[s].reindex(pre.sessions).fillna(False).to_numpy(bool))
+    return np.vstack(rows)
+
+
+def _buffered(pre: S.Prepared, b: BoundariesV2, params: dict, score: Callable[[int, np.ndarray], np.ndarray]
+              ) -> pd.DataFrame:
+    """Equal weight in `n` names, rebalanced every `every` sessions from the close before the window: held names stay
+    while their rank is below `keep_rank` (default 2n), the rest is filled best-first (a turnover buffer)."""
+    n, every = int(params.get("n", 10)), int(params.get("every", 60))
+    keep = int(params.get("keep_rank", 2 * n))
+    el = explicit_mask(pre) if params.get("mask", "explicit") == "explicit" else np.vstack(
+        [pre.eligible[s] for s in pre.stocks])
+    syms = pre.stocks
+    w = pd.DataFrame(np.nan, index=pre.sessions, columns=syms)
+    held: list[int] = []
+    start = b.dev_range[0] - 1
+    for t in range(start, b.dev_range[1] + 1):
+        if (t - start) % every:
+            continue
+        val = score(t, el[:, t])
+        cand = [i for i in np.flatnonzero(el[:, t]) if np.isfinite(val[i])]
+        order = sorted(cand, key=lambda i: (-val[i], syms[i]))
+        rank = {i: r for r, i in enumerate(order)}
+        kept = [i for i in held if i in rank and rank[i] < keep]
+        new = kept + [i for i in order if i not in kept][: max(0, n - len(kept))]
+        row = np.zeros(len(syms))
+        row[new] = 1.0 / n  # fewer qualifiers -> the rest stays in cash
+        w.iloc[t] = row
+        held = new
+    return w
+
+
+def w_momentum_buffered(pre: S.Prepared, b: BoundariesV2, params: dict) -> pd.DataFrame:
+    col = params.get("feature", "ret_60")
+    x = np.vstack([pre.frames[s][col].to_numpy(float) for s in pre.stocks])
+    return _buffered(pre, b, params, lambda t, _el: x[:, t])
+
+
+def w_random_buffered(pre: S.Prepared, b: BoundariesV2, params: dict) -> pd.DataFrame:
+    """The negative control for momentum_buffered: the same mask, schedule, buffer and execution, ranked by a seeded
+    random draw at each rebalance instead of momentum (so only selection differs)."""
+    rng = np.random.default_rng(int(params.get("seed", 20261023)))
+    return _buffered(pre, b, params, lambda _t, el: rng.random(len(el)))
+
+
 WEIGHT_AGENTS: dict[str, Callable[[S.Prepared, BoundariesV2, dict], pd.DataFrame]] = {
     "spy": w_spy, "momentum_weights": w_momentum, "random_weights": w_random, "spy_regime": w_spy_regime,
+    "momentum_buffered": w_momentum_buffered, "random_buffered": w_random_buffered,
 }

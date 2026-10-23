@@ -44,13 +44,35 @@ class Objective:
 
 PRINCIPAL_OBJECTIVE = Objective()
 
+# Pilot 2 (registered with v3-pilot-2, before its run): the same principal at the MEASURED cost model cost-v3-2, a
+# drawdown limit relative to the comparator (pilot-1 finding O-1: SPY's own DEV drawdown broke the absolute -30% floor)
+# and turnover counted on stock trades only (finding A-2: SPY sweeps are not strategy turnover).
+OBJ_V3_2 = Objective(
+    objective_id="obj-v3-2",
+    principal="annualised log growth minus the investable alternative (exposure-matched SPY/cash for cash-idle books, "
+    "SPY buy-and-hold for SPY-idle books and weights agents), net of the measured cost model cost-v3-2, pessimistic "
+    "fills",
+    constraints={"leverage": 0.0, "max_positions": 10, "sector_cap": 0.30, "max_drawdown_vs_comparator": -0.10,
+                 "turnover_per_year_max": 40.0, "turnover_basis": "stock", "min_avg_exposure": 0.05})
 
-def constraint_violations(m: dict, obj: Objective = PRINCIPAL_OBJECTIVE, *, is_benchmark: bool = False) -> list[str]:
+OBJECTIVES: dict[str, Objective] = {o.objective_id: o for o in (PRINCIPAL_OBJECTIVE, OBJ_V3_2)}
+
+
+def constraint_violations(m: dict, obj: Objective = PRINCIPAL_OBJECTIVE, *, is_benchmark: bool = False,
+                          comparator: dict | None = None) -> list[str]:
     c, out = obj.constraints, []
-    if (m.get("max_drawdown") or 0) < c["max_drawdown_floor"]:
+    if "max_drawdown_floor" in c and (m.get("max_drawdown") or 0) < c["max_drawdown_floor"]:
         out.append(f"max drawdown {m.get('max_drawdown')} below {c['max_drawdown_floor']}")
-    if (m.get("turnover_per_year") or 0) > c["turnover_per_year_max"]:
-        out.append(f"turnover {m.get('turnover_per_year')}/yr above {c['turnover_per_year_max']}")
+    if "max_drawdown_vs_comparator" in c:  # obj-v3-2: relative to the investable alternative's own drawdown
+        if comparator is None or comparator.get("max_drawdown") is None:
+            raise ValueError(f"{obj.objective_id} needs the comparator's metrics")
+        floor = comparator["max_drawdown"] + c["max_drawdown_vs_comparator"]
+        if (m.get("max_drawdown") or 0) < floor:
+            out.append(f"max drawdown {m.get('max_drawdown')} below the comparator's {comparator['max_drawdown']} "
+                       f"{c['max_drawdown_vs_comparator']:+}")
+    to_key = "stock_turnover_per_year" if c.get("turnover_basis") == "stock" else "turnover_per_year"
+    if (m.get(to_key) or 0) > c["turnover_per_year_max"]:
+        out.append(f"{to_key} {m.get(to_key)}/yr above {c['turnover_per_year_max']}")
     expo = (m.get("avg_stock_exposure") or 0) + (m.get("avg_idle_spy_exposure") or 0)
     if not is_benchmark and expo < c["min_avg_exposure"]:
         out.append(f"average exposure {round(expo, 4)} below {c['min_avg_exposure']}: too inactive to judge")
@@ -67,8 +89,8 @@ def utility(m: dict, lam: dict) -> float | None:
                  6)
 
 
-def evaluate(m: dict, active: dict, obj: Objective = PRINCIPAL_OBJECTIVE) -> dict:
-    v = constraint_violations(m, obj)
+def evaluate(m: dict, active: dict, obj: Objective = PRINCIPAL_OBJECTIVE, comparator: dict | None = None) -> dict:
+    v = constraint_violations(m, obj, comparator=comparator)
     return {"objective_id": obj.objective_id, "objective_sha256": obj.sha256(),
             "principal_active_log_growth": active.get("active_log_growth_annual"),
             "principal_p_one_sided": active.get("p_one_sided"), "constraints_ok": not v, "violations": v,

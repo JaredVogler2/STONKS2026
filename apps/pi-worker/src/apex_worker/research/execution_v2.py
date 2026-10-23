@@ -44,7 +44,7 @@ from apex_worker.signals.levels import tick_round
 
 EXECUTION_VERSION = "exec-v2.1"  # 2.1 (A1): MISSING_BAR ambiguity, NO_DATA_IN_ENTRY_WINDOW, cent-grid comparisons
 TICK = 0.01
-OPEN, LIMIT = "OPEN", "LIMIT"
+OPEN, LIMIT, CLOSE = "OPEN", "LIMIT", "CLOSE"
 AMBIGUITY = ("NONE", "SAME_BAR_STOP_TARGET", "FILL_DAY_TARGET_ORDER")
 
 
@@ -61,7 +61,8 @@ class Costs:
 
 @dataclass(frozen=True)
 class EntryPolicy:
-    arm: str = "E0"  # E0: limit at entry_max, open guard entry_min | E1: limit below the decision close
+    arm: str = "E0"  # E0: limit at entry_max, open guard entry_min | E1: limit below the decision close |
+    # EC (Discovery V3 only, additive): limit-on-close inside the E0 band [entry_min, entry_max] at a later close
     valid_sessions: int = 2
     e1_below_close_atr: float = 0.5
     trade_through_ticks: int = 0
@@ -106,7 +107,7 @@ class OrderPlan:
 def plan_from_levels(entry_min: float, entry_max: float, stop: float, target: float, close: float, atr: float,
                      entry: EntryPolicy) -> OrderPlan | None:
     """Same stop and target for every entry arm, so arms differ only in the entry price (factorial attribution)."""
-    if entry.arm == "E0":
+    if entry.arm in ("E0", "EC"):
         return OrderPlan(entry_max, entry_min, stop, target)
     if entry.arm == "E1":
         limit = tick_round(close - entry.e1_below_close_atr * atr, down=True)
@@ -174,6 +175,10 @@ def _fill(o, h, low, c, t: int, plan: OrderPlan, entry: EntryPolicy, ok: np.ndar
     for d in range(t + 1, min(len(c), t + 1 + entry.valid_sessions)):
         if not ok[d]:
             flags.append("MISSING_BAR_IN_ENTRY_WINDOW")
+            continue
+        if entry.arm == "EC":  # a limit-on-close order: the closing price, if inside the band
+            if plan.min_open <= c[d] <= plan.limit:
+                return d, float(c[d]), CLOSE, flags
             continue
         if o[d] < plan.min_open:
             continue
@@ -295,7 +300,9 @@ def simulate_v2(
     s0 = plan.stop
     hit_s = low[fi] <= s0
     hit_t = tgt is not None and h[fi] >= tgt_hit
-    if kind == OPEN:
+    if kind == CLOSE:  # bought at the close: no exposure inside the fill session
+        pess, opt, amb = walk(fi + 1)
+    elif kind == OPEN:
         if hit_s and hit_t:
             pess, opt, amb = Leg("STOP", fi, s0), Leg("TARGET", fi, tgt), "SAME_BAR_STOP_TARGET"
         elif hit_s:
@@ -340,7 +347,9 @@ def simulate_v2(
         end_kind, end_px = None, None
         if d == ex and (pess.gap or pess.outcome in ("STOP", "TARGET")):
             end_kind, end_px = ("GAP" if pess.gap else pess.outcome), pess.exit_price
-        if d == fi:
+        if d == fi and kind == CLOSE:
+            seg = (px, px, px, px)
+        elif d == fi:
             seg = _segment(o, h, low, c, d, px, kind == OPEN, True, end_kind, end_px, s0, tt)
         else:
             seg = _segment(o, h, low, c, d, float(o[d]), True, True, end_kind, end_px, stop_on(d), tt)

@@ -142,4 +142,86 @@ PILOT_1 = ExperimentPlan(
             author_type="agent", proposed_at="2026-10-22"),
     ))
 
-PLANS: dict[str, ExperimentPlan] = {p.plan_id: p for p in (ENGINE_SMOKE, PILOT_1)}
+# ---- PILOT 2: execution timing at the MEASURED cost, low-turnover momentum (docs/discovery-v3/PILOT_2_PREREGISTRATION.md)
+# Designed AFTER pilot 1 and cost-study-1 on the same DEV history (contaminated twice): 7 trials, Holm over the 7, the
+# cumulative V3 trial count carries over (17), and the best possible disposition is again PROMISING_EXPLORATORY.
+COST_V3_2 = {"cost_model": "cost-v3-2"}
+_G1 = PolicySpec("g1-s1-close-spy-idle", "s1_leader_pullback", "ECX1", SPY_IDLE, params={"seed_name": "S1", **COST_V3_2})
+_G2_PARAMS = {"n": 10, "every": 60, "keep_rank": 20, "mask": "explicit", **COST_V3_2}
+_G2 = PolicySpec("g2-momentum-quarterly-buffered-close", "momentum_buffered", "WEIGHTS",
+                 params={**_G2_PARAMS, "execution_at": "close", "random_books": 20})
+_G3_PARAMS = {"n": 5, "every": 5, **COST_V3_2}
+_G3 = PolicySpec("g3-momentum-swing-dispersion-gate-close", "momentum_top", "ECX1", SPY_IDLE,
+                 params={**_G3_PARAMS, "min_dispersion_pct": 0.6})
+
+PILOT_2 = ExperimentPlan(
+    plan_id="v3-pilot-2", fixture_only=False, objective_id="obj-v3-2",
+    title="V3 pilot 2: close execution at the measured cost, low-turnover fully invested momentum (DEV only)",
+    notes="From pilot 1 (friction binds; S1 selection value is small; F5 lost to costs and to inherited risk-off cash "
+    "months) and cost-study-1 (an entry chasing the open costs about 20 bps per side, an order at the close about 2). "
+    "Post hoc on the same DEV history: an exploratory batch whose best outcome is a nomination for the prospective lane.",
+    hypotheses=(
+        HypothesisSpec(
+            hypothesis_id="g1-s1-close-execution", family_id="g1-leader-execution-timing",
+            title="S1 leader decisions executed at the next close instead of the next open",
+            economic_mechanism="S1 picks leaders whose continuation beats matched peers by a little, but buying at "
+            "the next open costs about 20 bps per side (cost-study-1), most of the measured friction; buying the same "
+            "decisions with a limit-on-close order at the next close costs about 2 bps, so the selection value may "
+            "survive the friction that erased it in pilot 1",
+            competing_explanation="The entry session's open-to-close move is part of S1's edge (overnight and "
+            "intraday continuation), so buying at the close forfeits as much as it saves in costs",
+            null_hypothesis="The SPY-idle S1 book executed at the close has annualised log growth no higher than SPY "
+            "buy-and-hold over the DEV sessions, at the measured cost model cost-v3-2",
+            falsification_test="Active log growth versus SPY <= 0, or the open-executed ablation does as well under "
+            "the same cost model, or no advantage over its matched-control books",
+            negative_controls=("matched-control books (same close timing, cost model, allocation, dates)",
+                               "the open-executed ablation"),
+            baseline_ids=BASELINES, required_inputs=(DAILY_BARS,), primary_policy=_G1,
+            ablations=(PolicySpec("g1-s1-open-spy-idle", "s1_leader_pullback", "E0X1", SPY_IDLE,
+                                  params={"seed_name": "S1", **COST_V3_2}, varies_axis="entry",
+                                  parent_policy=_G1.policy_id),),
+            author_type="agent", proposed_at="2026-10-23"),
+        HypothesisSpec(
+            hypothesis_id="g2-low-turnover-momentum", family_id="g2-cross-sectional-momentum-low-turnover",
+            title="Fully invested 60-session momentum, quarterly with a rank buffer, traded at the close",
+            economic_mechanism="Recent relative winners keep outperforming for weeks to months because investors "
+            "underreact; pilot 1's monthly momentum beat SPY before costs but sat in cash for inherited risk-off "
+            "months and turned over fully every month, so a fully invested book that rebalances quarterly, keeps "
+            "holdings while they stay in the top 20, and trades at the cheap close keeps the premium and drops the drag",
+            competing_explanation="Any edge over SPY comes from holding equal-weighted survivors of today's index "
+            "(survivorship and size), not momentum: random buffered books from the same members would match it",
+            null_hypothesis="The momentum book's log growth is no higher than SPY's at cost-v3-2, and at zero cost no "
+            "higher than the mean of 20 random buffered books from the same members on the same schedule",
+            falsification_test="Active log growth versus SPY <= 0, or the zero-cost book does not beat the mean of the "
+            "20 random buffered books (the selection test), or the open-executed ablation does as well",
+            negative_controls=("20 random buffered books: same mask, schedule, buffer and close execution, zero cost",
+                               "the open-executed ablation", "the monthly unbuffered ablation"),
+            baseline_ids=BASELINES, required_inputs=(DAILY_BARS,), primary_policy=_G2,
+            ablations=(
+                PolicySpec("g2-momentum-quarterly-buffered-open", "momentum_buffered", "WEIGHTS",
+                           params={**_G2_PARAMS, "execution_at": "open"}, varies_axis="entry",
+                           parent_policy=_G2.policy_id),
+                PolicySpec("g2-momentum-monthly-unbuffered-close", "momentum_buffered", "WEIGHTS",
+                           params={**_G2_PARAMS, "every": 20, "keep_rank": 10, "execution_at": "close"},
+                           varies_axis="exit", parent_policy=_G2.policy_id)),
+            author_type="agent", proposed_at="2026-10-23"),
+        HypothesisSpec(
+            hypothesis_id="g3-dispersion-gated-close", family_id="g3-opportunity-state-close",
+            title="Dispersion-gated momentum swing trades executed at the close, SPY otherwise",
+            economic_mechanism="Pilot 1's dispersion gate helped mainly by trading less; with entries at the cheap "
+            "close the remaining question is whether high cross-sectional dispersion still marks states where "
+            "selection adds value once friction is small, or whether trading in every state is then as good",
+            competing_explanation="High dispersion coincides with market stress, so the gate times market risk rather "
+            "than selection opportunity; with cheap execution the ungated book does as well",
+            null_hypothesis="The gated close-executed book's log growth is no higher than SPY's at cost-v3-2 and no "
+            "higher than the ungated close-executed book's",
+            falsification_test="Active log growth versus SPY <= 0, or the ungated ablation does as well",
+            negative_controls=("matched-control books", "the ungated ablation"), baseline_ids=BASELINES,
+            required_inputs=(DAILY_BARS,), primary_policy=_G3,
+            ablations=(PolicySpec("g3-momentum-swing-ungated-close", "momentum_top", "ECX1", SPY_IDLE,
+                                  params=dict(_G3_PARAMS), varies_axis="market_filter",
+                                  parent_policy=_G3.policy_id),),
+            author_type="agent", proposed_at="2026-10-23"),
+    ))
+
+PLANS: dict[str, ExperimentPlan] = {p.plan_id: p for p in (ENGINE_SMOKE, PILOT_1, PILOT_2)}

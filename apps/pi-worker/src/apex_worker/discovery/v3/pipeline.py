@@ -48,10 +48,14 @@ class ExperimentPlan:
     hypotheses: tuple[HypothesisSpec, ...]
     fixture_only: bool = False  # engine smoke plans can never run on real data
     notes: str = ""
+    objective_id: str = "obj-v3-1"  # objective.OBJECTIVES key; hashed only when not the default (pilot-1 sha unchanged)
 
     def sha256(self) -> str:
-        return sha256_json({"plan_id": self.plan_id, "hypotheses": [h.sha256() for h in self.hypotheses],
-                            "fixture_only": self.fixture_only})
+        body = {"plan_id": self.plan_id, "hypotheses": [h.sha256() for h in self.hypotheses],
+                "fixture_only": self.fixture_only}
+        if self.objective_id != "obj-v3-1":
+            body["objective_id"] = self.objective_id
+        return sha256_json(body)
 
 
 @dataclass
@@ -78,7 +82,9 @@ def _trades(rows: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=["symbol", "sector", "entry_index", "exit_index", "entry_price", "exit_price",
                                      "priority"])
     f = rows[rows["filled"].astype(bool)]
-    return f[["symbol", "sector", "entry_index", "exit_index", "entry_price", "exit_price", "priority"]].copy()
+    out = f[["symbol", "sector", "entry_index", "exit_index", "entry_price", "exit_price", "priority"]].copy()
+    out["exit_kind"] = f["outcome"].astype(str).to_numpy() if "outcome" in f else "TIME"
+    return out
 
 
 def _control_trades(rows: pd.DataFrame, pre: S.Prepared, j: int) -> pd.DataFrame:
@@ -89,25 +95,44 @@ def _control_trades(rows: pd.DataFrame, pre: S.Prepared, j: int) -> pd.DataFrame
         if ts and j < len(ts) and ts[j].filled:
             recs.append({"symbol": syms[j], "sector": pre.sector.get(syms[j]), "entry_index": ts[j].entry_index,
                          "exit_index": ts[j].pess.exit_index, "entry_price": ts[j].entry_price,
-                         "exit_price": ts[j].pess.exit_price, "priority": pri})
+                         "exit_price": ts[j].pess.exit_price, "priority": pri, "exit_kind": ts[j].pess.outcome})
     return pd.DataFrame(recs) if recs else _trades(None)
 
 
-def _weights_result(w: pd.DataFrame, pre: S.Prepared, lo: int, hi: int, cost: float) -> PF.PortfolioResult:
+def _weights_result(w: pd.DataFrame, pre: S.Prepared, lo: int, hi: int, cost: float, at: str = "open"
+                    ) -> PF.PortfolioResult:
     cols = list(w.columns)
     opens = {s: pre.bars[s]["open"].astype(float) for s in cols}
     closes = {s: pre.bars[s]["close"].astype(float) for s in cols}
-    r, x, _xo = allocation_returns(w.reindex(pre.sessions), opens, closes, cost, with_open_exposure=True)
+    if at == "close":
+        r, x = PF.close_rebalance_returns(w.reindex(pre.sessions), closes, cost)
+    else:
+        r, x, _xo = allocation_returns(w.reindex(pre.sessions), opens, closes, cost, with_open_exposure=True)
     rr, xx = r.iloc[lo : hi + 1].to_numpy(float), x.iloc[lo : hi + 1].to_numpy(float)
     eq = np.cumprod(1 + rr)
     tw = w.reindex(pre.sessions).iloc[: hi + 1].dropna(how="all").fillna(0.0)
     traded = float(tw.diff().abs().sum(axis=1).iloc[1:].sum() + tw.iloc[0].abs().sum()) if len(tw) else 0.0
-    return PF.PortfolioResult(rr, eq, xx, np.zeros(len(rr)), len(tw), {}, traded * float(np.mean(eq)), 0.0, 0.0,
+    notional = traded * float(np.mean(eq))
+    return PF.PortfolioResult(rr, eq, xx, np.zeros(len(rr)), len(tw), {}, notional, 0.0, 0.0,
                               float(np.sum(xx * eq)), int((tw > 0).sum(axis=1).max()) if len(tw) else 0, lo, hi,
-                              ["WEIGHTS agent: costs inside returns; turnover approximated from target-weight changes"])
+                              ["WEIGHTS agent: costs inside returns; turnover approximated from target-weight changes"],
+                              stock_traded_notional=notional)
 
 
-def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
+def _side_costs(pol: PolicySpec, at: str) -> tuple[float, float, float]:
+    """(entry, time-exit, stop/target-exit) bps per side: the policy's uniform cost (pilot 1), or its registered cost
+    model by execution instant (entries at the open or the close; time exits at the close; exits inside a session)."""
+    cm = pol.params.get("cost_model")
+    if cm is None:
+        c = pol.cost_bps_per_side
+        return c, c, c
+    from apex_worker.discovery.v3.costs import COST_MODELS
+
+    m = COST_MODELS[cm]
+    return m[at], m["close"], m["stop"]
+
+
+def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999, obj: O.Objective = O.PRINCIPAL_OBJECTIVE) -> dict:
     pre, b, q = data.pre, data.b, data.quarantine
     lo, hi = b.dev_range
     end = min(len(pre.sessions) - 1, hi + LABEL + 3)  # every exit of a decision in the window is inside the book
@@ -115,29 +140,64 @@ def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
     closes = {s: pre.market.c[s] for s in pre.market.symbols}
     out: dict = {"policy_id": pol.policy_id, "policy_sha256": pol.sha256(), "selector": pol.selector, "arm": pol.arm,
                  "allocation": pol.allocation.__dict__, "cost_bps_per_side": pol.cost_bps_per_side}
+    cm = pol.params.get("cost_model")
     ctrl_r = None
     if pol.arm == "WEIGHTS":
+        at = pol.params.get("execution_at", "open")
+        cost = _side_costs(pol, at)[0]
         w = A.WEIGHT_AGENTS[pol.selector](pre, b, pol.params)
-        port = _weights_result(w, pre, lo, end, pol.cost_bps_per_side)
-        zero = _weights_result(w, pre, lo, end, 0.0)
+        port = _weights_result(w, pre, lo, end, cost, at)
+        zero = _weights_result(w, pre, lo, end, 0.0, at)
         out["signals"] = {"rebalance_rows": port.taken}
+        out["execution_at"], out["side_costs_bps"] = at, {"rebalance": cost}
+        if cm is not None:
+            from apex_worker.discovery.v3.costs import COST_MODELS
+
+            stress = COST_MODELS[cm]["stress_uniform"]
+            out["cost_sensitivity"] = {f"{stress:g}bps_uniform": PF.metrics(
+                _weights_result(w, pre, lo, end, stress, at).returns)}
+        if pol.params.get("random_books"):  # the registered selection test: the same book with random ranks, 0 cost
+            k = int(pol.params["random_books"])
+            rnd = [_weights_result(A.WEIGHT_AGENTS["random_buffered"](pre, b, {**pol.params, "seed": 20261023 + j}),
+                                   pre, lo, end, 0.0, at) for j in range(k)]
+            g = np.array([PF.metrics(x.returns)["log_growth_annual"] for x in rnd], float)
+            g0 = PF.metrics(zero.returns)["log_growth_annual"]
+            out["selection_vs_random_books"] = {
+                "k": k, "basis": "zero cost: selection only (random books turn over more, so costs would confound it)",
+                "test": PF.active_test(zero.returns, np.mean([x.returns for x in rnd], axis=0), n_boot),
+                "random_log_growth": {"mean": PF._r(g.mean()), "p10": PF._r(np.percentile(g, 10)),
+                                      "p90": PF._r(np.percentile(g, 90))},
+                "primary_share_of_random_below": PF._r(float((g < g0).mean()), 4)}
     else:
         ex = execution_policy(pol)
+        at = "close" if ex.entry.arm == "EC" else "open"
+        ce, cx, cs = _side_costs(pol, at)
         extra = max(0, ex.exit.horizon_sessions - S.P["execution"]["horizon_sessions"])
         bb = replace(b, dev_range=(lo, hi - extra)) if extra else b  # a longer hold stops deciding earlier
         sigs = A.SELECTORS[pol.selector](pre, bb, pol.params)
-        run = S.run_arm(pol.params.get("seed_name", pol.policy_id), pol.arm, sigs, pre, bb, q,
+        seed_arm = "E0" + pol.arm[2:] if ex.entry.arm == "EC" else pol.arm  # EC keeps E0's matched-control draws
+        run = S.run_arm(pol.params.get("seed_name", pol.policy_id), seed_arm, sigs, pre, bb, q,
                         stop_k=pol.params.get("stop_atr"), policy=ex)
         out["execution"] = ex.to_dict()
+        out["execution_at"], out["side_costs_bps"] = at, {"entry": ce, "time_exit": cx, "stop_exit": cs}
         rows = run.rows
         trades = _trades(rows)
-        port = PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end, pol.allocation, pol.cost_bps_per_side)
-        zero = PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end, pol.allocation, 0.0, 0.0)
-        out["cost_sensitivity"] = {f"{c}bps": PF.metrics(PF.run_portfolio(trades, closes, spy_open, spy_close, lo, end,
-                                                                          pol.allocation, float(c)).returns)
-                                   for c in (10, 50)}
-        books = [PF.run_portfolio(_control_trades(rows, pre, j), closes, spy_open, spy_close, lo, end, pol.allocation,
-                                  pol.cost_bps_per_side) for j in range(K)]
+
+        def book(tr: pd.DataFrame, e: float, x: float, s_: float, idle: float = PF.ETF_COST_BPS) -> PF.PortfolioResult:
+            return PF.run_portfolio(tr, closes, spy_open, spy_close, lo, end, pol.allocation, e, idle, entry_at=at,
+                                    entry_cost_bps=e, exit_cost_bps=x, stop_exit_cost_bps=s_)
+
+        port = book(trades, ce, cx, cs)
+        zero = book(trades, 0.0, 0.0, 0.0, 0.0)
+        if cm is None:
+            out["cost_sensitivity"] = {f"{c}bps": PF.metrics(book(trades, float(c), float(c), float(c)).returns)
+                                       for c in (10, 50)}
+        else:
+            from apex_worker.discovery.v3.costs import COST_MODELS
+
+            stress = COST_MODELS[cm]["stress_uniform"]
+            out["cost_sensitivity"] = {f"{stress:g}bps_uniform": PF.metrics(book(trades, stress, stress, stress).returns)}
+        books = [book(_control_trades(rows, pre, j), ce, cx, cs) for j in range(K)]
         books = [x for x in books if x.taken > 0]
         if books:
             ctrl_r = np.mean([x.returns for x in books], axis=0)
@@ -159,19 +219,20 @@ def evaluate_policy(pol: PolicySpec, data: Loaded, n_boot: int = 999) -> dict:
             "decomposition": PF.decompose(port.returns, spy=PF.spy_returns(spy_close, lo, end),
                                           exposure_matched=bench["exposure_matched"], controls=ctrl_r,
                                           zero_cost=zero.returns),
-            "objective": O.evaluate(m, active),
+            "objective": O.evaluate(m, active, obj, comparator=PF.metrics(bench[comparator])),
             "cost_sensitivity_note": "the zero-cost book bounds the friction; 25 bps/side is an assumption, not a "
-            "measured spread"}
+            "measured spread" if cm is None else f"costs from the registered model {cm} (measured; stop exits assumed)"}
     return out
 
 
 def execution_policy(pol: PolicySpec) -> ExecutionPolicy:
     """The registered arm's execution_v2 policy at the policy's cost, with an optional registered `horizon`."""
     base = S.arm_policy(pol.arm)
+    entry = replace(base.entry, arm="EC") if pol.arm.startswith("EC") else base.entry  # pilot 2: limit-on-close entry
     h = int(pol.params.get("horizon", base.exit.horizon_sessions))
     if not 5 <= h <= 60:
         raise ValueError("horizon must be 5..60 sessions")
-    return ExecutionPolicy(base.entry, replace(base.exit, horizon_sessions=h), Costs(pol.cost_bps_per_side))
+    return ExecutionPolicy(entry, replace(base.exit, horizon_sessions=h), Costs(pol.cost_bps_per_side))
 
 
 def disposition(res: dict, holm_p: float | None, obj: O.Objective = O.PRINCIPAL_OBJECTIVE) -> tuple[str, list[str]]:
@@ -220,7 +281,7 @@ def run_experiment(plan: ExperimentPlan, data: Loaded, out_dir: Path, *, experim
     S.OPEN = data.pre.open_sessions
     lo, hi = data.b.dev_range
     window = EvaluationWindow(data.pre.sessions[lo].date().isoformat(), data.pre.sessions[hi].date().isoformat())
-    obj = O.PRINCIPAL_OBJECTIVE
+    obj = O.OBJECTIVES[plan.objective_id]
     reg = TrialRegistry(out_dir / "registry.jsonl")
     trials: dict[str, tuple[HypothesisSpec, PolicySpec]] = {}
     for h in plan.hypotheses:
@@ -245,7 +306,8 @@ def run_experiment(plan: ExperimentPlan, data: Loaded, out_dir: Path, *, experim
             results[tid] = {"hypothesis_id": h.hypothesis_id, "policy_id": pol.policy_id, "disposition": "SOURCE_BLOCKED"}
             continue
         reg.look(tid, "the single registered DEV evaluation")
-        results[tid] = {"hypothesis_id": h.hypothesis_id, "family_id": h.family_id} | evaluate_policy(pol, data, n_boot)
+        results[tid] = {"hypothesis_id": h.hypothesis_id, "family_id": h.family_id} | evaluate_policy(pol, data, n_boot,
+                                                                                                       obj)
         progress(f"{tid} {pol.policy_id}: active vs {results[tid]['comparator']} "
                  f"{results[tid]['active_vs_comparator'].get('active_log_growth_annual')}")
     pv = {t: r.get("active_vs_comparator", {}).get("p_one_sided") for t, r in results.items()
