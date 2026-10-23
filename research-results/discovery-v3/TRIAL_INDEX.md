@@ -9,8 +9,9 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 | Batch | Run | Code | Plan (sha256) | Trials | Dispositions |
 |---|---|---|---|---|---|
 | [`v3-pilot-1-2026-10-23`](v3-pilot-1-2026-10-23/) ([review](v3-pilot-1-2026-10-23/REVIEW.md), [decision report](v3-pilot-1-2026-10-23/DECISION_REPORT.md)) | [39884381394](https://github.com/JaredVogler2/STONKS2026/actions/runs/39884381394), 2026-10-23 | `dddf352` | `v3-pilot-1` (`11d0af37…ae2c7`) | 10 | **10 REJECTED_DEV.** Aggregate NO_TRADE; nothing nominated |
+| [`v3-pilot-2-2026-10-23`](v3-pilot-2-2026-10-23/) ([review](v3-pilot-2-2026-10-23/REVIEW.md), [decision report](v3-pilot-2-2026-10-23/DECISION_REPORT.md)) | [39921190552](https://github.com/JaredVogler2/STONKS2026/actions/runs/39921190552), 2026-10-23 | `ed8c8e5` | `v3-pilot-2` (`5a2cc40c…8c0e`), `obj-v3-2`, `cost-v3-2` | 7 | **5 REJECTED_DEV, 2 INCONCLUSIVE_DEV** (G2 quarterly buffered momentum, +8.6 pp/yr vs SPY, Holm 0.62; risk-loaded, survivorship-exposed). Aggregate NO_TRADE; nothing nominated |
 
-**Cumulative real-data V3 trials:** 10. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2.
+**Cumulative real-data V3 trials:** 17. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2. Measurements (not trials): `cost-study-1-2026-10-23`.
 
 ## `v3-pilot-1-2026-10-23`
 
@@ -37,3 +38,31 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 - **O-1:** the −30% drawdown floor is tighter than SPY's own −34.2%.
 - **A-2:** SPY sweep trades count toward turnover.
 - **R-1:** the random ablation is a single path.
+
+## `v3-pilot-2-2026-10-23`
+
+- **Data:** the same DEV window and dataset as pilot 1, **contaminated twice**.
+- **Costs:** the measured cost model `cost-v3-2` (open 21 bps, close 2, stop exits 25 assumed).
+- **Objective:** `obj-v3-2`.
+- **Holm:** over the 7 trials.
+- **Benchmark:** SPY +13.5% a year.
+
+| Trial | Hypothesis | Policy | Axis | Disposition | Active log growth / yr vs SPY | One-sided p | Holm p | Looks |
+|---|---|---|---|---|---|---|---|---|
+| `t-8a482bf362c5f2e0` | g1-s1-close-execution | g1-s1-close-spy-idle | primary | REJECTED_DEV | −0.0352 | 0.927 | 1.0 | 1 |
+| `t-e094bc6c63e4a766` | g1-s1-close-execution | g1-s1-open-spy-idle | entry | REJECTED_DEV | −0.0534 | 0.966 | 1.0 | 1 |
+| `t-cf2725f130cf882a` | g2-low-turnover-momentum | g2-momentum-quarterly-buffered-close | primary | INCONCLUSIVE_DEV | +0.0862 | 0.092 | 0.623 | 1 |
+| `t-14060656d1f3c401` | g2-low-turnover-momentum | g2-momentum-quarterly-buffered-open | entry | INCONCLUSIVE_DEV | +0.0866 | 0.089 | 0.623 | 1 |
+| `t-d7e00ad1ae7c87c0` | g2-low-turnover-momentum | g2-momentum-monthly-unbuffered-close | exit | REJECTED_DEV (drawdown) | +0.0335 | 0.289 | 1.0 | 1 |
+| `t-87814b11e0e9d9fd` | g3-dispersion-gated-close | g3-momentum-swing-dispersion-gate-close | primary | REJECTED_DEV | −0.0292 | 0.822 | 1.0 | 1 |
+| `t-7825e3a20df7b343` | g3-dispersion-gated-close | g3-momentum-swing-ungated-close | market_filter | REJECTED_DEV | −0.0388 | 0.831 | 1.0 | 1 |
+
+**G2's selection test** (zero cost, against 20 random buffered books): +11.4 pp a year, p 0.074. It beat all 20 books.
+
+**Disclosed with the result** ([REVIEW.md §3](v3-pilot-2-2026-10-23/REVIEW.md)):
+- **P2-1:** survivorship × momentum is not removed by the control.
+- **P2-2:** beta 1.2 and volatility 35%; risk-adjusted below SPY.
+- **P2-3:** timing is irrelevant at low turnover.
+- **P2-4:** the gain decomposes into the mask and costs plus the buffer.
+- **P2-5:** S1's selection value is partly earned on the entry day.
+- **P2-6:** forking paths.
