@@ -37,4 +37,5 @@ For independent scrutiny, [real-equities/ADVERSARIAL_REVIEW_BRIEF.md](real-equit
 ## Pending run
 
 - **Historical:** none. The protocol-2 PRESAMPLE look is used, and the window is exposed, so it is never re-evaluated.
-- **Next:** the registered forward shadow (decisions from 2026-10-23; [plan](../docs/quant-v2/FORWARD_SHADOW_PLAN.md)). Any new historical experiment needs a new pre-registered protocol version.
+- **Next:** the registered forward shadow (decisions from 2026-10-23; [plan](../docs/quant-v2/FORWARD_SHADOW_PLAN.md), [runbook](../docs/discovery-v3/FORWARD_SHADOW.md)). Any new historical experiment needs a new pre-registered protocol version.
+- **Discovery V3:** DEV experiments on contaminated history (diagnostics only) go under `discovery-v3/<experiment_id>/`; every trial, losers included, is listed in [discovery-v3/TRIAL_INDEX.md](discovery-v3/TRIAL_INDEX.md).

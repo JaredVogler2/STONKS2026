@@ -91,3 +91,6 @@ def register(sub) -> None:
     from apex_worker.research.forward.cli import register as register_forward_shadow
 
     register_forward_shadow(rsub)  # `apex research forward-shadow run|verify|health|export|smoke`
+    from apex_worker.discovery.v3.cli import register as register_discovery
+
+    register_discovery(rsub)  # `apex research discovery plans|run`

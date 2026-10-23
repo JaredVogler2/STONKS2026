@@ -1,0 +1,114 @@
+# Manual, research-only Discovery V3 DEV experiment (amendments/discovery-v3-2026-10-22/08 section 1.B;
+# docs/discovery-v3/RESEARCH_PROTOCOL.md).
+#
+#   minutes checkpoint -> fresh bounded Alpaca historical SIP download (protocol-2 path: 2016-01-04 start, finality lag,
+#   quality inventory, quarantine) -> the registered plan's manifest frozen and every trial registered BEFORE any metric
+#   -> engine self-checks -> policies vs CASH / SPY / exposure-matched SPY/cash and matched-control books -> Holm over
+#   every registered trial -> aggregate files only -> 7-day artifact. Publishing is a reviewed PR that copies the
+#   artifact into research-results/discovery-v3/<experiment_id>/.
+#
+# * Research only: no orders, alerts, Discord, model signing or promotion; contents: read only, never pushes.
+# * Only a plan already committed on main can run (`apex research discovery plans`); engine-smoke plans are fixture-only
+#   and refused here. History before 2026-10-23 is DEV_CONTAMINATED: results are diagnostics, never validation.
+# * Secrets: ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY of the `real-equities-research` environment (deployment branch
+#   main), in the research step only; missing keys fail the run, no synthetic fallback. No raw OHLCV leaves the runner.
+# * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
+# Actions pinned to full commit SHAs (version in the trailing comment).
+name: apex-discovery-v3
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan:
+        description: "Registered plan id (committed on main; see apex research discovery plans)"
+        required: true
+        type: string
+      experiment_id:
+        description: "Experiment label: lower-case letters, digits and single hyphens, e.g. v3-pilot-1-2026-10-25"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apex-discovery-v3
+  cancel-in-progress: false
+
+jobs:
+  research:
+    name: research
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: real-equities-research
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RESEARCH_ONLY: "true"
+      APEX_ACTIONS_MONTHLY_BUDGET: ${{ vars.APEX_ACTIONS_MONTHLY_BUDGET }}
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Record start
+        working-directory: .
+        run: |
+          echo "APEX_OUT=$RUNNER_TEMP/apex-discovery" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-discovery/report"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Minutes checkpoint (before any data fetch)
+        id: budget
+        run: |
+          set +e
+          uv run --no-sync apex research budget-check --timeout-minutes 45 --out "$APEX_OUT/budget.json"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 3 ]; then echo "::warning title=SKIPPED_BUDGET::worst-case Actions minutes exceed the configured budget; nothing was fetched"; fi
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then exit "$rc"; fi
+      - name: Discovery V3 DEV experiment (Alpaca historical SIP, research only)
+        id: research
+        if: steps.budget.outputs.proceed == 'true'
+        timeout-minutes: 40
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          PLAN: ${{ inputs.plan }}
+          EXPERIMENT_ID: ${{ inputs.experiment_id }}
+        run: |
+          if ! [[ "$PLAN" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "::error::plan must be a registered slug"; exit 5; fi
+          if ! [[ "$EXPERIMENT_ID" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "::error::experiment_id must be a slug"; exit 5; fi
+          uv run --no-sync apex research discovery run --plan "$PLAN" --source alpaca \
+            --experiment-id "$EXPERIMENT_ID" --out "$APEX_OUT/report"
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$APEX_OUT/report/TRIAL_INDEX.md" ]; then cat "$APEX_OUT/report/TRIAL_INDEX.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f "$APEX_OUT/budget.json" ]; then { echo; echo '```json'; cat "$APEX_OUT/budget.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Upload the aggregate research files (short retention)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-discovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apex-discovery/report/manifest.json
+            ${{ runner.temp }}/apex-discovery/report/registry.jsonl
+            ${{ runner.temp }}/apex-discovery/report/results.json
+            ${{ runner.temp }}/apex-discovery/report/frontier.json
+            ${{ runner.temp }}/apex-discovery/report/TRIAL_INDEX.md
+            ${{ runner.temp }}/apex-discovery/report/data_quality_summary.json
+          retention-days: 7
+          if-no-files-found: ignore
