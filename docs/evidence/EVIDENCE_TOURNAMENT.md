@@ -28,7 +28,7 @@
 - **Capital follows evidence.** The paper book holds each candidate in proportion to its prior times its evidence.
 - **Claims are anytime-valid.** Over every candidate ever admitted, the chance of a false claim stays at most α, under continuous monitoring and unlimited admissions.
 
-**The design rule (§4).** Evidence arrives at most at IR²/2 a year, and only with a declared, checked bound on one-session losses. So candidates should be designed for **information rate**, not for return:
+**The design rule (§4).** Evidence arrives at most at IR²/2 a year, and approaches that rate only with a declared, checked bound on one-session losses. So candidates should be designed for **information rate**, not for return:
 - diversified, low-tracking-error tilts or twin-paired books;
 - not concentrated 5–10 name books.
 
@@ -40,7 +40,10 @@
 **What the battery shows** ([EPA_BATTERY.md](EPA_BATTERY.md)):
 - **Monitoring.** Reading a t-test on the forward shadow at every session gives a **34%** false-claim rate where 5% is nominal. The e-process: **0%**.
 - **Velocity.** Without an assumption, no realistic candidate reaches evidence 20 within 20 years. With a checked loss bound, a diversified tilt at IR 1.5 does so within 10 years on 86% of paths.
-- **Allocation policies** (null, mirage, weak, strong and decaying edges, in two worlds): the full run is in progress. Its results are added to [EPA_BATTERY.md](EPA_BATTERY.md) §C and to this summary.
+- **Mirage worlds**, where the backtest edge is not real: the program's current Holm-gated rule validates the mirage in **19%** of concentrated-book universes and **94%** of tilt universes. The tournament: at most 0.1%.
+- **Strong honest edges:** the prior-informed, evidence-weighted book earns +3.7% a year on concentrated books (the current rule: +2.9%) and +3.2% on tilts (the current rule: +3.9%). Naive backtest selection gains most on average, but loses 3.1% a year when no edge exists, and 55% of those universes end 20% or more behind SPY.
+- **Cost:** with no edge anywhere, the tournament costs 0.1–0.8% a year against SPY on paper, depending on the book and the world.
+- **Downside:** on concentrated books, the evidence-weighted book ends 20% or more behind SPY in 14–19% of no-edge universes. On diversified tilts this never happened.
 
 **What it does not do:**
 - It does not create an edge.
@@ -161,6 +164,7 @@ Let u be the prior mass of "no candidate beats SPY", held in SPY (default 0.5).
 - This is Bayesian model averaging with e-values as likelihood ratios.
 - Weights are long-only and sum to at most 1. So the book's relative wealth is itself a nonnegative supermartingale under the global null (`test_evidence_weighted_book_is_a_supermartingale_under_the_global_null`).
 - The streaming class matches the vectorised path exactly (`test_evidence_weighted_book_streaming_matches_the_path_and_follows_evidence`).
+- **Caution for concentrated candidates.** The book holds a candidate at full weight within its share. With ten concentrated books (TE 10–25%) at 50% of the book, it ended 20% or more behind SPY in 14–19% of no-edge universes over 10 years; the mixture book never did ([battery C](EPA_BATTERY.md)). Give concentrated candidates small prior masses, or use the mixture book for them.
 
 **`mixture`:**
 - The literal identity: the book holds every sub-account, and its relative wealth is exactly B = u + (1 − u)G.

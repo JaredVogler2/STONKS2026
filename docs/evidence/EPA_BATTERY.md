@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Script | `apps/pi-worker/bench/epa_battery.py`. Synthetic and seeded; no market data is read |
-| Outputs | `docs/evidence/battery/{size,velocity}.json` (and `multiverse.json` once its run completes), byte-for-byte the script's stdout |
+| Outputs | `docs/evidence/battery/{size,velocity,multiverse}.json`, byte-for-byte the script's stdout |
 | Run | 2026-10-23, numpy 2.5.4, Python 3.13 |
 | Commands | `uv run python bench/epa_battery.py size 4000`<br>`... velocity 400`<br>`... multiverse 1000` |
 | Method | [EVIDENCE_TOURNAMENT.md](EVIDENCE_TOURNAMENT.md) |
@@ -57,4 +57,81 @@ Setup: 400 paths of 30 years per case. The bet is unknown (λ-grid mixture), com
 
 ## C. Multiverse of allocation policies
 
-**Pending.** The 1,000-universe run (two worlds × five scenarios) is in progress. Its results will be added here, unedited, together with `battery/multiverse.json`.
+**Setup.**
+- 1,000 universes per scenario, in two worlds of 10 candidates each.
+- Each universe has a 7-year backtest window followed by a 10-year deployment window.
+- Candidate 0's alpha is given as (backtest / deployment years 0–3 / deployment years 3–10). Every other candidate carries the world's null alpha (its costs).
+- A **mirage** is an edge that exists only in the backtest: survivorship, forking paths or overfitting. That is the program's situation on DEV.
+- Tournament policies (P2–P2d) admit all 10 candidates at the start of deployment with null mass 0.5. Their claims need evidence of 1/(0.05 γ_k), which is 200 under a uniform prior.
+
+**Policies.**
+- P1 holds the candidate with the best backtest log growth.
+- P1h holds the best candidate only if its one-sided p passes Holm's first step over the 10 candidates, otherwise SPY. This is the program's current rule.
+- P2/P2b use the mixture book (the literal identity).
+- P2c/P2d use the evidence-weighted book, with bounded-loss evidence while the bound holds.
+- A "backtest prior" sets γ ∝ exp(backtest t-statistic): valid, because it is fixed before deployment.
+- P3, the oracle, knows the true alpha path and holds the best constant bet up to 1.
+
+### Concentrated long-only books (tracking error 10%–25%, null alpha -1.0%, loss bound 0.2)
+
+Mean relative log growth against SPY, % a year over the 10 deployment years; in brackets, the share of universes ending 20% or more behind SPY.
+
+| Policy | null (-1.0% / -1.0% / -1.0%) | mirage (+10.0% / -1.0% / -1.0%) | weak-edge (+4.0% / +4.0% / +4.0%) | strong-edge (+12.0% / +12.0% / +12.0%) | decay (+12.0% / +12.0% / -1.0%) |
+|---|---|---|---|---|---|
+| P0 SPY only | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) |
+| P1 deploy the best backtest | -3.13 (55%) | -3.07 (55%) | -0.94 (40%) | +7.51 (13%) | +0.03 (31%) |
+| P1h deploy if Holm passes (current rule) | -0.05 (1%) | -0.45 (10%) | +0.06 (2%) | +2.86 (1%) | +0.38 (6%) |
+| P2 tournament, mixture book, uniform prior | -0.30 (0%) | -0.32 (0%) | -0.13 (0%) | +0.20 (0%) | -0.16 (0%) |
+| P2b mixture book, backtest prior | -0.30 (0%) | -0.32 (0%) | -0.01 (0%) | +1.45 (0%) | +0.10 (0%) |
+| P2c evidence-weighted book, uniform prior | -0.72 (14%) | -0.77 (16%) | -0.34 (12%) | +1.02 (4%) | -0.41 (10%) |
+| P2d evidence-weighted book, backtest prior | -0.74 (17%) | -0.80 (19%) | -0.09 (12%) | +3.73 (2%) | +0.15 (9%) |
+| P3 oracle (knows the truth) | +0.00 (0%) | +0.00 (0%) | +2.31 (19%) | +10.39 (2%) | +2.93 (6%) |
+
+Claims per universe, false / true (a false claim names a candidate whose null held through the claim):
+
+| Policy | null | mirage | weak-edge | strong-edge | decay |
+|---|---|---|---|---|---|
+| P1h deploy if Holm passes (current rule) | 0.027 / 0.000 | 0.189 / 0.000 | 0.028 / 0.031 | 0.012 / 0.275 | 0.008 / 0.291 |
+| P2 tournament, mixture book, uniform prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 |
+| P2b mixture book, backtest prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 |
+| P2c evidence-weighted book, uniform prior | 0.002 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.030 | 0.000 / 0.000 |
+| P2d evidence-weighted book, backtest prior | 0.001 / 0.000 | 0.001 / 0.000 | 0.000 / 0.002 | 0.000 / 0.110 (void 0.001) | 0.000 / 0.004 |
+
+### Diversified index tilts (tracking error 2%–4%, null alpha -0.5%, loss bound 0.05)
+
+Mean relative log growth against SPY, % a year over the 10 deployment years; in brackets, the share of universes ending 20% or more behind SPY.
+
+| Policy | null (-0.5% / -0.5% / -0.5%) | mirage (+5.0% / -0.5% / -0.5%) | weak-edge (+2.0% / +2.0% / +2.0%) | strong-edge (+4.5% / +4.5% / +4.5%) | decay (+4.5% / +4.5% / -0.5%) |
+|---|---|---|---|---|---|
+| P0 SPY only | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) | +0.00 (0%) |
+| P1 deploy the best backtest | -0.55 (6%) | -0.53 (4%) | +1.50 (1%) | +4.43 (0%) | +0.94 (0%) |
+| P1h deploy if Holm passes (current rule) | -0.00 (0%) | -0.51 (4%) | +0.52 (0%) | +3.94 (0%) | +0.83 (0%) |
+| P2 tournament, mixture book, uniform prior | -0.11 (0%) | -0.11 (0%) | -0.05 (0%) | +0.02 (0%) | -0.07 (0%) |
+| P2b mixture book, backtest prior | -0.11 (0%) | -0.11 (0%) | +0.16 (0%) | +0.94 (0%) | +0.17 (0%) |
+| P2c evidence-weighted book, uniform prior | -0.26 (0%) | -0.26 (0%) | -0.04 (0%) | +1.18 (0%) | -0.15 (0%) |
+| P2d evidence-weighted book, backtest prior | -0.26 (0%) | -0.25 (0%) | +0.52 (0%) | +3.19 (0%) | +0.41 (0%) |
+| P3 oracle (knows the truth) | +0.00 (0%) | +0.00 (0%) | +1.93 (0%) | +4.46 (0%) | +1.31 (0%) |
+
+Claims per universe, false / true (a false claim names a candidate whose null held through the claim):
+
+| Policy | null | mirage | weak-edge | strong-edge | decay |
+|---|---|---|---|---|---|
+| P1h deploy if Holm passes (current rule) | 0.006 / 0.000 | 0.937 / 0.000 | 0.007 / 0.271 | 0.001 / 0.881 | 0.002 / 0.884 |
+| P2 tournament, mixture book, uniform prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 |
+| P2b mixture book, backtest prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.000 |
+| P2c evidence-weighted book, uniform prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.001 | 0.000 / 0.345 | 0.000 / 0.000 |
+| P2d evidence-weighted book, backtest prior | 0.000 / 0.000 | 0.000 / 0.000 | 0.000 / 0.015 | 0.000 / 0.804 (void 0.003) | 0.000 / 0.006 |
+
+**Reading.**
+1. **Validity.** The current rule validates mirages: in **19%** of concentrated-book mirage universes and **94%** of tilt mirage universes. Every tournament variant stays at or below 0.002 false claims per universe in every scenario.
+2. **No edge anywhere.**
+   - Naive backtest selection loses 3.1% a year against SPY on concentrated books, and 55% of universes end 20% or more behind.
+   - The current rule stays close to SPY.
+   - The tournament costs 0.1–0.3% a year with the mixture book, and 0.3–0.8% with the evidence-weighted book.
+3. **An honest strong edge.**
+   - Naive selection gains most on average (+7.5% / +4.4% a year), with heavy tails.
+   - The prior-informed evidence-weighted book (P2d) earns **+3.7%** on concentrated books, above the current rule's +2.9%, and **+3.2%** on tilts (81% of the current rule's +3.9%).
+   - P2d makes valid claims in 11% (books) and 80% (tilts) of universes within the 10 years.
+4. **The trade-off.** On concentrated books the evidence-weighted book holds candidates at full weight. It ends 20% or more behind SPY in 14–19% of no-edge universes; the mixture book never does. On diversified tilts, no tournament variant ever ends 20% behind. The design rule again: diversified designs make the tournament both faster and safer.
+5. **Where a backtest is honest, it is informative.** In the strong-edge and decay scenarios, the backtest window carries the true edge, so backtest rules capture more in the early years. In decay, the tournament's slower start costs more than its quicker exit saves (+0.15% / +0.41% against the current rule's +0.38% / +0.83%). The tournament's advantage is that it never needs the backtest to be honest, and the program's DEV history is not.
+6. **No method approaches the oracle on concentrated books** (+10.4% with a strong edge). The binding constraint is evidence, not allocation.
