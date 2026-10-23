@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | **Implemented, not yet recording.** Until the owner sets the repository variable `APEX_TOURNAMENT_LANE` to `on` (§6), every scheduled run is a dry run: it rehearses the real data path against an in-memory ledger and posts nothing |
+| Status | **Recording since 2026-10-23**, when the owner set the repository variable `APEX_TOURNAMENT_LANE` to `on` (§6).<br>- The first real pass, [run 40013334668](https://github.com/JaredVogler2/STONKS2026/actions/runs/40013334668) on `a767041`, posted the genesis record at 19:41:19 UTC.<br>- Fetched back and verified: digest `b1d7b677…`, configuration sha256 `888f3ade…`, behaviour fingerprint `f6064b1f…`.<br>- The first decision is for session 2026-10-26. Deleting the variable pauses recording |
 | Evidence tier | `PROSPECTIVE_EXPLORATORY`, never confirmatory. Interim reading is valid by design (anytime-valid evidence) |
 | Mode | **Research only:**<br>- paper books;<br>- no orders, alerts, Discord signals or promotion;<br>- `HIGH_CONVICTION` and `GROUP_ACTIONABLE` stay disabled;<br>- the frozen lane `qv2a1-frozen-v1` is untouched |
 | Method | [EVIDENCE_TOURNAMENT.md](EVIDENCE_TOURNAMENT.md) (why), [EPA_BATTERY.md](EPA_BATTERY.md) (simulated behaviour) |
 | Code | - Decision logic: `apex_worker/discovery/v3/tournament_books.py`.<br>- Lane, replay and recorder: `apex_worker/research/forward/tournament_lane.py`.<br>- Registry entry: `research/forward/exploratory.py::EPA_TOURNAMENT`.<br>- Engine: `apex_worker/evidence/` |
 | Workflow | `.github/workflows/apex-evidence-tournament.yml`, weekdays at 18:42 and 22:22 New York time. One pass records every cohort (cohort 1: [TOURNAMENT_COHORT_1.md](TOURNAMENT_COHORT_1.md)) from one market-data fetch |
-| Ledger | Its own GitHub issue, "APEX forward-shadow ledger · v3x-epa-tournament-v1 · vol 1", created by the first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
+| Ledger | [Issue #35](https://github.com/JaredVogler2/STONKS2026/issues/35), "APEX forward-shadow ledger · v3x-epa-tournament-v1 · vol 1", created by the first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
 | Approved | By the owner, 2026-10-23. Corrected before genesis, the same day: each candidate's prior mass is split across its claim tests, so every claim of every candidate shares one α (§1). The genesis record carries the corrected configuration |
 
 ## 1. Registered slate (cohort 0)

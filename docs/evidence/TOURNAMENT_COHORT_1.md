@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| Status | **Implemented.** It records together with cohort 0. The same repository variable, `APEX_TOURNAMENT_LANE` = `on`, activates both; until it is set, every run is a dry rehearsal that posts nothing |
+| Status | **Recording since 2026-10-23**, together with cohort 0: the same repository variable, `APEX_TOURNAMENT_LANE` = `on`, activates both.<br>- The first real pass, [run 40013334668](https://github.com/JaredVogler2/STONKS2026/actions/runs/40013334668) on `a767041`, posted the genesis record at 19:41:22 UTC.<br>- Fetched back and verified: digest `64ea6d58…`, configuration sha256 `0546d1c8…`, behaviour fingerprint `09e110d6…`, cohort prior mass 0.20 with 0.65 used in all.<br>- The first decision is for session 2026-10-26 |
 | Evidence tier | `PROSPECTIVE_EXPLORATORY`, never confirmatory. Interim reading is valid by design (anytime-valid evidence) |
 | Mode | **Research only:**<br>- paper books;<br>- no orders, alerts, Discord signals or promotion;<br>- `HIGH_CONVICTION` and `GROUP_ACTIONABLE` stay disabled;<br>- cohort 0 (`v3x-epa-tournament-v1`) and the frozen lane are untouched |
 | Designs | The proposal of the registered design study [`design-study-1`](DESIGN_STUDY_1.md), adopted as registered ([results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)) |
 | Code | - Decision logic: `apex_worker/discovery/v3/tournament_books_c1.py`. It computes the study's own decisions (`discovery.v3.design.decide`, the study's plan restricted to its `full` variants).<br>- Lane: `apex_worker/research/forward/tournament_lane.py::COHORT_1`.<br>- Registry entry: `research/forward/exploratory.py::EPA_TOURNAMENT_C1` |
 | Workflow | `.github/workflows/apex-evidence-tournament.yml`, the same two weekday attempts as cohort 0. One pass records both cohorts from one market-data fetch (`apex research forward-shadow run-tournament`) |
-| Ledger | Its own GitHub issue, "APEX forward-shadow ledger · v3x-epa-tournament-c1-v1 · vol 1", created by its first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
+| Ledger | [Issue #36](https://github.com/JaredVogler2/STONKS2026/issues/36), "APEX forward-shadow ledger · v3x-epa-tournament-c1-v1 · vol 1", created by its first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
 | Approved | By the owner, 2026-10-23 |
 
 ## 1. Registered slate
