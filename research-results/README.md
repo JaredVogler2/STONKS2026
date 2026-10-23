@@ -1,8 +1,11 @@
 # APEX Empirical Research Results — Central Register
 
-**Current status (2026-10-22):** two real-equity experiments are completed, and both are **NO_TRADE**:
+**Current status (2026-10-23):** three real-data research batches are completed, and all are **NO_TRADE**:
 - protocol-1 r2;
-- the Quant V2 protocol-2 study `qv2-20261022-s1-s5-u1-presample`. In it, S1 and S3 are promising but not significant, and S2 and S5 failed with power.
+- the Quant V2 protocol-2 study `qv2-20261022-s1-s5-u1-presample`. In it, S1 and S3 are promising but not significant, and S2 and S5 failed with power;
+- the Discovery V3 DEV pilot `v3-pilot-1-2026-10-23`. All 10 portfolio-level trials trail their investable alternative net of costs (`REJECTED_DEV`), and nothing is nominated.
+
+The frozen forward shadow (`qv2a1-frozen-v1`) records prospective decisions from 2026-10-23.
 
 No hypothesis is validated. Do not treat synthetic smoke tests or market-data retrieval as validated backtest performance.
 
@@ -39,3 +42,9 @@ For independent scrutiny, [real-equities/ADVERSARIAL_REVIEW_BRIEF.md](real-equit
 - **Historical:** none. The protocol-2 PRESAMPLE look is used, and the window is exposed, so it is never re-evaluated.
 - **Next:** the registered forward shadow (decisions from 2026-10-23; [plan](../docs/quant-v2/FORWARD_SHADOW_PLAN.md), [runbook](../docs/discovery-v3/FORWARD_SHADOW.md)). Any new historical experiment needs a new pre-registered protocol version.
 - **Discovery V3:** DEV experiments on contaminated history (diagnostics only) go under `discovery-v3/<experiment_id>/`; every trial, losers included, is listed in [discovery-v3/TRIAL_INDEX.md](discovery-v3/TRIAL_INDEX.md).
+
+## Discovery V3 batches (DEV diagnostics on contaminated history; never validation)
+
+| Batch | Run | Code | Data | Result |
+|---|---|---|---|---|
+| [`v3-pilot-1-2026-10-23`](discovery-v3/v3-pilot-1-2026-10-23/) ([review](discovery-v3/v3-pilot-1-2026-10-23/REVIEW.md), [decision report](discovery-v3/v3-pilot-1-2026-10-23/DECISION_REPORT.md)) | [39884381394](https://github.com/JaredVogler2/STONKS2026/actions/runs/39884381394), 2026-10-23 | `dddf352`, plan `v3-pilot-1` (`11d0af37…`), `obj-v3-1` | Alpaca SIP daily, split-adjusted, U1 survivors; DEV 2019-10-23 → 2026-09-18; dataset `0339c815…` (the protocol-2 run's) | **NO_TRADE.** 10/10 REJECTED_DEV against SPY or exposure-matched SPY/cash, net 25 bps per side. Best primaries: F2 dispersion-gated −1.4 pp/yr, F5 momentum −1.9 pp/yr, F9 regime abstention −2.5 pp/yr (with a −23% drawdown against SPY's −34%). Friction is binding: F2 and F5 beat SPY only at zero cost |
