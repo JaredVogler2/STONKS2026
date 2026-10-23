@@ -1,0 +1,276 @@
+{
+ "battery": "velocity",
+ "level": 20.0,
+ "paths": 400,
+ "years": 30,
+ "cases": [
+  {
+   "name": "g2-at-dev-estimate",
+   "drift": 0.1221,
+   "tracking_error": 0.268,
+   "ir": 0.45559701492537313,
+   "loss_bound": 0.2,
+   "simulated": {
+    "assumption_free": {
+     "p_within": {
+      "5": 0.0,
+      "10": 0.0,
+      "20": 0.0225,
+      "30": 0.155
+     },
+     "median_years": null
+    },
+    "bounded_loss": {
+     "p_within": {
+      "5": 0.03,
+      "10": 0.095,
+      "20": 0.225,
+      "30": 0.3825
+     },
+     "median_years": null
+    },
+    "bounded_loss_violations": 0.2575
+   },
+   "analytic": {
+    "name": "g2-at-dev-estimate",
+    "log_growth": 0.08618799999999999,
+    "tracking_error": 0.268,
+    "drift": 0.12209999999999999,
+    "ir": 0.4555970149253731,
+    "alpha": 0.05,
+    "information_limit": {
+     "rate": 0.10378432000445531,
+     "years": 28.864979540506585
+    },
+    "assumption_free": {
+     "bet": 1.0,
+     "rate": 0.08618799999999999,
+     "years": 34.75811335167299,
+     "p_within": {
+      "5": 1.6489101115285528e-05,
+      "10": 0.009429208610927515,
+      "20": 0.19880659393205963,
+      "30": 0.4850065995392858
+     }
+    },
+    "fixed_horizon_z": {
+     "years_power_50": 13.034451899763209,
+     "years_power_80": 29.78560360444793
+    },
+    "bounded_loss": {
+     "loss_bound": 0.2,
+     "bet": 1.6999888616618395,
+     "rate": 0.10378432000445528,
+     "years": 28.864979540506592,
+     "p_within": {
+      "5": 0.013129988076836307,
+      "10": 0.1382317104722019,
+      "20": 0.4538786875965066,
+      "30": 0.6623964840613566
+     }
+    }
+   }
+  },
+  {
+   "name": "strong-long-only-book",
+   "drift": 0.12,
+   "tracking_error": 0.15,
+   "ir": 0.8,
+   "loss_bound": 0.2,
+   "simulated": {
+    "assumption_free": {
+     "p_within": {
+      "5": 0.0,
+      "10": 0.0,
+      "20": 0.0,
+      "30": 0.105
+     },
+     "median_years": null
+    },
+    "bounded_loss": {
+     "p_within": {
+      "5": 0.01,
+      "10": 0.2475,
+      "20": 0.7725,
+      "30": 0.925
+     },
+     "median_years": 14.367063492063492
+    },
+    "bounded_loss_violations": 0.025
+   },
+   "analytic": {
+    "name": "strong-long-only-book",
+    "log_growth": 0.10875,
+    "tracking_error": 0.15,
+    "drift": 0.12,
+    "ir": 0.8,
+    "alpha": 0.05,
+    "information_limit": {
+     "rate": 0.32000000000000006,
+     "years": 9.36166335485622
+    },
+    "assumption_free": {
+     "bet": 1.0,
+     "rate": 0.10875,
+     "years": 27.546963434979226,
+     "p_within": {
+      "5": 2.262741094212424e-13,
+      "10": 4.2739892362502914e-05,
+      "20": 0.13466822721379687,
+      "30": 0.6761642527375593
+     }
+    },
+    "fixed_horizon_z": {
+     "years_power_50": 4.227411647024079,
+     "years_power_80": 9.66024567503088
+    },
+    "bounded_loss": {
+     "loss_bound": 0.2,
+     "bet": 4.5,
+     "rate": 0.31218750000000006,
+     "years": 9.595939214587355,
+     "p_within": {
+      "5": 0.24782800192165882,
+      "10": 0.649635222440509,
+      "20": 0.9259899096992839,
+      "30": 0.9826402052698427
+     }
+    }
+   }
+  },
+  {
+   "name": "diversified-tilt-ir-1.0",
+   "drift": 0.03,
+   "tracking_error": 0.03,
+   "ir": 1.0,
+   "loss_bound": 0.05,
+   "simulated": {
+    "assumption_free": {
+     "p_within": {
+      "5": 0.0,
+      "10": 0.0,
+      "20": 0.0,
+      "30": 0.0
+     },
+     "median_years": null
+    },
+    "bounded_loss": {
+     "p_within": {
+      "5": 0.0125,
+      "10": 0.3,
+      "20": 0.9025,
+      "30": 0.97
+     },
+     "median_years": 12.375
+    },
+    "bounded_loss_violations": 0.015
+   },
+   "analytic": {
+    "name": "diversified-tilt-ir-1.0",
+    "log_growth": 0.02955,
+    "tracking_error": 0.03,
+    "drift": 0.03,
+    "ir": 1.0,
+    "alpha": 0.05,
+    "information_limit": {
+     "rate": 0.5,
+     "years": 5.991464547107982
+    },
+    "assumption_free": {
+     "bet": 1.0,
+     "rate": 0.02955,
+     "years": 101.37841873279157,
+     "p_within": {
+      "5": 0.0,
+      "10": 1.3828745760610224e-178,
+      "20": 2.581236757491475e-72,
+      "30": 2.797793822036262e-38
+     }
+    },
+    "fixed_horizon_z": {
+     "years_power_50": 2.7055434540954106,
+     "years_power_80": 6.182557232019764
+    },
+    "bounded_loss": {
+     "loss_bound": 0.05,
+     "bet": 18.0,
+     "rate": 0.39420000000000005,
+     "years": 7.599523778675775,
+     "p_within": {
+      "5": 0.26225390273122967,
+      "10": 0.7901003894139196,
+      "20": 0.9894441690895125,
+      "30": 0.9994749845617728
+     }
+    }
+   }
+  },
+  {
+   "name": "diversified-tilt-ir-1.5",
+   "drift": 0.045,
+   "tracking_error": 0.03,
+   "ir": 1.5,
+   "loss_bound": 0.05,
+   "simulated": {
+    "assumption_free": {
+     "p_within": {
+      "5": 0.0,
+      "10": 0.0,
+      "20": 0.0,
+      "30": 0.0
+     },
+     "median_years": null
+    },
+    "bounded_loss": {
+     "p_within": {
+      "5": 0.085,
+      "10": 0.8575,
+      "20": 0.9875,
+      "30": 0.9875
+     },
+     "median_years": 7.303571428571429
+    },
+    "bounded_loss_violations": 0.0125
+   },
+   "analytic": {
+    "name": "diversified-tilt-ir-1.5",
+    "log_growth": 0.04455,
+    "tracking_error": 0.03,
+    "drift": 0.045,
+    "ir": 1.5,
+    "alpha": 0.05,
+    "information_limit": {
+     "rate": 1.125,
+     "years": 2.662873132047992
+    },
+    "assumption_free": {
+     "bet": 1.0,
+     "rate": 0.04455,
+     "years": 67.24427101131293,
+     "p_within": {
+      "5": 0.0,
+      "10": 1.328993843854312e-159,
+      "20": 4.981133606105989e-56,
+      "30": 1.091102330850312e-24
+     }
+    },
+    "fixed_horizon_z": {
+     "years_power_50": 1.202463757375738,
+     "years_power_80": 2.747803214231006
+    },
+    "bounded_loss": {
+     "loss_bound": 0.05,
+     "bet": 18.0,
+     "rate": 0.6641999999999999,
+     "years": 4.51028647027099,
+     "p_within": {
+      "5": 0.6772872256863618,
+      "10": 0.9906545721748826,
+      "20": 0.9999964261295525,
+      "30": 0.9999999986894252
+     }
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,38 @@
+{
+ "battery": "size",
+ "level": 20.0,
+ "nominal": 0.05,
+ "results": {
+  "exact_null": {
+   "alpha_per_year": 0.0,
+   "tracking_error": 0.15,
+   "years": 10,
+   "paths": 4000,
+   "false_claim_rate": {
+    "e_free": 0.0,
+    "e_bounded_0.2": 0.00175,
+    "t_daily": 0.33775,
+    "t_monthly": 0.2875,
+    "t_annual": 0.16875,
+    "t_fixed_horizon": 0.05025
+   },
+   "bounded_loss_violations": 0.01325
+  },
+  "cost_null": {
+   "alpha_per_year": -0.01,
+   "tracking_error": 0.15,
+   "years": 10,
+   "paths": 4000,
+   "false_claim_rate": {
+    "e_free": 0.0,
+    "e_bounded_0.2": 0.0015,
+    "t_daily": 0.294,
+    "t_monthly": 0.249,
+    "t_annual": 0.12975,
+    "t_fixed_horizon": 0.03225
+   },
+   "bounded_loss_violations": 0.013
+  }
+ },
+ "note": "false_claim_rate = share of null paths on which the rule ever claims an edge within the horizon. t_* rules are one-sided t > 1.645 on daily relative returns, read every session / every 21 sessions / every 252 sessions (from session 63), or once at the horizon."
+}

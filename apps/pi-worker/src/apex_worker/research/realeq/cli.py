@@ -94,3 +94,6 @@ def register(sub) -> None:
     from apex_worker.discovery.v3.cli import register as register_discovery
 
     register_discovery(rsub)  # `apex research discovery plans|run`
+    from apex_worker.evidence.cli import register as register_evidence
+
+    register_evidence(rsub)  # `apex research evidence velocity|replay`
