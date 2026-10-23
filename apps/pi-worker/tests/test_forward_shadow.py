@@ -520,7 +520,8 @@ def test_fwd10_exploratory_lane_is_separate_and_never_confirmatory():
     assert X.label_body({})["evidence_tier"] == "PROSPECTIVE_EXPLORATORY"
     with pytest.raises(ValueError):
         X.assert_separate([F.SERIES_ID])
-    assert [q.series_id for q in X.EXPLORATORY_POLICIES] == ["v3x-epa-tournament-v1"]  # docs/evidence/TOURNAMENT_LANE.md
+    assert [q.series_id for q in X.EXPLORATORY_POLICIES] == ["v3x-epa-tournament-v1",  # docs/evidence/TOURNAMENT_LANE.md
+                                                             "v3x-epa-tournament-c1-v1"]  # TOURNAMENT_COHORT_1.md
     led = Ledger(pol.series_id, X.LANE)
     rec = led.build(GENESIS, None, X.label_body({"config": pol.config()}), "2026-10-23T22:00:00Z", {})
     with pytest.raises(StoreError):

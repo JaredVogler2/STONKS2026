@@ -241,7 +241,7 @@ Unit tests:
    - It runs in its own workflow and ledger, labelled `PROSPECTIVE_EXPLORATORY` and NO_TRADE.
    - It records once the owner sets the repository variable `APEX_TOURNAMENT_LANE` to `on`; until then every run is a dry rehearsal.
    - S1 and S3 books are planned as a later cohort.
-2. **Design for information rate: measured** ([DESIGN_STUDY_1.md](DESIGN_STUDY_1.md); [results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)). On DEV, sector-, beta- and size-neutral tilts have about 42% less tracking error against their twin than cohort 0's, and shallower worst sessions. At the same alpha, evidence arrives about 3× faster. Its proposal, five neutral designs at prior mass 0.04 each, is for a later cohort as its own series.
+2. **Design for information rate: measured** ([DESIGN_STUDY_1.md](DESIGN_STUDY_1.md); [results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)). On DEV, sector-, beta- and size-neutral tilts have about 42% less tracking error against their twin than cohort 0's, and shallower worst sessions. At the same alpha, evidence arrives about 3× faster. Its proposal, five neutral designs at prior mass 0.04 each, is **registered as cohort 1** ([TOURNAMENT_COHORT_1.md](TOURNAMENT_COHORT_1.md); series `v3x-epa-tournament-c1-v1`, claims against the twin only, recorded in the same workflow).
 3. **Wire the SEC pipeline into prospective candidates:** Form 4 insider purchases and 8-K item 2.02 earnings timing. It is point-in-time when recorded live.
 4. **Total-return data** (`adjustment="all"`) for the forward lane ([review](CODEBASE_REVIEW.md), C-4).
 5. **Optional improvements:** an adaptive bettor (online Newton step) in place of the fixed grid, to cut the grid's prior penalty.

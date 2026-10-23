@@ -19,7 +19,10 @@ it needs no independence between tests or candidates):
 * selection: the twin evidence reached it (the candidate beats its own negative control, which removes beta, sector
   and universe effects); likewise on the bounded twin evidence while its bound holds;
 * mechanism: both the assumption-free edge and selection evidence reached the threshold. It is false only if one of
-  those two claims is, so it adds nothing to the error budget;
+  those two claims is, so it adds nothing to the error budget (made only when both are claim tests);
+A candidate may be admitted with `claims` naming a subset of its tests (for example only the twin tests, when another
+candidate already tests its numeraire against SPY). Its other e-processes still run and still drive the allocation, but
+make no claim, and its prior mass is split across the named tests only.
 * global: G = (1 - sum gamma) + sum gamma_k e_k is a nonnegative supermartingale if no candidate beats SPY.
 
 The paper book, relative to SPY. A prior mass `null_mass` (u) belongs to "no candidate beats SPY" and is held in SPY.
@@ -93,6 +96,7 @@ class Entry:
     note: str = ""
     loss_bound: float | None = None  # declared X >= -L against SPY (None: the tournament's default)
     twin_loss_bound: float | None = None  # declared X >= -L against the twin (None: no bounded twin evidence)
+    claims: tuple[str, ...] | None = None  # the claim tests (None: every e-process the candidate has)
 
 
 class Tournament:
@@ -120,7 +124,8 @@ class Tournament:
         return sum(e.prior_mass for e in self.entries.values())
 
     def admit(self, candidate_id: str, prior_mass: float, session: str, *, twin: bool = False, note: str = "",
-              loss_bound: float | None = None, twin_loss_bound: float | None = None) -> Entry:
+              loss_bound: float | None = None, twin_loss_bound: float | None = None,
+              claims: tuple[str, ...] | None = None) -> Entry:
         if not SLUG.fullmatch(candidate_id or ""):
             raise ValueError("candidate_id must be a lower-case slug")
         if candidate_id in self.entries:
@@ -132,7 +137,12 @@ class Tournament:
         if twin_loss_bound is not None and not twin:
             raise ValueError("a twin loss bound needs a twin")
         bound = self.evidence_loss_bound if loss_bound is None else loss_bound
-        entry = Entry(candidate_id, float(prior_mass), session, twin, note, bound, twin_loss_bound)
+        has = {EDGE: True, EDGE_BOUNDED: bound is not None, SELECTION: twin, SELECTION_BOUNDED: twin_loss_bound is not None}
+        if claims is not None:
+            claims = tuple(claims)
+            if not claims or len(set(claims)) != len(claims) or any(not has.get(c, False) for c in claims):
+                raise ValueError(f"claims must name distinct tests the candidate has: {[c for c, h in has.items() if h]}")
+        entry = Entry(candidate_id, float(prior_mass), session, twin, note, bound, twin_loss_bound, claims)
         self.entries[candidate_id] = entry
         self.spy[candidate_id] = EProcess(self.lambdas, self.prior, self.cost_per_side)
         if twin:
@@ -212,10 +222,13 @@ class Tournament:
         return self.report()
 
     def claim_tests(self, k: str) -> tuple[str, ...]:
-        """The e-processes claims about k are made on. k's prior mass is split equally across them (CLAIM_RULE)."""
+        """The e-processes claims about k are made on (all it has, or its declared subset). k's prior mass is split
+        equally across them (CLAIM_RULE)."""
+        only = self.entries[k].claims
         return tuple(kind for kind, present in ((EDGE, True), (EDGE_BOUNDED, k in self.bounded),
                                                  (SELECTION, k in self.twin),
-                                                 (SELECTION_BOUNDED, k in self.twin_bounded)) if present)
+                                                 (SELECTION_BOUNDED, k in self.twin_bounded))
+                     if present and (only is None or kind in only))
 
     def threshold(self, k: str) -> float:
         """The evidence each of k's claim tests needs: m_k / (alpha gamma_k)."""
@@ -223,15 +236,18 @@ class Tournament:
 
     def _claims(self, session: str) -> None:
         for k in self.entries:
-            thr, made = math.log(self.threshold(k)), self.claims.get(k, {})
-            if EDGE not in made and self.spy[k].log_e_max >= thr:
+            thr, made, tests = math.log(self.threshold(k)), self.claims.get(k, {}), self.claim_tests(k)
+            if EDGE in tests and EDGE not in made and self.spy[k].log_e_max >= thr:
                 self.claims.setdefault(k, {})[EDGE] = session
-            if MECHANISM not in made and k in self.twin and min(self.spy[k].log_e_max, self.twin[k].log_e_max) >= thr:
+            if (EDGE in tests and SELECTION in tests and MECHANISM not in made
+                    and min(self.spy[k].log_e_max, self.twin[k].log_e_max) >= thr):
                 self.claims.setdefault(k, {})[MECHANISM] = session
-            if SELECTION not in made and k in self.twin and self.twin[k].log_e_max >= thr:
+            if SELECTION in tests and SELECTION not in made and self.twin[k].log_e_max >= thr:
                 self.claims.setdefault(k, {})[SELECTION] = session
             for kind, b in ((EDGE_BOUNDED, self.bounded.get(k)), (SELECTION_BOUNDED, self.twin_bounded.get(k))):
                 made = self.claims.get(k, {})
+                if kind not in tests:
+                    continue
                 if b is not None and b.status != VALID and kind in made:
                     made[kind] = f"VOID: loss bound broken on {b.violation['label']}"
                 elif b is not None and b.status == VALID and kind not in made and b.log_e_max >= thr:

@@ -1,7 +1,10 @@
-"""Exploratory lane `v3x-epa-tournament-v1`: the prospective evidence tournament (docs/evidence/TOURNAMENT_LANE.md).
+"""Exploratory lanes of the prospective evidence tournament, one series per cohort: `v3x-epa-tournament-v1` (cohort 0,
+docs/evidence/TOURNAMENT_LANE.md) and `v3x-epa-tournament-c1-v1` (cohort 1, docs/evidence/TOURNAMENT_COHORT_1.md).
 
 Research only: paper books, no orders, no alerts, no group-actionable output. Labelled PROSPECTIVE_EXPLORATORY and never
-confirmatory. Its own series, chain and ledger issue: nothing is shared with the frozen lane.
+confirmatory. Each cohort has its own series, chain and ledger issue: nothing is shared with the frozen lane or between
+cohorts, except one market-data fetch per scheduled pass (`SharedSource`). Every cohort's prior masses come from one
+budget of 1 (`assert_mass_budget`), so claims stay family-wise valid across cohorts.
 
 Records:
 * DECISION (after the close of t, before the next open): each book's target weights decided from data through t (None:
@@ -16,15 +19,18 @@ for SPY and for every book (price returns). Trading at the close costs 2 bps per
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import date
 from typing import ClassVar
 
 import pandas as pd
 
 from apex_worker.discovery.v3 import tournament_books as TB
+from apex_worker.discovery.v3 import tournament_books_c1 as TB1
 from apex_worker.evidence.tournament import CLAIM_RULE, Tournament
 from apex_worker.market.calendar import MarketCalendar
 from apex_worker.research.forward import exploratory as X
@@ -52,19 +58,81 @@ class Candidate:
     loss_bound: float
     twin_loss_bound: float | None
     mechanism: str
+    claims: tuple[str, ...] | None = None  # its claim tests (None: every test it has)
+
+    def __post_init__(self) -> None:
+        if self.claims is not None:
+            object.__setattr__(self, "claims", tuple(self.claims))
 
 
 CANDIDATES: tuple[Candidate, ...] = tuple(Candidate(**c) for c in TB.CANDIDATES)
 POLICY = X.EPA_TOURNAMENT
 SERIES_ID = POLICY.series_id
 LANE = X.LANE
+# sha256 of each cohort's golden decisions on the fixture (golden_decisions). Pinned by tests/test_tournament_lane.py and
+# checked by every recording run: a behaviour change in the decision logic changes it and stops the series.
+PINNED_FINGERPRINT = "f6064b1f00c660d26117cd5c9f8e840d64a44d12bb9e8591ab8f658a5fa505fa"
+PINNED_FINGERPRINT_C1 = "09e110d6889112cca1bc669cb848260fb80c417328f4bff701de446dadec567e"
 
 
-def series_config(fingerprint: str | None = None) -> dict:
-    """Everything that defines the series. A change needs a new major version (a new series id)."""
-    return clean(POLICY.config() | {
-        "recorder_version": RECORDER_VERSION, "decisions_from": DECISIONS_FROM, "promotion": "none",
-        "arms": [c.candidate_id for c in CANDIDATES],
+@dataclass(frozen=True)
+class Cohort:
+    """One cohort of the tournament: its own series, books, slate, settings and decision logic."""
+
+    key: str
+    policy: X.ExploratoryPolicy
+    books: dict
+    candidates: tuple[Candidate, ...]
+    tournament: dict
+    decisions_from: date
+    decide: Callable[..., dict]
+    pinned_fingerprint: str
+    extra_config: dict = field(default_factory=dict)  # cohort-specific series configuration (none for cohort 0)
+    file_suffix: str = ""  # its files in a scheduled pass: outbox{suffix}.json, report{suffix}.json
+    fixture_series_id: str = "fixture-demo-epa-tournament"
+
+    @property
+    def series_id(self) -> str:
+        return self.policy.series_id
+
+    @property
+    def prior_mass(self) -> float:
+        return sum(c.prior_mass for c in self.candidates)
+
+
+COHORT_0 = Cohort("c0", POLICY, TB.BOOKS, CANDIDATES, TB.TOURNAMENT, DECISIONS_FROM, TB.decide, PINNED_FINGERPRINT)
+_C1_CANDIDATES = tuple(Candidate(**c) for c in TB1.CANDIDATES)
+COHORT_1 = Cohort(
+    "c1", X.EPA_TOURNAMENT_C1, TB1.BOOKS, _C1_CANDIDATES, TB1.TOURNAMENT, DECISIONS_FROM, TB1.decide,
+    PINNED_FINGERPRINT_C1,
+    extra_config={"cohort": {
+        "index": 1, "prior_mass": round(sum(c.prior_mass for c in _C1_CANDIDATES), 12),
+        "earlier_cohorts": [{"series_id": COHORT_0.series_id, "prior_mass": round(COHORT_0.prior_mass, 12)}],
+        "mass_used_after": round(COHORT_0.prior_mass + sum(c.prior_mass for c in _C1_CANDIDATES), 12),
+        "budget": "every cohort's prior masses sum to at most 1, so P(any false claim in any cohort, ever) <= alpha",
+        "claims": "against the twin only; the tests against SPY drive the allocation",
+        "designs_measured_by": TB1.NEUTRALIZATION["measured_by"]}},
+    file_suffix="-c1", fixture_series_id="fixture-demo-epa-tournament-c1")
+COHORTS: tuple[Cohort, ...] = (COHORT_0, COHORT_1)
+LANES = {"tournament": COHORT_0, "tournament-c1": COHORT_1}  # CLI --lane names
+
+
+def assert_mass_budget(cohorts: tuple[Cohort, ...] = COHORTS) -> float:
+    """The union bound behind every claim needs the prior masses of every cohort ever admitted to sum to at most 1."""
+    total = sum(c.prior_mass for c in cohorts)
+    ids = [c.series_id for c in cohorts]
+    X.assert_separate(ids)
+    if total > 1 + 1e-12:
+        raise ValueError(f"the cohorts' prior masses sum to {total} > 1")
+    return total
+
+
+def series_config(fingerprint: str | None = None, cohort: Cohort | None = None) -> dict:
+    """Everything that defines a cohort's series. A change needs a new major version (a new series id)."""
+    c = cohort or COHORT_0
+    return clean(c.policy.config() | {
+        "recorder_version": RECORDER_VERSION, "decisions_from": c.decisions_from, "promotion": "none",
+        "arms": [x.candidate_id for x in c.candidates],
         "timing": "targets decided at the close of t from data through t; traded at the close of t + 1",
         "evaluation": "daily close-to-close net returns from the session after the first decision; books start in SPY",
         "axis": {"window_anchor": WINDOW_ANCHOR, "window_anchor_index": WINDOW_ANCHOR_INDEX,
@@ -76,11 +144,11 @@ def series_config(fingerprint: str | None = None) -> dict:
         "source": {"provider": "alpaca", "feed": "sip", "adjustment": "split", "timeframe": "1Day",
                    "dividends": "excluded for every book and SPY (price returns)"},
         "golden_fingerprint": fingerprint,
-    })
+    } | c.extra_config)
 
 
-def _last_targets(decisions: list[dict]) -> dict[str, dict | None]:
-    last: dict[str, dict | None] = dict.fromkeys(TB.BOOKS)
+def _last_targets(decisions: list[dict], books: dict | None = None) -> dict[str, dict | None]:
+    last: dict[str, dict | None] = dict.fromkeys(TB.BOOKS if books is None else books)
     for d in decisions:
         for book, tgt in (d["body"].get("books") or {}).items():
             if tgt is not None:
@@ -95,14 +163,21 @@ class TournamentLane:
     decisions_from: date = DECISIONS_FROM
     data_class: str = "REAL_MARKET_DATA"
     check_inputs: bool = False
+    cohort: Cohort = COHORT_0
     reading: ClassVar[dict] = ANYTIME_READING  # anytime-valid evidence: no registered look
 
     @classmethod
-    def fixture(cls, decisions_from: date = DECISIONS_FROM) -> TournamentLane:
-        return cls("fixture-demo-epa-tournament", "FIXTURE_DEMO", decisions_from, "SYNTHETIC_FIXTURE_DEMO")
+    def for_cohort(cls, cohort: Cohort) -> TournamentLane:
+        return cls(cohort.series_id, LANE, cohort.decisions_from, cohort=cohort)
+
+    @classmethod
+    def fixture(cls, decisions_from: date | None = None, cohort: Cohort | None = None) -> TournamentLane:
+        c = cohort or COHORT_0
+        return cls(c.fixture_series_id, "FIXTURE_DEMO", decisions_from or c.decisions_from, "SYNTHETIC_FIXTURE_DEMO",
+                   cohort=c)
 
     def config(self, fingerprint: str) -> dict:
-        return series_config(fingerprint) | {"series_id": self.series_id, "lane": self.lane,
+        return series_config(fingerprint, self.cohort) | {"series_id": self.series_id, "lane": self.lane,
                                              "decisions_from": self.decisions_from.isoformat(),
                                              "data_class": self.data_class}
 
@@ -114,7 +189,8 @@ class TournamentLane:
         t = len(pre.sessions) - 1
         phase = cal.count_sessions_after(self.decisions_from, day)
         mask = TB.explicit_mask(pre)[:, t]
-        books = TB.decide(pre, t, W.session_index(cal, day), phase, _last_targets(ledger.of_type(DECISION)), mask)
+        books = self.cohort.decide(pre, t, W.session_index(cal, day), phase,
+                                   _last_targets(ledger.of_type(DECISION), self.cohort.books), mask)
         traded = [b for b, x in books.items() if x is not None]
         w = W.window(cal, day)
         return X.label_body({
@@ -141,24 +217,27 @@ def _session_returns(px: dict, i: int, day: pd.Timestamp, q: set) -> dict[str, f
     return out
 
 
-def replay(decisions: list[dict], closes: pd.DataFrame, quarantine: dict[str, list] | None = None) -> dict[str, dict]:
+def replay(decisions: list[dict], closes: pd.DataFrame, quarantine: dict[str, list] | None = None,
+           books: dict | None = None) -> dict[str, dict]:
     """Daily net returns of every book (and SPY's) for each session of `closes` after the first decision session.
 
     `closes`: final split-adjusted closes (sessions x symbols, SPY included), starting at the first decision session.
-    Books start fully in SPY; the targets decided at session s are traded at the close of the next session."""
+    Books start fully in SPY; the targets decided at session s are traded at the close of the next session. `books`:
+    the cohort's books (default cohort 0's)."""
+    book_names = list(TB.BOOKS if books is None else books)
     by_day = {pd.Timestamp(d["session"]): d["body"].get("books") or {} for d in decisions}
     q = {(s, pd.Timestamp(x)) for s, xs in (quarantine or {}).items() for x in xs}
     sessions = list(closes.index)
     px = {s: closes[s].to_numpy(float) for s in closes.columns}
-    hold = {b: {BENCHMARK: 1.0} for b in TB.BOOKS}
-    pending = {b: (by_day.get(sessions[0], {}).get(b) if sessions else None) for b in TB.BOOKS}
+    hold = {b: {BENCHMARK: 1.0} for b in book_names}
+    pending = {b: (by_day.get(sessions[0], {}).get(b) if sessions else None) for b in book_names}
     out: dict[str, dict] = {}
     for i in range(1, len(sessions)):
         day = sessions[i]
         rets = _session_returns(px, i, day, q)  # CASH, a missing bar or a quarantined pair earn nothing
         spy = rets.get(BENCHMARK, 0.0)
         row = {}
-        for book in TB.BOOKS:
+        for book in book_names:
             h = hold[book]
             gross = sum(w * rets.get(s, 0.0) for s, w in sorted(h.items()))
             h = {s: w * (1.0 + rets.get(s, 0.0)) / (1.0 + gross) for s, w in h.items()}
@@ -171,25 +250,27 @@ def replay(decisions: list[dict], closes: pd.DataFrame, quarantine: dict[str, li
             hold[book] = h
             row[book] = (1.0 + gross) * (1.0 - cost) - 1.0
         out[day.date().isoformat()] = {"spy": spy, "books": row}
-        pending = {b: by_day.get(day, {}).get(b) for b in TB.BOOKS}
+        pending = {b: by_day.get(day, {}).get(b) for b in book_names}
     return out
 
 
-def tournament_state(sessions: dict[str, dict]) -> dict:
-    """The tournament after every posted session's returns, in session order (a pure function of the ledger)."""
-    if TOURNAMENT["claim_rule"] != CLAIM_RULE:
-        raise ValueError(f"the series declares claim rule {TOURNAMENT['claim_rule']!r}; the engine implements {CLAIM_RULE!r}")
-    t = Tournament(book=TOURNAMENT["book"], null_mass=TOURNAMENT["null_mass"], alpha=TOURNAMENT["alpha"],
-                   lambdas=tuple(TOURNAMENT["lambdas"]), cost_per_side=TOURNAMENT["cost_per_side"])
+def tournament_state(sessions: dict[str, dict], cohort: Cohort | None = None) -> dict:
+    """A cohort's tournament after every posted session's returns, in session order (a pure function of the ledger)."""
+    co = cohort or COHORT_0
+    cfg, cands = co.tournament, co.candidates
+    if cfg["claim_rule"] != CLAIM_RULE:
+        raise ValueError(f"the series declares claim rule {cfg['claim_rule']!r}; the engine implements {CLAIM_RULE!r}")
+    t = Tournament(book=cfg["book"], null_mass=cfg["null_mass"], alpha=cfg["alpha"],
+                   lambdas=tuple(cfg["lambdas"]), cost_per_side=cfg["cost_per_side"])
     days = sorted(sessions)
-    for c in CANDIDATES:
+    for c in cands:
         if days:
             t.admit(c.candidate_id, c.prior_mass, days[0], twin=c.twin is not None, loss_bound=c.loss_bound,
-                    twin_loss_bound=c.twin_loss_bound, note=c.mechanism)
+                    twin_loss_bound=c.twin_loss_bound, note=c.mechanism, claims=c.claims)
     for d in days:
         books = sessions[d]["books"]
-        t.settle(d, sessions[d]["spy"], {c.candidate_id: books[c.book] for c in CANDIDATES},
-                 {c.candidate_id: books[c.twin] for c in CANDIDATES if c.twin is not None})
+        t.settle(d, sessions[d]["spy"], {c.candidate_id: books[c.book] for c in cands},
+                 {c.candidate_id: books[c.twin] for c in cands if c.twin is not None})
     rep = t.report()
 
     def ev(st: dict | None) -> dict | None:
@@ -210,30 +291,32 @@ def tournament_state(sessions: dict[str, dict]) -> dict:
 
 # ---- golden behaviour fingerprint -------------------------------------------------------------------------------------
 GOLDEN = {"per_sector": 5, "seed": 23, "start": date(2023, 1, 3), "end": date(2024, 9, 30), "sessions": 80}
-# sha256 of the golden decisions on the fixture. Pinned by tests/test_tournament_lane.py and checked by every recording
-# run: a behaviour change in the decision logic changes it and stops the series (a new series is needed).
-PINNED_FINGERPRINT = "f6064b1f00c660d26117cd5c9f8e840d64a44d12bb9e8591ab8f658a5fa505fa"
 
 
-def golden_decisions() -> list[dict]:
+@functools.cache
+def _golden_panel() -> TB.Panel:
     from apex_worker.research.realeq.fixture_v2 import factor_frames_v2
 
-    bars = factor_frames_v2(per_sector=GOLDEN["per_sector"], seed=GOLDEN["seed"], start=GOLDEN["start"],
-                            end=GOLDEN["end"])
-    pre = TB.light_panel(bars)
+    return TB.light_panel(factor_frames_v2(per_sector=GOLDEN["per_sector"], seed=GOLDEN["seed"],
+                                           start=GOLDEN["start"], end=GOLDEN["end"]))
+
+
+def golden_decisions(cohort: Cohort | None = None) -> list[dict]:
+    co = cohort or COHORT_0
+    pre = _golden_panel()
     mask = TB.explicit_mask(pre)
     n = len(pre.sessions)
-    prev: dict[str, dict | None] = dict.fromkeys(TB.BOOKS)
+    prev: dict[str, dict | None] = dict.fromkeys(co.books)
     out = []
     for phase, t in enumerate(range(n - GOLDEN["sessions"], n)):
-        books = TB.decide(pre, t, t, phase, prev, mask[:, t])
+        books = co.decide(pre, t, t, phase, prev, mask[:, t])
         prev |= {b: x for b, x in books.items() if x is not None}
         out.append(books)
     return out
 
 
-def golden_fingerprint() -> str:
-    return hashlib.sha256(canonical(clean(golden_decisions()))).hexdigest()
+def golden_fingerprint(cohort: Cohort | None = None) -> str:
+    return hashlib.sha256(canonical(clean(golden_decisions(cohort)))).hexdigest()
 
 
 # ---- the recorder ---------------------------------------------------------------------------------------------------
@@ -241,8 +324,8 @@ class TournamentRecorder(Recorder):
     """The forward-shadow recorder with this lane's genesis checks and outcomes (decisions are the base class's)."""
 
     def __init__(self, lane: TournamentLane, *args, **kw):
-        kw.setdefault("fingerprint_fn", golden_fingerprint)
-        kw.setdefault("expected_fingerprint", PINNED_FINGERPRINT)
+        kw.setdefault("fingerprint_fn", functools.partial(golden_fingerprint, lane.cohort))
+        kw.setdefault("expected_fingerprint", lane.cohort.pinned_fingerprint)
         super().__init__(lane, *args, **kw)
 
     def _check_inputs(self, rep: RunReport) -> dict:
@@ -251,7 +334,7 @@ class TournamentRecorder(Recorder):
         except ValueError as exc:
             rep.flag("INTEGRITY", f"SERIES_INVALID: {exc}")
             raise _Stop from None
-        return {"policy_config_sha256": POLICY.config_sha256()}
+        return {"policy_config_sha256": self.lane.cohort.policy.config_sha256()}
 
     def _outcomes(self, ledger: Ledger, rep: RunReport, anchors: dict) -> None:
         data_end = W.outcome_data_end(self.cal, self.clock())
@@ -268,7 +351,7 @@ class TournamentRecorder(Recorder):
             return
         closes = pd.DataFrame({s: df["close"].astype(float) for s, df in ob.bars.items()}).reindex(ob.sessions)
         first = decisions[0]["session"]
-        series = replay(decisions, closes[closes.index >= pd.Timestamp(first)], ob.quarantine)
+        series = replay(decisions, closes[closes.index >= pd.Timestamp(first)], ob.quarantine, self.lane.cohort.books)
         posted: dict[str, dict] = {}
         for r in ledger.of_type(OUTCOME):
             posted |= r["body"].get("sessions") or {}
@@ -280,7 +363,7 @@ class TournamentRecorder(Recorder):
             new = {s: series[s] for s in sorted(series) if last < s <= d["session"]}
             posted |= new
             last = max(last, d["session"])
-            state = tournament_state(posted)
+            state = tournament_state(posted, self.lane.cohort)
             top = max(state["candidates"].items(), key=lambda kv: kv[1]["allocation"], default=(None, {}))
             body = X.label_body({
                 "decision": {"record_id": d["record_id"], "digest": d["digest"], "session": d["session"]},
@@ -303,7 +386,8 @@ def books_summary_md(records: list[dict]) -> str:
     lines = [f"\n### Tournament after {st['last_session']} ({st['sessions']} sessions; paper, research only)\n",
              f"Book vs SPY: {st['book_relative_wealth']:.4f} · global evidence {st['global_e']:.3f} · SPY share "
              f"{st['allocation_spy']:.3f}\n",
-             "Evidence: assumption-free · under the declared loss bound. A claim needs the threshold on one test.\n",
+             "Evidence: assumption-free · under the declared loss bound. A claim needs the threshold on one of the "
+             "candidate's claim tests.\n",
              "| Candidate | e vs SPY | e vs twin | threshold | allocation | claims |", "|---|---|---|---|---|---|"]
 
     def pair(free: dict | None, bounded: dict | None) -> str:
@@ -315,9 +399,37 @@ def books_summary_md(records: list[dict]) -> str:
         lines.append(f"| {k} | {pair(c['vs_spy'], c['vs_spy_bounded_loss'])} | "
                      f"{pair(c['vs_twin'], c['vs_twin_bounded_loss'])} | {c['threshold']:.0f} | {c['allocation']:.3f} | "
                      f"{', '.join(c['claims']) or '—'} |")
+    if st["candidates"] and not any(t.startswith("EDGE") for c in st["candidates"].values() for t in c["claim_tests"]):
+        lines.append("\nClaims are against the twin only; the evidence against SPY drives the allocation.")
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["CANDIDATES", "DECISIONS_FROM", "PINNED_FINGERPRINT", "POLICY", "SERIES_ID", "TournamentLane",
-           "TournamentRecorder", "books_summary_md", "config_sha256", "golden_fingerprint", "replay",
-           "series_config", "tournament_state"]
+class SharedSource:
+    """One market-data fetch for every cohort recorded in the same pass: decision and outcome data are memoised per
+    request (failures are not), so a later cohort reads the bars the first one fetched. Everything else (the request
+    count, the data class) is the wrapped source's."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self._memo: dict = {}
+
+    def __getattr__(self, name: str):
+        return getattr(self.inner, name)
+
+    def _get(self, key: tuple, fetch: Callable[[], object]):
+        if key not in self._memo:
+            self._memo[key] = fetch()
+        return self._memo[key]
+
+    def decision_data(self, day: date, now):
+        return self._get(("decision", day), lambda: self.inner.decision_data(day, now))
+
+    def outcome_data(self, start: date, end: date, now, symbols: tuple[str, ...] | None = None):
+        key = ("outcome", start, end, None if symbols is None else tuple(symbols))
+        return self._get(key, lambda: self.inner.outcome_data(start, end, now, symbols))
+
+
+__all__ = ["CANDIDATES", "COHORTS", "COHORT_0", "COHORT_1", "DECISIONS_FROM", "LANES", "PINNED_FINGERPRINT",
+           "PINNED_FINGERPRINT_C1", "POLICY", "SERIES_ID", "Cohort", "SharedSource", "TournamentLane",
+           "TournamentRecorder", "assert_mass_budget", "books_summary_md", "config_sha256", "golden_fingerprint",
+           "replay", "series_config", "tournament_state"]

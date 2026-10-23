@@ -175,6 +175,27 @@ def test_every_claim_test_of_every_candidate_shares_one_error_budget():
     assert rep["claim_rule"] == CLAIM_RULE and rep["candidates"]["full"]["claim_tests"] == list(tests["full"])
 
 
+def test_a_candidate_can_claim_on_a_declared_subset_of_its_tests():
+    days = _days(400)
+    t = Tournament(alpha=0.05)
+    t.admit("twin-only", 0.04, days[0], twin=True, loss_bound=0.075, twin_loss_bound=0.02,
+            claims=(SELECTION, SELECTION_BOUNDED))
+    assert t.claim_tests("twin-only") == (SELECTION, SELECTION_BOUNDED)
+    assert t.threshold("twin-only") == pytest.approx(2 / (0.05 * 0.04))  # the mass is split across the named tests
+    for name, bad in (("bad-empty", ()), ("bad-repeat", (SELECTION, SELECTION)), ("bad-name", ("NOT_A_TEST",))):
+        with pytest.raises(ValueError):
+            t.admit(name, 0.01, days[0], twin=True, claims=bad)
+    with pytest.raises(ValueError):
+        t.admit("no-twin", 0.01, days[0], claims=(SELECTION,))  # it has no twin test
+    rng = np.random.default_rng(31)
+    r_s, rc = _paths(rng, 400, {"twin-only": 2.0}, te=0.10)
+    for i, d in enumerate(days):  # it beats SPY strongly, but equals its twin: no claim may be made
+        t.settle(d, r_s[i], {"twin-only": rc["twin-only"][i]}, {"twin-only": rc["twin-only"][i]})
+    assert t.bounded["twin-only"].status == "VALID"
+    assert t.bounded["twin-only"].log_e_max > math.log(t.threshold("twin-only")) and not t.claims.get("twin-only")
+    assert t.allocation()["twin-only"] > 0.3  # the evidence against SPY still drives the paper allocation
+
+
 def test_global_null_size_and_pathwise_regret():
     rng = np.random.default_rng(14)
     n, k, steps = 400, 4, 1000
