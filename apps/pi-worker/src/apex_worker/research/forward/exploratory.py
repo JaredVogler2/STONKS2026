@@ -79,9 +79,28 @@ def _epa_tournament() -> ExploratoryPolicy:
         universe="U1")
 
 
-# Registered exploratory policies (append-only). The first: the evidence tournament (docs/evidence/TOURNAMENT_LANE.md).
+def _epa_tournament_c1() -> ExploratoryPolicy:
+    from apex_worker.discovery.v3 import tournament_books as TB
+    from apex_worker.discovery.v3 import tournament_books_c1 as TB1
+
+    return ExploratoryPolicy(
+        policy_id="epa-tournament-c1", major_version=1, hypothesis_id="H-EPA-002",
+        registration="EXPLORATORY_REGISTERED",
+        mechanism="cohort 1 of the evidence tournament: five sector-, beta- and size-neutral tilts (design-study-1's "
+                  "proposal), each claimed only against its equal-weight twin; prior mass from the reserve left by "
+                  "cohort 0 (docs/evidence/TOURNAMENT_COHORT_1.md)",
+        decide_ref="apex_worker.discovery.v3.tournament_books_c1.decide",
+        feature_schema_sha256=TB1.FEATURE_SCHEMA_SHA256,
+        parameters={"books": TB1.BOOKS, "candidates": list(TB1.CANDIDATES), "tournament": TB1.TOURNAMENT,
+                    "costs_bps_per_side": TB.COSTS_BPS, "neutralization": TB1.NEUTRALIZATION},
+        universe="U1")
+
+
+# Registered exploratory policies (append-only). The first: the evidence tournament (docs/evidence/TOURNAMENT_LANE.md);
+# the second: its cohort 1 (docs/evidence/TOURNAMENT_COHORT_1.md).
 EPA_TOURNAMENT = _epa_tournament()
-EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = (EPA_TOURNAMENT,)
+EPA_TOURNAMENT_C1 = _epa_tournament_c1()
+EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = (EPA_TOURNAMENT, EPA_TOURNAMENT_C1)
 
 
 def label_body(body: dict) -> dict:

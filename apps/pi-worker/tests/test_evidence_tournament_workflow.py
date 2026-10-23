@@ -58,7 +58,9 @@ def test_secrets_only_in_the_recorder_step_and_dry_until_activated(wf, raw):
     assert set(re.findall(r"secrets\.([A-Z_]+)", raw)) == {"ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"}
     run = holders[0]["run"]
     assert "store=dry" in run and 'if [ "$TOURNAMENT_LANE" = "on" ]; then store=github; fi' in run
-    assert "--lane tournament" in run and "--source alpaca" in run and "echo $ALPACA" not in raw
+    # one pass records every cohort (one shared market-data fetch); each cohort keeps its own outbox and report
+    assert "forward-shadow run-tournament" in run and '--out-dir "$APEX_OUT"' in run
+    assert "--source alpaca" in run and "echo $ALPACA" not in raw
 
 
 def test_actions_pinned_and_budget_profile(wf):
@@ -77,11 +79,17 @@ def test_artifact_and_cache_hold_no_market_data(wf):
     (job,) = wf["jobs"].values()
     up = next(s for s in job["steps"] if "upload-artifact" in s.get("uses", ""))
     paths = [p.strip() for p in up["with"]["path"].splitlines() if p.strip()]
-    assert [p.rsplit("/", 1)[-1] for p in paths] == ["report.json", "summary.md", "outbox.json"]
+    assert [p.rsplit("/", 1)[-1] for p in paths] == ["report.json", "summary.md", "outbox.json", "report-c1.json",
+                                                     "outbox-c1.json"]
     assert up["with"]["retention-days"] <= 30
     caches = [s for s in job["steps"] if "actions/cache" in s.get("uses", "")]
-    assert len(caches) == 2 and all(s["with"]["path"].endswith("apex-tournament/outbox.json") for s in caches)
-    assert all("apex-tournament-outbox-" in s["with"]["key"] for s in caches)  # never the frozen lane's outbox
+    by_file = {}
+    for s in caches:
+        by_file.setdefault(s["with"]["path"].rsplit("/", 1)[-1], []).append(s["with"]["key"])
+    # cohort 0's outbox cache is exactly as before (its key prefix and file); cohort 1 has its own; never the frozen lane's
+    assert set(by_file) == {"outbox.json", "outbox-c1.json"} and all(len(v) == 2 for v in by_file.values())
+    assert all(k.startswith("apex-tournament-outbox-") for k in by_file["outbox.json"])
+    assert all(k.startswith("apex-tournament-c1-outbox-") for k in by_file["outbox-c1.json"])
 
 
 def test_the_frozen_lane_workflow_is_untouched():

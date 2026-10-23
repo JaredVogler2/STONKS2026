@@ -1,19 +1,24 @@
-# Prospective evidence tournament: the exploratory lane v3x-epa-tournament-v1 (docs/evidence/TOURNAMENT_LANE.md;
-# method docs/evidence/EVIDENCE_TOURNAMENT.md). Paper books only.
+# Prospective evidence tournament: one exploratory lane per cohort, v3x-epa-tournament-v1 (cohort 0,
+# docs/evidence/TOURNAMENT_LANE.md) and v3x-epa-tournament-c1-v1 (cohort 1, docs/evidence/TOURNAMENT_COHORT_1.md);
+# method docs/evidence/EVIDENCE_TOURNAMENT.md. Paper books only. One recorder pass per run records every cohort and
+# shares one market-data fetch between them (`apex research forward-shadow run-tournament`); each cohort keeps its own
+# series, chain, ledger issue, outbox and report.
 #
 #   two weekday attempts after the NYSE close -> verify every stored record and the hash chain -> post any record whose
 #   earlier post GitHub did not confirm (same digest) -> MISSED_OBSERVATION for every session whose window closed without
 #   a decision -> DECISION for the session whose window is open (each paper book's target weights from fresh Alpaca
 #   historical SIP bars through t, traded at the close of t + 1) -> OUTCOME for decisions whose 2-session finality lag
 #   has passed (daily net returns replayed from the committed targets on final bars, and the tournament's evidence,
-#   allocation and claims) -> job summary -> short-retention report artifact.
+#   allocation and claims) -> the same for the next cohort, on the same bars -> job summary -> short-retention report
+#   artifact.
 #
 # * Research only, PROSPECTIVE_EXPLORATORY, never confirmatory: no orders, no alerts, no Discord, no promotion, no
-#   group-actionable output. Its own series, chain and ledger issue ("APEX forward-shadow ledger ·
-#   v3x-epa-tournament-v1 · vol 1"); the frozen lane (apex-forward-shadow.yml) is untouched.
+#   group-actionable output. Each cohort has its own series, chain and ledger issue ("APEX forward-shadow ledger ·
+#   <series id> · vol 1"); the frozen lane (apex-forward-shadow.yml) is untouched.
 # * ACTIVATION: until the owner sets the repository variable APEX_TOURNAMENT_LANE to "on" (Settings -> Secrets and
 #   variables -> Actions -> Variables), every run is a DRY RUN against an in-memory ledger that is discarded: it rehearses
-#   the real data path and posts nothing. Removing the variable pauses recording (later sessions are recorded as missed).
+#   the real data path and posts nothing. The variable covers every cohort. Removing it pauses recording (later sessions
+#   are recorded as missed).
 # * Token: contents: read + issues: write ONLY (never commits, pushes or opens PRs). Secrets: only ALPACA_API_KEY_ID /
 #   ALPACA_API_SECRET_KEY of the `real-equities-research` environment (deployment branch main), exposed to the recorder
 #   step only and never echoed; missing keys fail the run; no synthetic fallback. No raw OHLCV leaves the runner; the
@@ -71,6 +76,7 @@ jobs:
           echo "APEX_OUT=$RUNNER_TEMP/apex-tournament" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/apex-tournament"
           echo "[]" > "$RUNNER_TEMP/apex-tournament/outbox.json"
+          echo "[]" > "$RUNNER_TEMP/apex-tournament/outbox-c1.json"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -88,6 +94,12 @@ jobs:
           path: ${{ runner.temp }}/apex-tournament/outbox.json
           key: apex-tournament-outbox-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: apex-tournament-outbox-
+      - name: Restore cohort 1's outbox (unconfirmed records only; no market data)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-tournament/outbox-c1.json
+          key: apex-tournament-c1-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: apex-tournament-c1-outbox-
       - name: Evidence tournament (research only, paper books)
         id: record
         timeout-minutes: 6
@@ -101,8 +113,8 @@ jobs:
           if [ "$TOURNAMENT_LANE" = "on" ]; then store=github; fi
           echo "store=$store" >> "$GITHUB_OUTPUT"
           set +e
-          uv run --no-sync apex research forward-shadow run --lane tournament --store "$store" --source alpaca \
-            --outbox "$APEX_OUT/outbox.json" --report-json "$APEX_OUT/report.json" --summary-md "$APEX_OUT/summary.md"
+          uv run --no-sync apex research forward-shadow run-tournament --store "$store" --source alpaca \
+            --out-dir "$APEX_OUT"
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
@@ -125,6 +137,12 @@ jobs:
         with:
           path: ${{ runner.temp }}/apex-tournament/outbox.json
           key: apex-tournament-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Save cohort 1's outbox
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-tournament/outbox-c1.json
+          key: apex-tournament-c1-outbox-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Upload the run report (digests, anchors, counts and paper returns; no market data)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -134,5 +152,7 @@ jobs:
             ${{ runner.temp }}/apex-tournament/report.json
             ${{ runner.temp }}/apex-tournament/summary.md
             ${{ runner.temp }}/apex-tournament/outbox.json
+            ${{ runner.temp }}/apex-tournament/report-c1.json
+            ${{ runner.temp }}/apex-tournament/outbox-c1.json
           retention-days: 30
           if-no-files-found: ignore

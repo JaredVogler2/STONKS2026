@@ -7,7 +7,7 @@
 | Mode | **Research only:**<br>- paper books;<br>- no orders, alerts, Discord signals or promotion;<br>- `HIGH_CONVICTION` and `GROUP_ACTIONABLE` stay disabled;<br>- the frozen lane `qv2a1-frozen-v1` is untouched |
 | Method | [EVIDENCE_TOURNAMENT.md](EVIDENCE_TOURNAMENT.md) (why), [EPA_BATTERY.md](EPA_BATTERY.md) (simulated behaviour) |
 | Code | - Decision logic: `apex_worker/discovery/v3/tournament_books.py`.<br>- Lane, replay and recorder: `apex_worker/research/forward/tournament_lane.py`.<br>- Registry entry: `research/forward/exploratory.py::EPA_TOURNAMENT`.<br>- Engine: `apex_worker/evidence/` |
-| Workflow | `.github/workflows/apex-evidence-tournament.yml`, weekdays at 18:42 and 22:22 New York time |
+| Workflow | `.github/workflows/apex-evidence-tournament.yml`, weekdays at 18:42 and 22:22 New York time. One pass records every cohort (cohort 1: [TOURNAMENT_COHORT_1.md](TOURNAMENT_COHORT_1.md)) from one market-data fetch |
 | Ledger | Its own GitHub issue, "APEX forward-shadow ledger · v3x-epa-tournament-v1 · vol 1", created by the first real run. It has its own sha256 chain, and GitHub's comment timestamps are the independent anchor |
 | Approved | By the owner, 2026-10-23. Corrected before genesis, the same day: each candidate's prior mass is split across its claim tests, so every claim of every candidate shares one α (§1). The genesis record carries the corrected configuration |
 
@@ -126,8 +126,15 @@ To run research that month, the owner can raise the repository variable `APEX_AC
 
 ## 8. Later cohorts
 
-The reserved prior mass (0.55) is for candidates admitted after genesis. Planned:
-- **neutralized tilts designed for information rate:** the same signals with sector-, beta- and size-neutral active weights. [`design-study-1`](DESIGN_STUDY_1.md) measured them on DEV ([results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)): about 42% less tracking error against the twin, so about 3× faster evidence at the same alpha. Its proposal would use 0.20 of the reserve;
+The reserved prior mass (0.55) is for candidates admitted after genesis.
+
+**Registered: cohort 1** ([TOURNAMENT_COHORT_1.md](TOURNAMENT_COHORT_1.md), series `v3x-epa-tournament-c1-v1`, prior mass 0.20; the reserve left is 0.35):
+- the neutralized tilts designed for information rate, with sector-, beta- and size-neutral active weights;
+- [`design-study-1`](DESIGN_STUDY_1.md) measured them on DEV ([results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)): about 42% less tracking error against the twin, so about 3× faster evidence at the same alpha;
+- they are claimed against the twin only;
+- the same workflow records them, from the same data fetch.
+
+Planned:
 - the frozen S1 and S3 arms as paper books, for a valid interim reading of the frozen shadow;
 - SEC-event designs: Form 4 insider purchases and 8-K earnings timing, live and point-in-time. These wait for the owner's SEC contact (`APEX_SEC_USER_AGENT`);
 - cap-weighted tilts.
@@ -135,3 +142,4 @@ The reserved prior mass (0.55) is for candidates admitted after genesis. Planned
 **How a cohort is added: as its own series.** This series' slate never changes. A later cohort gets its own series id, genesis, chain and ledger. Its configuration names the earlier cohorts and their masses, and it draws its own masses from the reserve, so the total over every cohort stays at most 1.
 - Claims stay family-wise valid across series. The union bound behind §1 needs only that every mass is fixed before its candidate's first period, and that the masses sum to at most 1.
 - An in-ledger admission inside this series (a cohort announced in a `DECISION` record) would also be valid, but it is not implemented and not needed.
+- `tournament_lane.COHORTS` lists every cohort, and `assert_mass_budget` (checked by the tests) keeps their masses within 1.
