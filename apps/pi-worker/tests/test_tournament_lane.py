@@ -21,6 +21,9 @@ from apex_worker.research.forward.store import IssueLedgerStore, MemoryGitHubAPI
 # Cohort 0's series as registered (PR #30, corrected before genesis by PR #31). Cohort 1 must leave it byte-identical.
 COHORT_0_CONFIG_SHA256 = "888f3ade24cda6bd951624c87c04b1bd2da00d5135975c3249b3974ce336de32"
 COHORT_0_POLICY_SHA256 = "dde6a10bbc3d46bd204cecd3a90e0466f326223fdcd8b26d9c763c9b42196762"
+# Cohort 1's series as its genesis record posted it (issue #36, seq 0, 2026-10-23). Any change needs a new series id.
+COHORT_1_CONFIG_SHA256 = "0546d1c80a5f43d4f7e17f10d18a2fc43f7f2e61be9d77e0d4c8ccf3b6020b6c"
+COHORT_1_POLICY_SHA256 = "de7e2fe779148bcfcbcd75c7ac780272a4e571f4e352d37002aad6231635939e"
 
 
 def test_the_policy_is_registered_exploratory_research_only_and_separate():
@@ -198,6 +201,7 @@ def test_cohort_1_is_its_own_series_with_twin_only_claims_inside_one_mass_budget
     assert all(c.claims == (SELECTION, SELECTION_BOUNDED) for c in c1.candidates)
     assert T.assert_mass_budget() == pytest.approx(0.65)  # 0.45 + 0.20 of the budget of 1; 0.35 stays in reserve
     cfg = T.TournamentLane.for_cohort(c1).config(T.PINNED_FINGERPRINT_C1)
+    assert T.config_sha256(cfg) == COHORT_1_CONFIG_SHA256 and c1.policy.config_sha256() == COHORT_1_POLICY_SHA256
     assert cfg["series_id"] == c1.series_id and cfg["lane"] == "EXPLORATORY" and cfg["confirmatory"] is False
     assert cfg["cohort"]["earlier_cohorts"] == [{"series_id": T.SERIES_ID, "prior_mass": pytest.approx(0.45)}]
     assert cfg["cohort"]["prior_mass"] == pytest.approx(0.2) and cfg["cohort"]["mass_used_after"] == pytest.approx(0.65)
