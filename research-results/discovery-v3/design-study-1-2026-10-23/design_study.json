@@ -1,0 +1,1016 @@
+{
+ "code_sha": "7c87dc6c839ae908dc549dac58469b29ebdd90f8",
+ "cohort0_declared_bounds_on_dev": {
+  "hi52-raw": {
+   "declared_loss_bound": 0.05,
+   "declared_twin_loss_bound": 0.03,
+   "spy_bound_held_on_dev": true,
+   "twin_bound_held_on_dev": true,
+   "worst_vs_spy": -0.02977860750436212,
+   "worst_vs_twin": -0.014655620053475316
+  },
+  "mom-raw": {
+   "declared_loss_bound": 0.05,
+   "declared_twin_loss_bound": 0.03,
+   "spy_bound_held_on_dev": true,
+   "twin_bound_held_on_dev": true,
+   "worst_vs_spy": -0.028719190358773017,
+   "worst_vs_twin": -0.012671299993754714
+  },
+  "rev-raw": {
+   "declared_loss_bound": 0.05,
+   "declared_twin_loss_bound": 0.03,
+   "spy_bound_held_on_dev": true,
+   "twin_bound_held_on_dev": true,
+   "worst_vs_spy": -0.03712305869374688,
+   "worst_vs_twin": -0.012107600132754248
+  }
+ },
+ "designs": {
+  "composite-full": {
+   "book": {
+    "cost_per_year": 0.001829748526006853,
+    "extra_cost_per_year_vs_twin": 0.001480334013197845,
+    "rebalances": 347,
+    "turnover_one_way_per_year": 4.574371315017133
+   },
+   "every": 5,
+   "mean_abs_active": {
+    "beta": 0.000880738332970344,
+    "score_sd": 0.5470950562633973,
+    "sector_max": 0.0009874448122494368,
+    "size": 0.0013246667345561563
+   },
+   "signal": "composite",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.017868262967385584,
+     "information_limit": 0.016771628304008364
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 188.74940479416713,
+      "information_limit": 188.74940479416716,
+      "net_alpha": 0.003519665986802155
+     },
+     "0.01": {
+      "bounded": 32.21390370428346,
+      "information_limit": 32.21390370428345,
+      "net_alpha": 0.008519665986802155
+     },
+     "0.02": {
+      "bounded": 8.393900302495583,
+      "information_limit": 6.817453650677253,
+      "net_alpha": 0.018519665986802155
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.022855340538195046,
+    "dev_contaminated": {
+     "ir": -0.2137804837769326,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.22949826021483757,
+     "mean_annual": -0.01504942814814795
+    },
+    "q0.001": -0.019324841348800727,
+    "q0.01": -0.010651855515504013,
+    "sessions": 1734,
+    "tracking_error": 0.07039664183682523,
+    "worst_session": -0.030553920712805716,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.0060834782967502665,
+    "dev_contaminated": {
+     "ir": -0.12858188274247692,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.029382908594050183,
+     "mean_annual": -0.0017004776809782852
+    },
+    "q0.001": -0.004411122930239407,
+    "q0.01": -0.0026373019668674137,
+    "sessions": 1734,
+    "tracking_error": 0.01322486220227458,
+    "tracking_error_per_unit_dispersion": 0.013956217781655308,
+    "worst_session": -0.005346091488936167,
+    "worst_session_date": "2020-03-19"
+   }
+  },
+  "hi52-full": {
+   "book": {
+    "cost_per_year": 0.0005060227604622078,
+    "extra_cost_per_year_vs_twin": 0.00015660824765319984,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.2650569011555197
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.0007907878622165933,
+    "score_sd": 0.5681971274939096,
+    "sector_max": 0.00042607657344497836,
+    "size": 0.000825020387370391
+   },
+   "signal": "hi52",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.01930621416353794,
+     "information_limit": 0.01613154057275164
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 108.7874653652861,
+      "information_limit": 108.78746536528611,
+      "net_alpha": 0.0048433917523468
+     },
+     "0.01": {
+      "bounded": 26.772551349285106,
+      "information_limit": 26.338346971501846,
+      "net_alpha": 0.009843391752346801
+     },
+     "0.02": {
+      "bounded": 9.553791817264322,
+      "information_limit": 6.481062972596798,
+      "net_alpha": 0.0198433917523468
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.02002232635077994,
+    "dev_contaminated": {
+     "ir": -0.2139111171134159,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.21864493825448153,
+     "mean_annual": -0.014889492818815001
+    },
+    "q0.001": -0.01990829298751971,
+    "q0.01": -0.011089944755182945,
+    "sessions": 1734,
+    "tracking_error": 0.06960597943547074,
+    "worst_session": -0.029066000729259134,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.0036398257956962166,
+    "dev_contaminated": {
+     "ir": -0.10693703454194627,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.042894731364945926,
+     "mean_annual": -0.001477454354887899
+    },
+    "q0.001": -0.005360646179572197,
+    "q0.01": -0.0025818732938393506,
+    "sessions": 1734,
+    "tracking_error": 0.013816114886824962,
+    "tracking_error_per_unit_dispersion": 0.014038679998692336,
+    "worst_session": -0.00840333984017616,
+    "worst_session_date": "2020-03-19"
+   }
+  },
+  "hi52-raw": {
+   "book": {
+    "cost_per_year": 0.00045318704098630796,
+    "extra_cost_per_year_vs_twin": 0.00010377252817729999,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.1329676024657698
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.03246364640546211,
+    "score_sd": 0.578966288953887,
+    "sector_max": 0.021597035631044287,
+    "size": 0.03273575919241246
+   },
+   "signal": "hi52",
+   "variant": "raw",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.03147464218667781,
+     "information_limit": 0.028565513724410643
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 337.90899908635555,
+      "information_limit": 337.90899908635544,
+      "net_alpha": 0.0048962274718227
+     },
+     "0.01": {
+      "bounded": 82.71487008207247,
+      "information_limit": 82.71487008207248,
+      "net_alpha": 0.0098962274718227
+     },
+     "0.02": {
+      "bounded": 20.617396850472495,
+      "information_limit": 20.46357254679823,
+      "net_alpha": 0.0198962274718227
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.01731659075615588,
+    "dev_contaminated": {
+     "ir": -0.3405162518210073,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2467095890067584,
+     "mean_annual": -0.02358327186623664
+    },
+    "q0.001": -0.020314860384884663,
+    "q0.01": -0.010532543111371606,
+    "sessions": 1734,
+    "tracking_error": 0.06925740472038677,
+    "worst_session": -0.02977860750436212,
+    "worst_session_date": "2025-04-09"
+   },
+   "vs_twin": {
+    "best_session": 0.007544673709686034,
+    "dev_contaminated": {
+     "ir": -0.4038537106108063,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.09422220473851883,
+     "mean_annual": -0.009941054430451159
+    },
+    "q0.001": -0.009984318429735538,
+    "q0.01": -0.004929960369815849,
+    "sessions": 1734,
+    "tracking_error": 0.024615483699322375,
+    "tracking_error_per_unit_dispersion": 0.02454677657608584,
+    "worst_session": -0.014655620053475316,
+    "worst_session_date": "2020-11-09"
+   }
+  },
+  "hi52-sector": {
+   "book": {
+    "cost_per_year": 0.0005016891791893095,
+    "extra_cost_per_year_vs_twin": 0.0001522746663803015,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.2542229479732736
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.021982408477079385,
+    "score_sd": 0.5955188949570952,
+    "sector_max": 2.356393191930387e-06,
+    "size": 0.02416128803133607
+   },
+   "signal": "hi52",
+   "variant": "sector",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.02794806204009349,
+     "information_limit": 0.022320500103052893
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 209.11531868215243,
+      "information_limit": 209.11531868215243,
+      "net_alpha": 0.0048477253336196985
+     },
+     "0.01": {
+      "bounded": 50.674562107286164,
+      "information_limit": 50.674562107286164,
+      "net_alpha": 0.0098477253336197
+     },
+     "0.02": {
+      "bounded": 15.544910537519522,
+      "information_limit": 12.47499488147767,
+      "net_alpha": 0.019847725333619698
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.018370580396364744,
+    "dev_contaminated": {
+     "ir": -0.2984290337065244,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.23627221910170748,
+     "mean_annual": -0.020596561329906626
+    },
+    "q0.001": -0.020529246198030367,
+    "q0.01": -0.01044730140567345,
+    "sessions": 1734,
+    "tracking_error": 0.06901661367895363,
+    "worst_session": -0.02858721152334187,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.006442374851394206,
+    "dev_contaminated": {
+     "ir": -0.36804106758930016,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.07073393872172647,
+     "mean_annual": -0.007056252611336069
+    },
+    "q0.001": -0.007875098137868087,
+    "q0.01": -0.0039424758096189005,
+    "sessions": 1734,
+    "tracking_error": 0.019172459903877344,
+    "tracking_error_per_unit_dispersion": 0.01858752926274218,
+    "worst_session": -0.010434893677828572,
+    "worst_session_date": "2020-11-09"
+   }
+  },
+  "lowvol-full": {
+   "book": {
+    "cost_per_year": 0.0005189814161492606,
+    "extra_cost_per_year_vs_twin": 0.00016956690334025265,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.2974535403731515
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.0022580538392360772,
+    "score_sd": 0.546280385676613,
+    "sector_max": 0.00112600565811987,
+    "size": 0.001523660440094366
+   },
+   "signal": "lowvol",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.009205575661587837,
+     "information_limit": 0.008956966055654684
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 33.09394685619535,
+      "information_limit": 33.09394685619535,
+      "net_alpha": 0.004830433096659747
+     },
+     "0.01": {
+      "bounded": 8.75187342948183,
+      "information_limit": 7.9905266472254635,
+      "net_alpha": 0.009830433096659747
+     },
+     "0.02": {
+      "bounded": 3.403930461994782,
+      "information_limit": 1.9636148563829927,
+      "net_alpha": 0.019830433096659748
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.026378959669978164,
+    "dev_contaminated": {
+     "ir": -0.2352698252639137,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2421567149661809,
+     "mean_annual": -0.017207049197526247
+    },
+    "q0.001": -0.019823208976406295,
+    "q0.01": -0.011331334514551544,
+    "sessions": 1734,
+    "tracking_error": 0.07313750999825097,
+    "worst_session": -0.02848985690402317,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.0019076476008774712,
+    "dev_contaminated": {
+     "ir": -0.5411084394883608,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.03136961803617751,
+     "mean_annual": -0.004112364205501909
+    },
+    "q0.001": -0.002099277805324753,
+    "q0.01": -0.001278937885878666,
+    "sessions": 1734,
+    "tracking_error": 0.007599889237340874,
+    "tracking_error_per_unit_dispersion": 0.00803213553339545,
+    "worst_session": -0.0026666817532385867,
+    "worst_session_date": "2026-08-19"
+   }
+  },
+  "mom-full": {
+   "book": {
+    "cost_per_year": 0.0006103855622391833,
+    "extra_cost_per_year_vs_twin": 0.00026097104943017537,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.5259639055979581
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.0010804485477294208,
+    "score_sd": 0.5674051182976423,
+    "sector_max": 0.000462988625088755,
+    "size": 0.0009996881192240329
+   },
+   "signal": "mom",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.01857926592231813,
+     "information_limit": 0.014606806067669134
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 91.6374383640996,
+      "information_limit": 91.63743836409957,
+      "net_alpha": 0.004739028950569824
+     },
+     "0.01": {
+      "bounded": 23.671207055341576,
+      "information_limit": 21.698032248673854,
+      "net_alpha": 0.009739028950569825
+     },
+     "0.02": {
+      "bounded": 9.12706800587699,
+      "information_limit": 5.282020665093372,
+      "net_alpha": 0.019739028950569826
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.025376412542598592,
+    "dev_contaminated": {
+     "ir": -0.21806605751909933,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2285215228838809,
+     "mean_annual": -0.01557241928052038
+    },
+    "q0.001": -0.02162044677387475,
+    "q0.01": -0.011174638259777096,
+    "sessions": 1734,
+    "tracking_error": 0.07141147713534679,
+    "worst_session": -0.02904736565205135,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.0035348734065079324,
+    "dev_contaminated": {
+     "ir": -0.18584899967994184,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.03560992644823324,
+     "mean_annual": -0.0023058601759786096
+    },
+    "q0.001": -0.004137837470957056,
+    "q0.01": -0.0025464339216346244,
+    "sessions": 1734,
+    "tracking_error": 0.012407170229323944,
+    "tracking_error_per_unit_dispersion": 0.012624635980150017,
+    "worst_session": -0.00875939784384372,
+    "worst_session_date": "2020-03-19"
+   }
+  },
+  "mom-raw": {
+   "book": {
+    "cost_per_year": 0.0005854056579394077,
+    "extra_cost_per_year_vs_twin": 0.00023599114513039973,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.463514144848519
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.036151524214242066,
+    "score_sd": 0.578966288953887,
+    "sector_max": 0.02172525633752761,
+    "size": 0.03225899200591646
+   },
+   "signal": "mom",
+   "variant": "raw",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.030236532180811168,
+     "information_limit": 0.026464522330652426
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 303.11178419808084,
+      "information_limit": 303.1117841980809,
+      "net_alpha": 0.004764008854869601
+     },
+     "0.01": {
+      "bounded": 72.15918373197074,
+      "information_limit": 72.15918373197073,
+      "net_alpha": 0.0097640088548696
+     },
+     "0.02": {
+      "bounded": 18.49821618641075,
+      "information_limit": 17.611561408382162,
+      "net_alpha": 0.019764008854869602
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.02631811361493619,
+    "dev_contaminated": {
+     "ir": -0.3046845013313327,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2472307463120638,
+     "mean_annual": -0.02167127361894976
+    },
+    "q0.001": -0.023372923486271895,
+    "q0.01": -0.010679544528225907,
+    "sessions": 1734,
+    "tracking_error": 0.0711269313806779,
+    "worst_session": -0.028719190358773017,
+    "worst_session_date": "2025-04-09"
+   },
+   "vs_twin": {
+    "best_session": 0.006750563763841422,
+    "dev_contaminated": {
+     "ir": -0.3617182409190787,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.07997901390512872,
+     "mean_annual": -0.008205240019377653
+    },
+    "q0.001": -0.008446582885648968,
+    "q0.01": -0.005057478616763221,
+    "sessions": 1734,
+    "tracking_error": 0.022684064808369108,
+    "tracking_error_per_unit_dispersion": 0.02262074869176007,
+    "worst_session": -0.012671299993754714,
+    "worst_session_date": "2020-03-19"
+   }
+  },
+  "mom-sector": {
+   "book": {
+    "cost_per_year": 0.0006205175592749922,
+    "extra_cost_per_year_vs_twin": 0.00027110304646598424,
+    "rebalances": 87,
+    "turnover_one_way_per_year": 1.5512938981874802
+   },
+   "every": 20,
+   "mean_abs_active": {
+    "beta": 0.023301628192103848,
+    "score_sd": 0.5955188949570952,
+    "sector_max": 2.3463045438460283e-06,
+    "size": 0.0228956519846037
+   },
+   "signal": "mom",
+   "variant": "sector",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.027153106651397363,
+     "information_limit": 0.020519222869792412
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 183.33682389888733,
+      "information_limit": 183.3368238988874,
+      "net_alpha": 0.004728896953534015
+     },
+     "0.01": {
+      "bounded": 43.443814769033445,
+      "information_limit": 43.31538685501139,
+      "net_alpha": 0.009728896953534016
+     },
+     "0.02": {
+      "bounded": 14.728097424834147,
+      "information_limit": 10.533284040456921,
+      "net_alpha": 0.019728896953534015
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.028235686269043603,
+    "dev_contaminated": {
+     "ir": -0.26616485394493467,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.23821776806564238,
+     "mean_annual": -0.01888934988912412
+    },
+    "q0.001": -0.022605916286980755,
+    "q0.01": -0.010962058483277677,
+    "sessions": 1734,
+    "tracking_error": 0.07096861065297536,
+    "worst_session": -0.028828274539963172,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.00598817064138224,
+    "dev_contaminated": {
+     "ir": -0.3149475864980985,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.055287435301939816,
+     "mean_annual": -0.0055153095909075715
+    },
+    "q0.001": -0.006799734522986685,
+    "q0.01": -0.0038874563192088946,
+    "sessions": 1734,
+    "tracking_error": 0.017511833166376306,
+    "tracking_error_per_unit_dispersion": 0.01697756641850902,
+    "worst_session": -0.010400176728730393,
+    "worst_session_date": "2020-03-19"
+   }
+  },
+  "rev-full": {
+   "book": {
+    "cost_per_year": 0.0036766803171910745,
+    "extra_cost_per_year_vs_twin": 0.0033272658043820664,
+    "rebalances": 347,
+    "turnover_one_way_per_year": 9.191700792977684
+   },
+   "every": 5,
+   "mean_abs_active": {
+    "beta": 0.0011275706599449705,
+    "score_sd": 0.5676510032924154,
+    "sector_max": 0.0004540646714596496,
+    "size": 0.0010298348723589167
+   },
+   "signal": "rev",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.020546836669411973,
+     "information_limit": 0.019785851291124618
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 968.1243524564574,
+      "information_limit": 968.1243524564574,
+      "net_alpha": 0.0016727341956179337
+     },
+     "0.01": {
+      "bounded": 60.83834123689926,
+      "information_limit": 60.83834123689926,
+      "net_alpha": 0.006672734195617934
+     },
+     "0.02": {
+      "bounded": 10.516166915161126,
+      "information_limit": 9.744764815452509,
+      "net_alpha": 0.016672734195617933
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.029762906652640808,
+    "dev_contaminated": {
+     "ir": -0.1534788359775014,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2593583993135661,
+     "mean_annual": -0.011762954473588202
+    },
+    "q0.001": -0.02003143814647356,
+    "q0.01": -0.011598764382707178,
+    "sessions": 1734,
+    "tracking_error": 0.07664219238222882,
+    "worst_session": -0.034715286653323574,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.009609603644055387,
+    "dev_contaminated": {
+     "ir": 0.08028302161125464,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.03432776923181092,
+     "mean_annual": 0.0011427813025342852
+    },
+    "q0.001": -0.005417133741839326,
+    "q0.01": -0.0025032343195631355,
+    "sessions": 1734,
+    "tracking_error": 0.014234408217317049,
+    "tracking_error_per_unit_dispersion": 0.014477626866431415,
+    "worst_session": -0.006710250601152934,
+    "worst_session_date": "2020-03-18"
+   }
+  },
+  "rev-raw": {
+   "book": {
+    "cost_per_year": 0.003764689313589359,
+    "extra_cost_per_year_vs_twin": 0.0034152748007803507,
+    "rebalances": 347,
+    "turnover_one_way_per_year": 9.411723283973396
+   },
+   "every": 5,
+   "mean_abs_active": {
+    "beta": 0.03511261040287174,
+    "score_sd": 0.5789639619017077,
+    "sector_max": 0.024379601761865814,
+    "size": 0.032046625644341374
+   },
+   "signal": "rev",
+   "variant": "raw",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.0347661024794086,
+     "information_limit": 0.031845617873022196
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 3218.5204516430904,
+      "information_limit": 3218.5204516430904,
+      "net_alpha": 0.0015847251992196494
+     },
+     "0.01": {
+      "bounded": 186.4184490044866,
+      "information_limit": 186.4184490044866,
+      "net_alpha": 0.006584725199219649
+     },
+     "0.02": {
+      "bounded": 29.386484937414615,
+      "information_limit": 29.386484937414615,
+      "net_alpha": 0.01658472519921965
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.03175590132270356,
+    "dev_contaminated": {
+     "ir": -0.0814511194311832,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.25473539575033144,
+     "mean_annual": -0.006423861757940753
+    },
+    "q0.001": -0.023155227003409568,
+    "q0.01": -0.012204552905023617,
+    "sessions": 1734,
+    "tracking_error": 0.07886769147928255,
+    "worst_session": -0.03712305869374688,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.01299744828829108,
+    "dev_contaminated": {
+     "ir": 0.26477230987707384,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.05804921680730243,
+     "mean_annual": 0.006510308572460216
+    },
+    "q0.001": -0.01027915194521159,
+    "q0.01": -0.004251186826548793,
+    "sessions": 1734,
+    "tracking_error": 0.02458832864918074,
+    "tracking_error_per_unit_dispersion": 0.024519795874510055,
+    "worst_session": -0.012107600132754248,
+    "worst_session_date": "2020-03-18"
+   }
+  },
+  "rev-sector": {
+   "book": {
+    "cost_per_year": 0.003842505161762833,
+    "extra_cost_per_year_vs_twin": 0.003493090648953825,
+    "rebalances": 347,
+    "turnover_one_way_per_year": 9.606262904407082
+   },
+   "every": 5,
+   "mean_abs_active": {
+    "beta": 0.02152903109317011,
+    "score_sd": 0.5954919014589329,
+    "sector_max": 2.525231153702415e-06,
+    "size": 0.022644292100502623
+   },
+   "signal": "rev",
+   "variant": "sector",
+   "velocity_vs_twin": {
+    "claim_level": 800.0,
+    "gross_alpha_needed": {
+     "bounded": 0.026404593040053232,
+     "information_limit": 0.025372892468193117
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 2108.203413471039,
+      "information_limit": 2108.2034134710393,
+      "net_alpha": 0.001506909351046175
+     },
+     "0.01": {
+      "bounded": 113.067360748394,
+      "information_limit": 113.06736074839398,
+      "net_alpha": 0.006506909351046175
+     },
+     "0.02": {
+      "bounded": 17.57931063118029,
+      "information_limit": 17.569331420969384,
+      "net_alpha": 0.016506909351046175
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.029715741333159906,
+    "dev_contaminated": {
+     "ir": -0.11767562138512834,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.2583892711601551,
+     "mean_annual": -0.009083610353988362
+    },
+    "q0.001": -0.021187703817258388,
+    "q0.01": -0.011829108415056274,
+    "sessions": 1734,
+    "tracking_error": 0.07719194721105024,
+    "worst_session": -0.03609156961883497,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.011258175855469288,
+    "dev_contaminated": {
+     "ir": 0.2038712995327745,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.041689265956308466,
+     "mean_annual": 0.003857859296991869
+    },
+    "q0.001": -0.00838223183508023,
+    "q0.01": -0.0032114015499912683,
+    "sessions": 1734,
+    "tracking_error": 0.01892301322370134,
+    "tracking_error_per_unit_dispersion": 0.01834652453176352,
+    "worst_session": -0.009228593155071185,
+    "worst_session_date": "2025-04-03"
+   }
+  }
+ },
+ "experiment_id": "design-study-1-2026-10-23",
+ "finished_at": "2026-10-23T18:01:12Z",
+ "plan": {
+  "beta_lookback": 252,
+  "beta_min_obs": 126,
+  "claim_level": 800.0,
+  "extras": [
+   [
+    "composite",
+    5
+   ],
+   [
+    "lowvol",
+    20
+   ]
+  ],
+  "hypothetical_gross_alpha": [
+   0.005,
+   0.01,
+   0.02
+  ],
+  "notes": "Registered before the run. Risk only selects: for each signal, the proposed variant is the one with the lowest tracking error against the equal-weight twin at the reference dispersion (a rank's 1/sqrt(3); ties: the more neutral); `composite-full` (the mean of the three signals' standardized full-neutral scores, every 5 sessions) and `lowvol-full` (minus the 60-session volatility of daily log returns, every 20) are proposed alongside. Each proposed loss bound is the smallest grid value at least twice the worst DEV session (against the twin, and against SPY). DEV means are DEV_CONTAMINATED diagnostics and select nothing. The proposal is for a later, separately registered cohort of the evidence tournament, at prior mass 0.04 each from the reserve; it changes no recorded series.",
+  "plan_id": "design-study-1",
+  "proposed_mass": 0.04,
+  "safety": 2.0,
+  "signals": [
+   [
+    "mom",
+    "ret_60",
+    1,
+    20
+   ],
+   [
+    "rev",
+    "ret_5",
+    -1,
+    5
+   ],
+   [
+    "hi52",
+    "high_252",
+    1,
+    20
+   ]
+  ],
+  "spy_loss_grid": [
+   0.01,
+   0.015,
+   0.02,
+   0.03,
+   0.05,
+   0.075,
+   0.1,
+   0.15,
+   0.2
+  ],
+  "strength": 0.5,
+  "target_years": 10.0,
+  "title": "Information rate of neutralized tilts against their equal-weight twin (U1, DEV dates)",
+  "twin_every": 20,
+  "twin_loss_grid": [
+   0.005,
+   0.0075,
+   0.01,
+   0.015,
+   0.02,
+   0.03,
+   0.05
+  ],
+  "variants": [
+   "raw",
+   "sector",
+   "full"
+  ],
+  "vol_lookback": 60,
+  "vol_min_obs": 40
+ },
+ "plan_sha256": "d5fef5eb047d5854eeb65bc6a828fd3faacdb5df0618d2a7478a344257fd7689",
+ "proposal": {
+  "candidates": [
+   {
+    "design": "mom-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 20,
+    "twin": "ew",
+    "twin_loss_bound": 0.02
+   },
+   {
+    "design": "rev-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 5,
+    "twin": "ew",
+    "twin_loss_bound": 0.015
+   },
+   {
+    "design": "hi52-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 20,
+    "twin": "ew",
+    "twin_loss_bound": 0.02
+   },
+   {
+    "design": "composite-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 5,
+    "twin": "ew",
+    "twin_loss_bound": 0.015
+   },
+   {
+    "design": "lowvol-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 20,
+    "twin": "ew",
+    "twin_loss_bound": 0.0075
+   }
+  ],
+  "prior_mass_total": 0.2,
+  "rule": "per signal, the lowest tracking error against the twin at the reference dispersion (ties: the more neutral), plus the extras; loss bound = smallest grid value >= 2.0 x the worst DEV session",
+  "status": "PROPOSAL for a later, separately registered cohort; changes no recorded series"
+ },
+ "provenance": {
+  "adjustment": "split",
+  "corporate_actions": "available",
+  "data_class": "REAL_MARKET_DATA",
+  "dataset_hash": "0339c815532901fc976327cf6ef268b0561c5a60df419f81217afcd978ae651f",
+  "feed": "sip",
+  "fetched_at": "2026-10-23T17:57:03Z",
+  "history_hash": "ebd26bdee6f735737390a8b23b236471a61a7f1ffbf83d529850d04bd9f854bf",
+  "membership_rule": "date_added <= t (current constituents only)",
+  "provider": "alpaca",
+  "rights_note": "derived aggregates only; no vendor OHLCV is stored or published",
+  "survivorship": "DATA_LIMITED_SURVIVORS",
+  "universe_id": "U1",
+  "universe_snapshot_sha256": "0953c557300e41620f5f189b387a2dac64f57908d7e1895fe2e449bac98a4c34",
+  "window_end": "2026-10-20",
+  "window_start": "2016-01-04"
+ },
+ "publication": "aggregates only: no symbol, price or per-stock value (provider terms)",
+ "research_only": true,
+ "schema": "apex-discovery-v3-design-study-1",
+ "status": "COMPLETED",
+ "twin": {
+  "book": {
+   "cost_per_year": 0.00034941451280900797,
+   "rebalances": 87,
+   "turnover_one_way_per_year": 0.8735362820225198
+  },
+  "vs_spy": {
+   "best_session": 0.028095948661661874,
+   "dev_contaminated": {
+    "ir": -0.1727631275213983,
+    "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+    "max_drawdown_log": 0.23514166141177062,
+    "mean_annual": -0.012937088057504051
+   },
+   "q0.001": -0.01994243463451977,
+   "q0.01": -0.011263463099513645,
+   "sessions": 1734,
+   "tracking_error": 0.07488338653687358,
+   "worst_session": -0.030040694384489863,
+   "worst_session_date": "2020-03-12"
+  }
+ },
+ "universe": {
+  "mean_masked": 360.6599423631124,
+  "stocks": 495
+ },
+ "window": {
+  "evaluated": [
+   "2019-10-24",
+   "2026-09-18"
+  ],
+  "first_decision": "2019-10-22",
+  "label": "DEV_CONTAMINATED",
+  "sessions": 1734,
+  "tier": "DEV_DIAGNOSTIC"
+ }
+}

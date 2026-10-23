@@ -127,7 +127,7 @@ To run research that month, the owner can raise the repository variable `APEX_AC
 ## 8. Later cohorts
 
 The reserved prior mass (0.55) is for candidates admitted after genesis. Planned:
-- **neutralized tilts designed for information rate:** the same signals with sector-, beta- and size-neutral active weights. They are measured first by the registered study [`design-study-1`](DESIGN_STUDY_1.md), whose proposal would use 0.20 of the reserve;
+- **neutralized tilts designed for information rate:** the same signals with sector-, beta- and size-neutral active weights. [`design-study-1`](DESIGN_STUDY_1.md) measured them on DEV ([results](../../research-results/discovery-v3/design-study-1-2026-10-23/REVIEW.md)): about 42% less tracking error against the twin, so about 3× faster evidence at the same alpha. Its proposal would use 0.20 of the reserve;
 - the frozen S1 and S3 arms as paper books, for a valid interim reading of the frozen shadow;
 - SEC-event designs: Form 4 insider purchases and 8-K earnings timing, live and point-in-time. These wait for the owner's SEC contact (`APEX_SEC_USER_AGENT`);
 - cap-weighted tilts.
