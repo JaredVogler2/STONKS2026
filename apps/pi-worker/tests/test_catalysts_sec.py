@@ -54,27 +54,29 @@ def test_parse_submissions_fixture(doc):
     assert k.form == "8-K" and k.items == ("2.02", "9.01") and k.filing_date == date(2026, 10, 14)
 
 
-def test_acceptance_is_eastern_wall_clock_despite_trailing_z():
-    # EDGAR's submissions JSON prints ET wall clock with a "Z"; 16:05 ET in October is 20:05 UTC (EDT)
-    assert parse_acceptance_datetime("2026-10-14T16:05:31.000Z") == datetime(
-        2026, 10, 14, 20, 5, 31, tzinfo=UTC
-    )
+def test_acceptance_with_z_is_utc_and_the_raw_header_is_eastern():
+    # the submissions API prints UTC: Apple's 8-K 0000320193-26-000018 is 20:30:28Z there and "Accepted
+    # 2026-07-30 16:30:28" (US Eastern) on its EDGAR index page
+    assert parse_acceptance_datetime("2026-07-30T20:30:28.000Z") == datetime(2026, 7, 30, 20, 30, 28, tzinfo=UTC)
+    assert parse_acceptance_datetime("2026-07-30T20:30:28+00:00") == datetime(2026, 7, 30, 20, 30, 28, tzinfo=UTC)
+    # the SGML header and a naive value are the Eastern wall clock: 16:05 ET in October is 20:05 UTC (EDT)
     assert parse_acceptance_datetime("20261014160531") == datetime(2026, 10, 14, 20, 5, 31, tzinfo=UTC)
+    assert parse_acceptance_datetime("2026-10-14T16:05:31") == datetime(2026, 10, 14, 20, 5, 31, tzinfo=UTC)
 
 
 @pytest.mark.parametrize(
     ("raw", "expected_utc"),
     [
-        ("2026-03-06T16:45:12.000Z", datetime(2026, 3, 6, 21, 45, 12, tzinfo=UTC)),  # Fri, EST (UTC-5)
+        ("20260306164512", datetime(2026, 3, 6, 21, 45, 12, tzinfo=UTC)),  # Fri, EST (UTC-5)
         (
-            "2026-03-09T16:45:12.000Z",
+            "20260309164512",
             datetime(2026, 3, 9, 20, 45, 12, tzinfo=UTC),
         ),  # Mon after DST start, EDT
-        ("2025-10-31T16:30:00.000Z", datetime(2025, 10, 31, 20, 30, tzinfo=UTC)),  # Fri, EDT
-        ("2025-11-03T16:30:00.000Z", datetime(2025, 11, 3, 21, 30, tzinfo=UTC)),  # Mon after DST end, EST
+        ("20251031163000", datetime(2025, 10, 31, 20, 30, tzinfo=UTC)),  # Fri, EDT
+        ("2025-11-03T16:30:00", datetime(2025, 11, 3, 21, 30, tzinfo=UTC)),  # Mon after DST end, EST (naive)
     ],
 )
-def test_acceptance_dst_boundaries(raw, expected_utc):
+def test_acceptance_dst_boundaries(raw, expected_utc):  # the Eastern wall-clock formats
     assert parse_acceptance_datetime(raw) == expected_utc
 
 
@@ -87,7 +89,7 @@ def test_dst_boundary_filings_in_fixture(doc):
 
 def test_ambiguous_fall_back_hour_resolves_to_later_instant():
     # 01:30 ET on 2026-11-01 happens twice; the conservative choice is the later (EST) instant
-    assert parse_acceptance_datetime("2026-11-01T01:30:00.000Z") == datetime(2026, 11, 1, 6, 30, tzinfo=UTC)
+    assert parse_acceptance_datetime("20261101013000") == datetime(2026, 11, 1, 6, 30, tzinfo=UTC)
 
 
 def test_bad_documents_raise_parse_errors():

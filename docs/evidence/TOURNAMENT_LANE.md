@@ -134,10 +134,14 @@ The reserved prior mass (0.55) is for candidates admitted after genesis.
 - they are claimed against the twin only;
 - the same workflow records them, from the same data fetch.
 
+**Registered for measurement: SEC-event designs** ([`design-study-2`](DESIGN_STUDY_2.md)):
+- Form 4 insider purchases, the earnings-announcement premium and drift after the announcement return, point-in-time from public SEC filings;
+- the study measures their tracking error and worst sessions against the twin, as design-study-1 did, and proposes them at prior mass 0.04 each;
+- it runs once the owner has added the SEC contact (`APEX_SEC_USER_AGENT`). A cohort from it needs its own registration and live event recording.
+
 Planned:
 - the frozen S1 and S3 arms as paper books, for a valid interim reading of the frozen shadow;
-- SEC-event designs: Form 4 insider purchases and 8-K earnings timing, live and point-in-time. These wait for the owner's SEC contact (`APEX_SEC_USER_AGENT`);
-- cap-weighted tilts.
+- cap-weighted tilts (shares outstanding from the SEC's company facts, with the same contact).
 
 **How a cohort is added: as its own series.** This series' slate never changes. A later cohort gets its own series id, genesis, chain and ledger. Its configuration names the earlier cohorts and their masses, and it draws its own masses from the reserve, so the total over every cohort stays at most 1.
 - Claims stay family-wise valid across series. The union bound behind §1 needs only that every mass is fixed before its candidate's first period, and that the masses sum to at most 1.

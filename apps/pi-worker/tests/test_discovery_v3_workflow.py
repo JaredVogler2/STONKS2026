@@ -28,7 +28,10 @@ def test_secrets_only_in_the_research_step_and_inputs_only_through_env():
     (job,) = wf["jobs"].values()
     holders = [s for s in job["steps"] if "secrets." in str(s)]
     assert [s.get("id") for s in holders] == ["research"]
-    assert set(re.findall(r"secrets\.([A-Z_]+)", raw)) == {"ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY"}
+    assert set(re.findall(r"secrets\.([A-Z_]+)", raw)) == {"ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY",
+                                                         "APEX_SEC_USER_AGENT"}
+    env = holders[0]["env"]
+    assert env["APEX_SEC_USER_AGENT"] == "${{ secrets.APEX_SEC_USER_AGENT }}"  # the SEC contact, research step only
     for s in job["steps"]:
         assert "${{ inputs." not in s.get("run", "")  # inputs reach scripts only through env, validated as slugs
     assert "--source alpaca" in holders[0]["run"]
