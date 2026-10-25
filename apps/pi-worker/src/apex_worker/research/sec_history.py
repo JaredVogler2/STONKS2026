@@ -140,17 +140,45 @@ class SecHistory:
 
 
 # ---- access ---------------------------------------------------------------------------------------------------------
+APP_NAME = "APEX Research"  # the application's own name, declared when the owner's secret is only an email
+_BARE_EMAIL_RE = re.compile(r"<?\s*([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\s*>?")
+_ANY_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+_GENERIC_START = ("python-httpx", "python-requests", "curl", "wget", "mozilla", "java", "go-http-client")
+
+
+def _contact_problem(raw: str) -> str:
+    """Which rule the contact breaks, in words that never contain the value itself."""
+    if not raw:
+        return "is not set (the repository secret is missing or empty)"
+    if not raw.isascii() or not raw.isprintable():
+        return ("contains a character an HTTP header cannot carry (an accented letter, a curly quote or another "
+                "non-ASCII character); use plain letters, digits and the email")
+    if not _ANY_EMAIL_RE.search(raw):
+        return "contains no email address that the SEC could write to (expected name@domain.tld)"
+    name = _ANY_EMAIL_RE.sub("", raw).strip(" <>()[],;:-\t")
+    if name.lower().startswith(_GENERIC_START):
+        return "starts with a generic client name (curl, Mozilla, python-requests ...)"
+    return "needs a name of at least 3 characters before the email"
+
+
 def user_agent_from_env(env: Mapping[str, str] | None = None) -> str:
-    """The owner's SEC contact (`APEX_SEC_USER_AGENT`), validated. The value is never echoed: the validator's own
-    message quotes it, so the stop carries a fixed message instead."""
+    """The owner's SEC contact (`APEX_SEC_USER_AGENT`), validated and sent as the User-Agent header. Any run of
+    whitespace, a line break included, becomes one space (a header cannot carry a line break); a secret holding only an
+    email gets this application's name in front (`APEX Research you@example.com`), which is what the SEC asks for. The
+    value is never echoed: the validator's own message quotes it, so the stop says which rule failed instead."""
     env = os.environ if env is None else env
+    raw = " ".join((env.get("APEX_SEC_USER_AGENT") or "").split())  # a line break or tab cannot travel in a header
+    if (m := _BARE_EMAIL_RE.fullmatch(raw)) is not None:
+        raw = f"{APP_NAME} {m.group(1)}"
     try:
-        return validate_sec_user_agent(env.get("APEX_SEC_USER_AGENT"))
+        if not raw.isascii() or not raw.isprintable():
+            raise UserAgentError("not a header value")
+        return validate_sec_user_agent(raw)
     except UserAgentError:
         raise RunStop(STATUS_SEC_BLOCKED,
-                      "BLOCKED — APEX_SEC_USER_AGENT missing or invalid. Add the repository secret APEX_SEC_USER_AGENT: "
-                      "a name and a contact email, e.g. 'APEX Research you@example.com' (the SEC's fair-access policy "
-                      "requires it; see docs/evidence/DESIGN_STUDY_2.md).") from None
+                      f"BLOCKED — APEX_SEC_USER_AGENT {_contact_problem(raw)}. Set the repository secret "
+                      "APEX_SEC_USER_AGENT to a name and a contact email, e.g. 'APEX Research you@example.com' (the "
+                      "SEC's fair-access policy requires it; see docs/evidence/DESIGN_STUDY_2.md).") from None
 
 
 def sec_http(user_agent: str, *, transport=None, bucket: TokenBucket | None = None,
@@ -167,7 +195,8 @@ def _get(http: PoliteHttpClient, url: str, what: str, *, accept: str | None = No
     except FetchError as exc:
         if missing_ok and exc.status == 404:
             return None
-        raise RunStop(STATUS_SEC_INCOMPLETE, f"SEC {what}: {exc.reason_code} ({exc.status})") from None
+        cause = type(exc.__cause__).__name__ if exc.__cause__ is not None else exc.status  # never the message: it may
+        raise RunStop(STATUS_SEC_INCOMPLETE, f"SEC {what}: {exc.reason_code} ({cause})") from None  # quote headers
 
 
 # ---- earnings releases ----------------------------------------------------------------------------------------------

@@ -132,7 +132,7 @@ Aggregates only: no symbol, CIK, owner, price or per-stock value. `_no_symbols` 
 
 **1. The owner adds the contact, once.** Go to **Settings → Secrets and variables → Actions → Secrets → New repository secret**:
 - name: `APEX_SEC_USER_AGENT`;
-- value: a name and a contact email, such as `APEX Research you@example.com`. The client refuses a value without an email, or one that starts with a generic client name such as `curl`.
+- value: a name and a contact email, such as `APEX Research you@example.com`. A bare email also works: the run sends `APEX Research <email>`. Line breaks and odd spaces in the value are joined into single spaces, because a header cannot carry them. The run stops, naming the rule but never showing the value, if the value has no email, a name shorter than 3 characters, a generic client name such as `curl`, or a non-ASCII character.
 
 **2. This registration merges.** The workflow runs only plans committed on `main`.
 
