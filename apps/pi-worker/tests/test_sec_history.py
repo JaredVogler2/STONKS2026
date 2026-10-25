@@ -68,6 +68,34 @@ def test_the_contact_is_required_and_never_echoed():
     assert SH.user_agent_from_env({"APEX_SEC_USER_AGENT": f"  {UA} "}) == UA
 
 
+def test_the_contact_is_made_header_safe_and_its_problems_named_without_the_value():
+    ok = {"APEX Research\nops@example.com": "APEX Research ops@example.com",  # name and email on two lines
+          "APEX\tResearch\r\n ops@example.com\n": "APEX Research ops@example.com",
+          "APEX Research\u00a0ops@example.com": "APEX Research ops@example.com",  # a phone's non-breaking space
+          "ops@example.com": "APEX Research ops@example.com",  # only the email: the application names itself
+          " <ops@example.com> ": "APEX Research ops@example.com"}
+    for value, header in ok.items():
+        assert SH.user_agent_from_env({"APEX_SEC_USER_AGENT": value}) == header
+    bad = {"APEX Research": "no email", "ab ops@example.com": "at least 3 characters",
+           "curl/8.0 ops@example.com": "generic client", "Jos\u00e9 Research ops@example.com": "HTTP header",
+           "": "not set"}
+    for value, words in bad.items():
+        with pytest.raises(RunStop) as stop:
+            SH.user_agent_from_env({"APEX_SEC_USER_AGENT": value})
+        assert words in stop.value.reason and "ops@example" not in stop.value.reason and "curl/8" not in stop.value.reason
+
+
+def test_a_transport_failure_names_its_cause_never_its_message():
+    def boom(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("secret-looking detail")
+
+    http = SH.sec_http(UA, transport=httpx.MockTransport(boom), bucket=TokenBucket(10.0, time_source=FakeTime()))
+    http._time = FakeTime()  # no real backoff sleeps
+    with pytest.raises(RunStop) as stop:
+        SH.company_filings(http, "9990001", date(2026, 1, 1), date(2026, 6, 30))
+    assert "TRANSPORT_ERROR (ConnectError)" in stop.value.reason and "secret-looking" not in stop.value.reason
+
+
 # ---- earnings releases ----------------------------------------------------------------------------------------------
 def test_releases_are_8k_item_202_once_a_day_and_usable_from_the_right_session():
     from apex_worker.catalysts.sec import parse_submissions
