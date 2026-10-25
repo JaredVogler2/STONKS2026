@@ -134,10 +134,10 @@ The reserved prior mass (0.55) is for candidates admitted after genesis.
 - they are claimed against the twin only;
 - the same workflow records them, from the same data fetch.
 
-**Registered for measurement: SEC-event designs** ([`design-study-2`](DESIGN_STUDY_2.md)):
+**Measured: SEC-event designs** ([`design-study-2`](DESIGN_STUDY_2.md), [results](../../research-results/discovery-v3/design-study-2-2026-10-25/REVIEW.md)):
 - Form 4 insider purchases, the earnings-announcement premium and drift after the announcement return, point-in-time from public SEC filings;
-- the study measures their tracking error and worst sessions against the twin, as design-study-1 did, and proposes them at prior mass 0.04 each;
-- it runs once the owner has added the SEC contact (`APEX_SEC_USER_AGENT`). A cohort from it needs its own registration and live event recording.
+- on DEV, their tracking error against the twin is 0.69–0.82%, the lowest measured, mostly because their tilts are small. A claim at 1,000 within 10 years needs a gross alpha of 1.1–1.4% a year;
+- the proposal is all three at prior mass 0.04 each, 0.12 of the reserve. A cohort from it needs the owner's decision, its own registration and live event recording.
 
 Planned:
 - the frozen S1 and S3 arms as paper books, for a valid interim reading of the frozen shadow;

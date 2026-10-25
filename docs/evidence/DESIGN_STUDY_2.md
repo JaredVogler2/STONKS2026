@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **Registered, not yet run.** It runs once the owner has added the repository secret `APEX_SEC_USER_AGENT` (§8). Without it, the run stops `BLOCKED_SEC_USER_AGENT_MISSING` before any download |
+| Status | **Run** on 2026-10-25 ([run 40184666594](https://github.com/JaredVogler2/STONKS2026/actions/runs/40184666594), code `4a72cea`, the plan below unchanged). Results and reviewer notes: [`research-results/discovery-v3/design-study-2-2026-10-25/`](../../research-results/discovery-v3/design-study-2-2026-10-25/REVIEW.md). The plan was committed (PR #39) before the run. PR #40 changed only how the SEC contact is read and how a failed request is reported |
 | Plan sha256 | `b562c7a6fb2fb6cf772e8958909c2f6dd89448680cf2851d33096e7ec3487375` (`apex_worker/discovery/v3/design_events.py::DESIGN_STUDY_2`). The hash covers the event rules (`apex_worker/research/sec_history.py::EVENT_RULES`); a changed plan or rule needs a new plan id |
 | Kind | A **measurement** of risk, not a strategy test. Nothing is selected on returns |
 | Data | - **Daily bars:** design-study-1's (protocol-2's SIP path, `discovery.v3.pipeline.load_data`), DEV decisions 2019-10-23 → data end − 22 sessions: `DEV_CONTAMINATED`, tier `DEV_DIAGNOSTIC`. PRESAMPLE is never evaluated.<br>- **SEC filings** from 2018-01-01 to the last DEV session (§2): free, public, no key |

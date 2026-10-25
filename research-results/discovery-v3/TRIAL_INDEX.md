@@ -11,7 +11,7 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 | [`v3-pilot-1-2026-10-23`](v3-pilot-1-2026-10-23/) ([review](v3-pilot-1-2026-10-23/REVIEW.md), [decision report](v3-pilot-1-2026-10-23/DECISION_REPORT.md)) | [39884381394](https://github.com/JaredVogler2/STONKS2026/actions/runs/39884381394), 2026-10-23 | `dddf352` | `v3-pilot-1` (`11d0af37…ae2c7`) | 10 | **10 REJECTED_DEV.** Aggregate NO_TRADE; nothing nominated |
 | [`v3-pilot-2-2026-10-23`](v3-pilot-2-2026-10-23/) ([review](v3-pilot-2-2026-10-23/REVIEW.md), [decision report](v3-pilot-2-2026-10-23/DECISION_REPORT.md)) | [39921190552](https://github.com/JaredVogler2/STONKS2026/actions/runs/39921190552), 2026-10-23 | `ed8c8e5` | `v3-pilot-2` (`5a2cc40c…8c0e`), `obj-v3-2`, `cost-v3-2` | 7 | **5 REJECTED_DEV, 2 INCONCLUSIVE_DEV** (G2 quarterly buffered momentum, +8.6 pp/yr vs SPY, Holm 0.62; risk-loaded, survivorship-exposed). Aggregate NO_TRADE; nothing nominated |
 
-**Cumulative real-data V3 trials:** 17. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2. Measurements (not trials): `cost-study-1-2026-10-23`.
+**Cumulative real-data V3 trials:** 17. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2. Measurements (not trials): `cost-study-1-2026-10-23`, `design-study-1-2026-10-23`, `design-study-2-2026-10-25`.
 
 ## `v3-pilot-1-2026-10-23`
 
