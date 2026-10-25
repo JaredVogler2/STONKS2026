@@ -18,7 +18,9 @@
 # * A `design-study-*` plan runs the registered design measurement instead (docs/evidence/DESIGN_STUDY_1.md): the
 #   tracking error and worst sessions of tilt designs against their equal-weight twin on the same daily bars, for the
 #   evidence tournament's next cohort; aggregates only (design_study.json, DESIGN_STUDY.md), no strategy is selected
-#   on DEV returns.
+#   on DEV returns. design-study-2 (docs/evidence/DESIGN_STUDY_2.md) also reads public SEC filings (EDGAR submissions,
+#   the quarterly Form 3/4/5 data sets) with the owner's contact, the repository secret APEX_SEC_USER_AGENT, which the
+#   SEC's fair-access policy requires; it is sent to the SEC only, and a run without it stops before any download.
 # * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-discovery-v3
@@ -93,6 +95,7 @@ jobs:
         env:
           ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          APEX_SEC_USER_AGENT: ${{ secrets.APEX_SEC_USER_AGENT }}  # SEC fair access: name + contact email (design-study-2)
           PLAN: ${{ inputs.plan }}
           EXPERIMENT_ID: ${{ inputs.experiment_id }}
         run: |
@@ -100,7 +103,7 @@ jobs:
           if ! [[ "$EXPERIMENT_ID" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then echo "::error::experiment_id must be a slug"; exit 5; fi
           cmd=run
           if [[ "$PLAN" == cost-study-* ]]; then cmd=costs; fi  # registered execution-cost measurement (PR-D)
-          if [[ "$PLAN" == design-study-* ]]; then cmd=design; fi  # registered design measurement (DESIGN_STUDY_1.md)
+          if [[ "$PLAN" == design-study-* ]]; then cmd=design; fi  # registered design measurement (DESIGN_STUDY_1/2.md)
           set +e
           uv run --no-sync apex research discovery "$cmd" --plan "$PLAN" --source alpaca \
             --experiment-id "$EXPERIMENT_ID" --out "$APEX_OUT/report"
