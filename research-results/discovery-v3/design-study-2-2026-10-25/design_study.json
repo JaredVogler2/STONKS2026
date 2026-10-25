@@ -1,0 +1,445 @@
+{
+ "code_sha": "4a72cea6836b64507487a88312be44767d0639ec",
+ "designs": {
+  "eap-full": {
+   "book": {
+    "cost_per_year": 0.0014724540681985809,
+    "extra_cost_per_year_vs_twin": 0.001123240947039607,
+    "rebalances": 348,
+    "turnover_one_way_per_year": 3.681135170496452
+   },
+   "every": 5,
+   "kind": "indicator",
+   "mean_abs_active": {
+    "beta": 1.87529450155911e-06,
+    "flagged": 0.1321317221832079,
+    "score_sd": 0.2813147548100457,
+    "sector_max": 2.984771977272578e-06,
+    "size": 4.106012496400539e-06
+   },
+   "signal": "eap",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 1000.0,
+    "gross_alpha_needed": {
+     "bounded": 0.010947905893037131,
+     "information_limit": 0.009246568136248379
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 43.906646973475965,
+      "information_limit": 43.906646973475965,
+      "net_alpha": 0.003876759052960393
+     },
+     "0.01": {
+      "bounded": 11.409027303392012,
+      "information_limit": 8.374502730425027,
+      "net_alpha": 0.008876759052960393
+     },
+     "0.02": {
+      "bounded": 4.588455977917208,
+      "information_limit": 1.851880791882395,
+      "net_alpha": 0.018876759052960393
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.02905527934389185,
+    "dev_contaminated": {
+     "ir": -0.1973060575871151,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.24120358819632573,
+     "mean_annual": -0.014689651768401006
+    },
+    "q0.001": -0.019365124157994074,
+    "q0.01": -0.011393034685227312,
+    "sessions": 1735,
+    "tracking_error": 0.07445109363616569,
+    "worst_session": -0.03216935792933151,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.003500172136098767,
+    "dev_contaminated": {
+     "ir": -0.037015923553040495,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.018519054334830663,
+     "mean_annual": -0.0002558226927916079
+    },
+    "q0.001": -0.0031067184912874596,
+    "q0.01": -0.0010482404329280293,
+    "sessions": 1735,
+    "tracking_error": 0.006911152505084384,
+    "tracking_error_per_unit_dispersion": 0.014183954773063109,
+    "worst_session": -0.004970474301371763,
+    "worst_session_date": "2020-03-18"
+   }
+  },
+  "ear-full": {
+   "book": {
+    "cost_per_year": 0.0010097972147783602,
+    "extra_cost_per_year_vs_twin": 0.0006605840936193863,
+    "rebalances": 348,
+    "turnover_one_way_per_year": 2.5244930369459007
+   },
+   "every": 5,
+   "kind": "ranked",
+   "mean_abs_active": {
+    "beta": 0.0002844377819564959,
+    "flagged": 0.9349038063330567,
+    "score_sd": 0.5730870782556683,
+    "sector_max": 0.00014580228058830327,
+    "size": 0.0004941039749622165
+   },
+   "signal": "ear",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 1000.0,
+    "gross_alpha_needed": {
+     "bounded": 0.014214894738581955,
+     "information_limit": 0.010356421431889177
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 50.09909281354411,
+      "information_limit": 49.92385219669981,
+      "net_alpha": 0.004339415906380614
+     },
+     "0.01": {
+      "bounded": 15.775386397513657,
+      "information_limit": 10.777827041732452,
+      "net_alpha": 0.009339415906380613
+     },
+     "0.02": {
+      "bounded": 6.655627826702363,
+      "information_limit": 2.51352920299328,
+      "net_alpha": 0.019339415906380615
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.02739908405231639,
+    "dev_contaminated": {
+     "ir": -0.20640841767850213,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.22587491752548688,
+     "mean_annual": -0.015122222044511337
+    },
+    "q0.001": -0.01907320578370072,
+    "q0.01": -0.011237667682686928,
+    "sessions": 1735,
+    "tracking_error": 0.07326359174006859,
+    "worst_session": -0.03220471791001145,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.003816117125097662,
+    "dev_contaminated": {
+     "ir": -0.07165756119966757,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.02308007795668262,
+     "mean_annual": -0.0005911039679530186
+    },
+    "q0.001": -0.0030389379726404216,
+    "q0.01": -0.0014626012597670358,
+    "sessions": 1735,
+    "tracking_error": 0.008249010405279615,
+    "tracking_error_per_unit_dispersion": 0.008310374738394487,
+    "worst_session": -0.00507374209171052,
+    "worst_session_date": "2020-03-18"
+   }
+  },
+  "insider-full": {
+   "book": {
+    "cost_per_year": 0.0007340569878105223,
+    "extra_cost_per_year_vs_twin": 0.0003848438666515483,
+    "rebalances": 348,
+    "turnover_one_way_per_year": 1.8351424695263059
+   },
+   "every": 5,
+   "kind": "indicator",
+   "mean_abs_active": {
+    "beta": 1.8582812394215243e-06,
+    "flagged": 0.13745792512704652,
+    "score_sd": 0.3471229424081089,
+    "sector_max": 3.0317891256529046e-06,
+    "size": 4.449353964175195e-06
+   },
+   "signal": "insider",
+   "variant": "full",
+   "velocity_vs_twin": {
+    "claim_level": 1000.0,
+    "gross_alpha_needed": {
+     "bounded": 0.013311379814939298,
+     "information_limit": 0.008453249441716595
+    },
+    "target_years": 10.0,
+    "years_at_gross_alpha": {
+     "0.005": {
+      "bounded": 35.96052258339345,
+      "information_limit": 30.563468981425363,
+      "net_alpha": 0.004615156133348452
+     },
+     "0.01": {
+      "bounded": 14.037507021529303,
+      "information_limit": 7.04146070378598,
+      "net_alpha": 0.009615156133348452
+     },
+     "0.02": {
+      "bounded": 6.3252460457668125,
+      "information_limit": 1.691967056403425,
+      "net_alpha": 0.019615156133348452
+     }
+    }
+   },
+   "vs_spy": {
+    "best_session": 0.0282678214679688,
+    "dev_contaminated": {
+     "ir": -0.20107073115290416,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.24255954770152946,
+     "mean_annual": -0.015127267723370141
+    },
+    "q0.001": -0.019529277250862582,
+    "q0.01": -0.011588345852851106,
+    "sessions": 1735,
+    "tracking_error": 0.07523356401318607,
+    "worst_session": -0.03197764367716238,
+    "worst_session_date": "2020-03-12"
+   },
+   "vs_twin": {
+    "best_session": 0.00340794151624757,
+    "dev_contaminated": {
+     "ir": -0.10960016004986296,
+     "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+     "max_drawdown_log": 0.018266696532806243,
+     "mean_annual": -0.0007523422292397081
+    },
+    "q0.001": -0.0034240044381256083,
+    "q0.01": -0.001168605639285718,
+    "sessions": 1735,
+    "tracking_error": 0.006864426373989121,
+    "tracking_error_per_unit_dispersion": 0.011417218312800303,
+    "worst_session": -0.005348873111407859,
+    "worst_session_date": "2020-03-18"
+   }
+  }
+ },
+ "experiment_id": "design-study-2-2026-10-25",
+ "finished_at": "2026-10-25T10:32:06Z",
+ "plan": {
+  "beta_lookback": 252,
+  "beta_min_obs": 126,
+  "claim_level": 1000.0,
+  "designs": [
+   [
+    "insider",
+    "indicator",
+    5
+   ],
+   [
+    "eap",
+    "indicator",
+    5
+   ],
+   [
+    "ear",
+    "ranked",
+    5
+   ]
+  ],
+  "drift_window": 60,
+  "event_rules": {
+   "earnings_release": "an 8-K (not 8-K/A) listing item 2.02; one release per company and US Eastern acceptance day (the earliest acceptance); usable from the first session whose close is at or after the acceptance",
+   "insider_purchase": "a Form 4 (not 4/A) with a non-derivative transaction coded P (open market or private purchase), acquired (A), shares > 0, filed by a reporting owner who is a director or an officer of the issuer; one event per filing and qualifying owner; usable from the first session after the filing date",
+   "issuer_mapping": "U1 symbol -> CIK from the SEC's current company_tickers.json (U1 is today's list); events are keyed by issuer CIK; a symbol without a CIK has no events"
+  },
+  "hypothetical_gross_alpha": [
+   0.005,
+   0.01,
+   0.02
+  ],
+  "insider_window": 60,
+  "min_releases": 3,
+  "notes": "Registered before the run. Risk only selects: every design is proposed, each with the smallest grid loss bound at least twice its worst DEV session (against the twin, and against SPY). DEV means are DEV_CONTAMINATED diagnostics and select nothing. The proposal is for a later, separately registered cohort of the evidence tournament, at prior mass 0.04 each from the reserve, claimed against the twin only; it changes no recorded series.",
+  "plan_id": "design-study-2",
+  "proposed_mass": 0.04,
+  "reaction_sessions": 2,
+  "release_window": 10,
+  "safety": 2.0,
+  "sec_history_start": "2018-01-01",
+  "spy_loss_grid": [
+   0.01,
+   0.015,
+   0.02,
+   0.03,
+   0.05,
+   0.075,
+   0.1,
+   0.15,
+   0.2
+  ],
+  "strength": 0.5,
+  "target_years": 10.0,
+  "title": "Information rate of SEC-event tilts against their equal-weight twin (U1, DEV dates)",
+  "twin_every": 20,
+  "twin_loss_grid": [
+   0.005,
+   0.0075,
+   0.01,
+   0.015,
+   0.02,
+   0.03,
+   0.05
+  ],
+  "yoy_days": 364,
+  "yoy_tolerance_days": 21
+ },
+ "plan_sha256": "b562c7a6fb2fb6cf772e8958909c2f6dd89448680cf2851d33096e7ec3487375",
+ "proposal": {
+  "candidates": [
+   {
+    "claims": "against the twin only",
+    "design": "insider-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 5,
+    "twin": "ew",
+    "twin_loss_bound": 0.015
+   },
+   {
+    "claims": "against the twin only",
+    "design": "eap-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 5,
+    "twin": "ew",
+    "twin_loss_bound": 0.01
+   },
+   {
+    "claims": "against the twin only",
+    "design": "ear-full",
+    "loss_bound": 0.075,
+    "prior_mass": 0.04,
+    "rebalance_every": 5,
+    "twin": "ew",
+    "twin_loss_bound": 0.015
+   }
+  ],
+  "prior_mass_total": 0.12,
+  "rule": "every design; loss bound = smallest grid value >= 2.0 x the worst DEV session",
+  "status": "PROPOSAL for a later, separately registered cohort; changes no recorded series"
+ },
+ "provenance": {
+  "adjustment": "split",
+  "corporate_actions": "available",
+  "data_class": "REAL_MARKET_DATA",
+  "dataset_hash": "7b7c3a6bf805803cec7118ae404c38ffaf87f01f601b50e4b50ac971f3e61192",
+  "feed": "sip",
+  "fetched_at": "2026-10-25T10:25:05Z",
+  "history_hash": "2dfc17fe2451eac07cef88f2dc94e3638999018de9d48f187f4fc040dbd02ac1",
+  "membership_rule": "date_added <= t (current constituents only)",
+  "provider": "alpaca",
+  "rights_note": "derived aggregates only; no vendor OHLCV is stored or published",
+  "survivorship": "DATA_LIMITED_SURVIVORS",
+  "universe_id": "U1",
+  "universe_snapshot_sha256": "0953c557300e41620f5f189b387a2dac64f57908d7e1895fe2e449bac98a4c34",
+  "window_end": "2026-10-21",
+  "window_start": "2016-01-04"
+ },
+ "publication": "aggregates only: no symbol, CIK, price or per-stock value (provider terms)",
+ "research_only": true,
+ "schema": "apex-discovery-v3-design-study-2",
+ "sec_events": {
+  "after_close_releases": 7740,
+  "coded_p_filings": 6632,
+  "coded_p_filings_without_director_or_officer": 853,
+  "coverage_of_masked_names": {
+   "eap_estimated_share": 0.995055968807598,
+   "eap_flagged_share": 0.1299942053350471,
+   "ear_available_share": 0.9359054424857568,
+   "insider_decisions_without_a_flag": 0.0,
+   "insider_flagged_share": 0.13742095167080567
+  },
+  "earnings_releases": 17494,
+  "form4_filings_in_universe": 302334,
+  "insider_purchases": 5926,
+  "purchases_by_year": {
+   "2018": 679,
+   "2019": 654,
+   "2020": 724,
+   "2021": 757,
+   "2022": 900,
+   "2023": 718,
+   "2024": 530,
+   "2025": 586,
+   "2026": 378
+  },
+  "quarters": 35,
+  "releases_by_year": {
+   "2018": 1898,
+   "2019": 1929,
+   "2020": 2021,
+   "2021": 1974,
+   "2022": 1997,
+   "2023": 2012,
+   "2024": 2051,
+   "2025": 2064,
+   "2026": 1548
+  },
+  "requests": 944,
+  "rules": {
+   "earnings_release": "an 8-K (not 8-K/A) listing item 2.02; one release per company and US Eastern acceptance day (the earliest acceptance); usable from the first session whose close is at or after the acceptance",
+   "insider_purchase": "a Form 4 (not 4/A) with a non-derivative transaction coded P (open market or private purchase), acquired (A), shares > 0, filed by a reporting owner who is a director or an officer of the issuer; one event per filing and qualifying owner; usable from the first session after the filing date",
+   "issuer_mapping": "U1 symbol -> CIK from the SEC's current company_tickers.json (U1 is today's list); events are keyed by issuer CIK; a symbol without a CIK has no events"
+  },
+  "symbols": 495,
+  "symbols_with_cik": 495,
+  "symbols_with_purchases": 444,
+  "symbols_with_releases": 494,
+  "symbols_without_cik": 0,
+  "window": [
+   "2018-01-01",
+   "2026-09-21"
+  ]
+ },
+ "status": "COMPLETED",
+ "twin": {
+  "book": {
+   "cost_per_year": 0.00034921312115897393,
+   "rebalances": 87,
+   "turnover_one_way_per_year": 0.8730328028974347
+  },
+  "vs_spy": {
+   "best_session": 0.028095948661661874,
+   "dev_contaminated": {
+    "ir": -0.1917410779847338,
+    "label": "DEV_CONTAMINATED diagnostic: selects nothing",
+    "max_drawdown_log": 0.23514166141177062,
+    "mean_annual": -0.01437222886338319
+   },
+   "q0.001": -0.01993850104371679,
+   "q0.01": -0.01126331363143463,
+   "sessions": 1735,
+   "tracking_error": 0.07495644133453495,
+   "worst_session": -0.030040694384489863,
+   "worst_session_date": "2020-03-12"
+  }
+ },
+ "universe": {
+  "mean_masked": 360.6918202764977,
+  "stocks": 495
+ },
+ "window": {
+  "evaluated": [
+   "2019-10-24",
+   "2026-09-21"
+  ],
+  "first_decision": "2019-10-22",
+  "label": "DEV_CONTAMINATED",
+  "sessions": 1735,
+  "tier": "DEV_DIAGNOSTIC"
+ }
+}
