@@ -35,6 +35,10 @@ The structures follow the real public formats so the parsers are tested against 
 | `earnings_manual.json` | APEX curated earnings entries (confirmed / expected / reported) |
 | `labels.json` | hand-labelled sample used to measure classifier precision |
 
-EDGAR note: the submissions API prints `acceptanceDateTime` with a trailing `Z`, but the wall-clock
-value is US Eastern; the fixtures follow that convention, including timestamps on both sides of the
-2025-11-02 and 2026-03-08 DST changes.
+EDGAR note: the submissions API prints `acceptanceDateTime` in UTC, with a trailing `Z`. EDGAR's filing
+index shows the same filing's "Accepted" time in US Eastern: Apple's 8-K 0000320193-26-000018 is
+`2026-07-30T20:30:28.000Z` in the API and `2026-07-30 16:30:28` on its index page. The fixtures follow
+the API, and they include filings on both sides of the 2025-11-02 and 2026-03-08 DST changes. Until
+2026-10-25 the fixtures and `catalysts.sec` read the API value as the Eastern wall clock, which made
+every acceptance 4–5 hours late: never early, but wrong. The raw header format
+(`ACCEPTANCE-DATETIME`, `20260306164512`) and naive values are still the Eastern wall clock.

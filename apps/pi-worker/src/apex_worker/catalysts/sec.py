@@ -4,10 +4,10 @@ Input format: https://data.sec.gov/submissions/CIK##########.json with column ar
 ``filings.recent`` (accessionNumber, filingDate, reportDate, acceptanceDateTime, form, items,
 primaryDocument, primaryDocDescription, size, ...).
 
-Timestamps: the submissions API renders ``acceptanceDateTime`` as e.g. ``2026-03-06T16:45:12.000Z``,
-but the wall-clock value is EDGAR acceptance time in US Eastern (it is consistent with EDGAR's 17:30 ET
-filing-date rollover), so the trailing ``Z`` is ignored and the value is localized to America/New_York
-(DST-aware) before converting to UTC. Raw header format ``20260306164512`` is handled identically.
+Timestamps: the submissions API renders ``acceptanceDateTime`` in UTC, e.g. ``2026-07-30T20:30:28.000Z`` for a
+filing whose EDGAR index page shows it accepted ``2026-07-30 16:30:28`` (US Eastern). A value with a UTC designator is
+read as UTC; the raw header format ``20260306164512`` (the SGML ``ACCEPTANCE-DATETIME``) and a naive value are the
+US Eastern wall clock, localized to America/New_York (DST-aware) before converting to UTC.
 """
 
 from __future__ import annotations
@@ -67,17 +67,22 @@ def normalize_accession(value: str) -> str:
 
 
 def parse_acceptance_datetime(value: str) -> datetime:
-    """EDGAR acceptance (US Eastern wall clock, any trailing Z ignored) -> aware UTC instant.
+    """EDGAR acceptance -> aware UTC instant.
 
-    Ambiguous fall-back hour resolves to the *later* instant (fold=1): conservative for availability.
+    * ISO with a UTC designator (the submissions API, e.g. ``2026-07-30T20:30:28.000Z``) is UTC. EDGAR's filing index
+      shows that filing (Apple's 8-K 0000320193-26-000018) as accepted ``2026-07-30 16:30:28`` Eastern, and the same
+      4:30 pm release prints ``21:30`` in winter (``2019-01-29T21:30:18.000Z``, EST).
+    * A naive ISO value or the raw header format ``20260306164512`` (the SGML ``ACCEPTANCE-DATETIME``) is the US Eastern
+      wall clock; the ambiguous fall-back hour resolves to the *later* instant (fold=1): conservative for availability.
     """
     raw = str(value).strip()
     m = _ACCEPT_ISO_RE.match(raw) or _ACCEPT_RAW_RE.match(raw)
     if not m:
         raise SubmissionsParseError(f"unrecognised acceptanceDateTime {value!r}")
     y, mo, d, hh, mi, ss = (int(g) for g in m.groups())
-    local = datetime(y, mo, d, hh, mi, ss, tzinfo=ET, fold=1)
-    return local.astimezone(UTC)
+    if raw.endswith(("Z", "+00:00", "+0000", "-00:00", "-0000")):
+        return datetime(y, mo, d, hh, mi, ss, tzinfo=UTC)
+    return datetime(y, mo, d, hh, mi, ss, tzinfo=ET, fold=1).astimezone(UTC)
 
 
 def archive_cik(cik: str) -> str:

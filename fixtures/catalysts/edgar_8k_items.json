@@ -1,65 +1,65 @@
 {
- "_fixture_note": "FICTIONAL 8-K metadata rows (items as listed in submissions JSON). acceptanceDateTime is EDGAR US-Eastern wall clock despite the Z suffix.",
+ "_fixture_note": "FICTIONAL 8-K metadata rows (items as listed in submissions JSON). acceptanceDateTime is UTC, as the submissions API prints it (trailing Z).",
  "filings": [
   {
    "accessionNumber": "0009990001-26-000041",
    "form": "8-K",
    "items": "2.02,9.01",
-   "acceptanceDateTime": "2026-10-14T16:05:31.000Z"
+   "acceptanceDateTime": "2026-10-14T20:05:31.000Z"
   },
   {
    "accessionNumber": "0009990001-26-000038",
    "form": "8-K",
    "items": "5.02",
-   "acceptanceDateTime": "2026-09-28T08:01:10.000Z"
+   "acceptanceDateTime": "2026-09-28T12:01:10.000Z"
   },
   {
    "accessionNumber": "0009990001-26-000035",
    "form": "8-K",
    "items": "1.01,9.01",
-   "acceptanceDateTime": "2026-09-02T17:10:00.000Z"
+   "acceptanceDateTime": "2026-09-02T21:10:00.000Z"
   },
   {
    "accessionNumber": "0009990001-26-000033",
    "form": "8-K",
    "items": "3.02",
-   "acceptanceDateTime": "2026-08-20T16:31:02.000Z"
+   "acceptanceDateTime": "2026-08-20T20:31:02.000Z"
   },
   {
    "accessionNumber": "0009990001-26-000031",
    "form": "8-K",
    "items": "7.01,9.01",
-   "acceptanceDateTime": "2026-08-06T07:30:00.000Z"
+   "acceptanceDateTime": "2026-08-06T11:30:00.000Z"
   },
   {
    "accessionNumber": "0009990001-26-000007",
    "form": "8-K",
    "items": "8.01",
-   "acceptanceDateTime": "2026-03-09T16:45:12.000Z"
+   "acceptanceDateTime": "2026-03-09T20:45:12.000Z"
   },
   {
    "accessionNumber": "0009990002-26-000019",
    "form": "8-K",
    "items": "4.02,9.01",
-   "acceptanceDateTime": "2026-05-18T17:20:00.000Z"
+   "acceptanceDateTime": "2026-05-18T21:20:00.000Z"
   },
   {
    "accessionNumber": "0009990002-26-000021",
    "form": "8-K/A",
    "items": "5.02",
-   "acceptanceDateTime": "2026-06-01T09:00:00.000Z"
+   "acceptanceDateTime": "2026-06-01T13:00:00.000Z"
   },
   {
    "accessionNumber": "0009990004-26-000014",
    "form": "8-K",
    "items": "1.05,8.01",
-   "acceptanceDateTime": "2026-07-07T18:40:00.000Z"
+   "acceptanceDateTime": "2026-07-07T22:40:00.000Z"
   },
   {
    "accessionNumber": "0009990010-21-000020",
    "form": "8-K",
    "items": "2.01,5.02,9.01",
-   "acceptanceDateTime": "2021-06-25T08:00:00.000Z"
+   "acceptanceDateTime": "2021-06-25T12:00:00.000Z"
   }
  ]
 }
