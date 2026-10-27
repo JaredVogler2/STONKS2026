@@ -215,15 +215,18 @@ def test_store_rollover_reads_across_volumes():
     assert [v["vol"] for v in rr.volumes] == [1, 2] and len(rr.records) == 4 and rr.problems == []
 
 
-def test_store_rejects_foreign_or_conflicting_record_comments():
+def test_store_ignores_foreign_record_comments_and_rejects_conflicting_ones():
     api = MemoryGitHubAPI()
     store = IssueLedgerStore(api, "s")
     recs = _chain().records
     for r in recs[:3]:
         store.append(r)
     issue = api.issues[0]["number"]
+    # the repository is public: anyone may copy a record's marker into a comment; it is reported, never counted
     api.create_comment(issue, comment_bodies(recs[3])[0], login="someone")
-    assert any("not the recorder" in p for p in IssueLedgerStore(api, "s").read().problems)
+    rr = IssueLedgerStore(api, "s").read()
+    assert rr.problems == [] and [r["seq"] for r in rr.records] == [r["seq"] for r in recs[:3]]
+    assert len(rr.ignored) == 1 and "not the recorder" in rr.ignored[0]
     api.comments.pop()
     api.create_comment(issue, "ordinary discussion is ignored")
     assert IssueLedgerStore(api, "s").read().problems == []

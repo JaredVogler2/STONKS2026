@@ -15,7 +15,7 @@ runs on GitHub-hosted runners, Vercel, Supabase and the Pi.
 
 | Workflow | Trigger | Job timeout | Secrets | Writes registry? |
 |---|---|---|---|---|
-| `.github/workflows/ci.yml` | `pull_request`, push to `main` | 5 / 20 / 20 / 5 min | **none** | no |
+| `.github/workflows/ci.yml` | `pull_request`, push to `main` | 5 / 20 / 20 / 10 / 5 min, plus 5-minute path and duplicate checks; jobs a change cannot affect are skipped | **none** | no |
 | `.github/workflows/apex-model-train-weekly.yml` | Monday 19:17 America/New_York + `workflow_dispatch` | 45 min (train step 30) | `model-release` env | registers candidates |
 | `.github/workflows/apex-model-release.yml` | `workflow_dispatch` + `workflow_call` (from weekly train when AUTO) | 10 min | `model-release` env | promote / rollback |
 | `.github/workflows/apex-model-drift.yml` | weekdays 20:23 America/New_York + `workflow_dispatch` | 10 min (drift step 7) | `model-release` env (no signing key) | no (reports a `drift` run) |
@@ -281,9 +281,9 @@ to stay conservative.
 | auto-release (`release`, AUTO only) | 10 | 5 | 50 |
 | drift (`drift`) | 10 | 23 | 230 |
 | **APEX model workflows, worst case** | | | **505** |
-| `ci.yml` per PR update / push (4 parallel jobs) | 5 + 20 + 20 + 5 | event-driven | 50 per run worst case |
+| `ci.yml` per PR update / push (up to 7 parallel jobs) | 5 + 5 + 5 + 20 + 20 + 10 + 5 | event-driven | 70 per run worst case; typically 12–16 billable minutes per pull-request run, and about 4 for a push to `main` whose tree already passed in its pull request |
 
-Default budget `budgets.actions_monthly_minutes` = **1500** of the 2,000 free. The 500 left over is headroom for
+Default budget `budgets.actions_monthly_minutes` = **1500** of the 2,000 free. That allowance applies while the repository is private; standard GitHub-hosted runners are free for a public repository (it became public on 2026-10-27), so the budget gate is then only a safeguard. The 500 left over is headroom for
 `ci.yml`, coding-agent CI and other repositories. Gate logic:
 
 * **Required** (train, release): proceed while `measured + own timeout ≤ budget`. If measured usage is unknown, the run

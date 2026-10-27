@@ -13,9 +13,11 @@ Comment format (one record; long records span several comments, `part=i/n`):
     apexrec1:<base64 of gzip(canonical JSON)>
     ```
 
-Only comments by the workflow's bot identity count. A record-marked comment by anyone else, an undecodable payload or
-two different records at one position stop the recorder (fail closed). `append` reads every posted comment back and
-returns only after the stored body matches: a record is never reported as posted until GitHub returns it.
+Only comments by the workflow's bot identity count; nobody else can edit them. A record-marked comment by anyone else
+is ignored and reported (`ignored`): the repository is public, so anyone may comment, and a copied marker must not stop
+the series. An undecodable bot payload or two different bot records at one position stop the recorder (fail closed).
+`append` reads every posted comment back and returns only after the stored body matches: a record is never reported as
+posted until GitHub returns it.
 """
 
 from __future__ import annotations
@@ -243,6 +245,7 @@ class ReadResult:
     problems: list[str]
     volumes: list[dict]
     incomplete_tail: dict | None = None  # parts of the last record that are missing (an interrupted append)
+    ignored: list[str] = field(default_factory=list)  # record-marked comments by others: never part of the chain
 
 
 class IssueLedgerStore:
@@ -265,6 +268,7 @@ class IssueLedgerStore:
 
     def read(self) -> ReadResult:
         problems: list[str] = []
+        ignored: list[str] = []
         vols = self.volumes()
         if len({v["_vol"] for v in vols}) != len(vols):
             problems.append("two ledger issues claim the same volume number")
@@ -283,7 +287,7 @@ class IssueLedgerStore:
                     continue
                 login = (c.get("user") or {}).get("login")
                 if login not in self.allowed:
-                    problems.append(f"comment {c['id']}: record-marked comment by {login!r}, not the recorder")
+                    ignored.append(f"comment {c['id']}: record-marked comment by {login!r}, not the recorder (ignored)")
                     continue
                 pm = PAYLOAD_RE.search(c["body"])
                 if not pm:
@@ -334,7 +338,7 @@ class IssueLedgerStore:
         records.sort(key=lambda r: r["seq"])
         self._vols = [{"number": v["number"], "vol": v["_vol"], "comments": counts.get(v["number"], 0),
                        "url": v.get("html_url")} for v in vols]
-        return ReadResult(records, anchors, problems, [dict(v) for v in self._vols], incomplete)
+        return ReadResult(records, anchors, problems, [dict(v) for v in self._vols], incomplete, ignored)
 
     def _target_issue(self) -> dict:
         if self._vols is None:

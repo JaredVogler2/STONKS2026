@@ -1,6 +1,8 @@
 """Static checks of .github/workflows (YAML parse + security/budget invariants). actionlint runs in CI separately."""
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -61,6 +63,9 @@ def test_least_privilege_timeouts_and_pinned_actions(name):
         assert job["runs-on"].startswith("ubuntu-"), "standard hosted Linux runners only"
         if name in MODEL_WORKFLOWS:
             assert job.get("environment") == "model-release" and perms == oidc, f"{name}:{job_id}"
+        elif perms == {"contents": "read", "actions": "read"}:
+            # ci.yml `tested` lists this workflow's runs; it runs on pushes to main only, never on pull-request code
+            assert name == "ci.yml" and job.get("if") == "github.event_name == 'push'", f"{name}:{job_id}"
         else:
             assert perms in (None, {"contents": "read"})
     if name == "ci.yml":
@@ -85,6 +90,71 @@ def test_ci_has_no_secrets_and_runs_the_gates():
                    "pnpm test", "pnpm build", "APEX_MODE: DEMO", "ruff check", "pytest", "secret-scan.mjs",
                    "secret-scan.test.mjs", "actionlint"):
         assert needle in raw, needle
+
+
+def test_ci_heavy_jobs_skip_only_for_unaffected_paths_or_an_already_tested_tree():
+    wf = load("ci.yml")
+    for job, area in (("python", "python"), ("forward-shadow-smoke", "smoke"), ("node", "node")):
+        j = wf["jobs"][job]
+        assert j["needs"] == ["changes", "tested"], job
+        # fail open: a failed or skipped classifier leaves the outputs empty, and empty never skips
+        assert j["if"] == (f"${{{{ !cancelled() && needs.changes.outputs.{area} != 'false' "
+                           "&& needs.tested.outputs.duplicate != 'true' }}"), job
+    for job in ("secret-scan", "workflow-lint", "changes"):
+        assert "if" not in wf["jobs"][job] and "permissions" not in wf["jobs"][job], job
+    assert wf["jobs"]["tested"]["if"] == "github.event_name == 'push'"
+    assert "status=success" in str(wf["jobs"]["tested"]["steps"]) and "event=pull_request" in str(wf["jobs"]["tested"])
+
+
+def _classify(tmp_path: Path, files: list[str] | None, base: str | None = None) -> dict[str, str]:
+    """Run ci.yml's `changes` script in a scratch repository: an empty base commit, then `files` committed on top."""
+    step = next(s for s in load("ci.yml")["jobs"]["changes"]["steps"] if s.get("id") == "areas")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args], cwd=repo,
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "-q")
+    git("commit", "-q", "--allow-empty", "-m", "base")
+    first = git("rev-parse", "HEAD")
+    for f in files or []:
+        (repo / f).parent.mkdir(parents=True, exist_ok=True)
+        (repo / f).write_text("x\n")
+    git("add", "-A")
+    git("commit", "-q", "--allow-empty", "-m", "change")
+    out, summary = tmp_path / "out", tmp_path / "summary"
+    env = {"PATH": shutil.which("git").rsplit("/", 1)[0] + ":/usr/bin:/bin", "BASE": first if base is None else base,
+           "GITHUB_OUTPUT": str(out), "GITHUB_STEP_SUMMARY": str(summary)}
+    subprocess.run(["bash", "-e", "-c", step["run"]], cwd=repo, env=env, check=True)
+    return dict(line.split("=", 1) for line in out.read_text().split())
+
+
+@pytest.mark.skipif(shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash")
+@pytest.mark.parametrize(("files", "expected"), [
+    (["apps/web/src/app/page.tsx", "pnpm-lock.yaml"], "python=false smoke=false node=true"),
+    # the Python tests read registrations, results and workflow files, so docs still run them (not the smoke)
+    (["docs/evidence/DESIGN_STUDY_2.md", "research-results/x/REVIEW.md"], "python=true smoke=false node=false"),
+    (["apps/pi-worker/src/apex_worker/cli.py"], "python=true smoke=true node=false"),
+    (["fixtures/catalysts/edgar_8k_items.json"], "python=true smoke=true node=false"),
+    (["apps/pi-worker/src/apex_worker/contracts/models.py"], "python=true smoke=true node=true"),
+    (["apps/pi-worker/uv.lock"], "python=true smoke=true node=true"),
+    (["supabase/migrations/0001.sql"], "python=true smoke=false node=true"),
+    (["packages/contracts/schemas/signal.json"], "python=true smoke=true node=true"),
+    (["raspberry-pi/bot/position_store.py"], "python=true smoke=false node=false"),
+])
+def test_ci_changed_paths_classifier(tmp_path, files, expected):
+    got = _classify(tmp_path, files)
+    assert " ".join(f"{k}={got[k]}" for k in ("python", "smoke", "node")) == expected
+
+
+@pytest.mark.skipif(shutil.which("git") is None or shutil.which("bash") is None, reason="needs git and bash")
+@pytest.mark.parametrize("base", ["", "0000000000000000000000000000000000000000", "deadbeef" * 5, "same"])
+def test_ci_runs_everything_without_a_usable_base(tmp_path, base):
+    # "same": an empty diff (nothing to classify) runs everything too
+    got = _classify(tmp_path, [] if base == "same" else ["apps/web/x.ts"], base=None if base == "same" else base)
+    assert got == {"python": "true", "smoke": "true", "node": "true"}
 
 
 @pytest.mark.parametrize("name", MODEL_WORKFLOWS)

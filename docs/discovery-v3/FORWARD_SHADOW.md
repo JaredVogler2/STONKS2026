@@ -25,7 +25,8 @@ The workflow `apex-forward-shadow.yml` runs at **18:12 and 21:52 New York time o
    - the uniqueness key (series, session, record type);
    - the session order, and that every session since 2026-10-23 has exactly one DECISION or MISSED_OBSERVATION.
 
-   An edited, inserted, deleted or reordered record, a record-marked comment by anyone but the workflow's bot, or a gap stops the run (`CHAIN_VIOLATION`). Nothing is written.
+   An edited, inserted, deleted or reordered record, or a gap, stops the run (`CHAIN_VIOLATION`). Nothing is written.
+   Only the workflow's bot can write records. The repository is public, so anyone may comment on a ledger issue: ordinary comments are ignored, and a comment that copies a record's marker is ignored too and named in the run report. It never stops the series.
 3. **Outbox.** A record whose post GitHub did not confirm in an earlier run is re-posted with its **original digest and `observed_at`**. Its anchor time is the late repost, so it counts as *anchored late*.
 4. **Genesis or configuration check.** On the first run it writes `SERIES_GENESIS` with the full series configuration and the behaviour fingerprint. On later runs it checks that the code's configuration still hashes to the genesis value; if not, it stops with `SERIES_CONFIG_CHANGED`.
 5. **Sessions.** It takes every session since 2026-10-23 whose observation window has opened. Sessions that already have a terminal record are skipped.
