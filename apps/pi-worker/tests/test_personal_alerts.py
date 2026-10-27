@@ -406,8 +406,9 @@ def test_market_outage_posts_one_private_note_and_fails_the_run(world):
     def down(req):
         raise ConnectionError("provider down")
 
-    with pytest.raises(MarketUnavailable):
+    with pytest.raises(MarketUnavailable) as err:
         Runner(Config("chan"), ch, down, now=et(2026, 10, 27, 14, 7), cal=CAL).run()
+    assert str(err.value) == "ConnectionError"  # the type only: "provider down" never leaves
     with pytest.raises(MarketUnavailable):
         Runner(Config("chan"), ch, down, now=et(2026, 10, 27, 14, 37), cal=CAL).run()
     assert [r["what"] for r in records(ch, "note")] == ["market-down"] and not records(ch, "start")
@@ -520,3 +521,32 @@ class _Closable:
 
     def close(self):
         pass
+
+
+def test_a_failed_run_prints_the_type_and_status_never_a_message(monkeypatch, capsys):
+    from apex_worker.cli import main
+    from apex_worker.personal import discord_rest, market
+
+    class Refused:
+        requests = 0
+
+        def me(self):
+            raise DiscordError(403, 50001)
+
+        def close(self):
+            pass
+
+    class Boom(Refused):
+        def me(self):
+            raise RuntimeError("bought 2 XLF at 61.25")  # an exception message must never be printed
+
+    for k, v in (("DISCORD_BOT_TOKEN", "t"), ("APEX_PERSONAL_CHANNEL_ID", "c"), ("ALPACA_KEY_ID", "k"),
+                 ("ALPACA_SECRET_KEY", "s")):
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr(market, "alpaca_source", lambda k, s: None)
+    monkeypatch.setattr(discord_rest, "DiscordREST", lambda token: Refused())
+    assert main(["personal", "run", "--mode", "live"]) == 1
+    assert capsys.readouterr().err.strip() == "personal run failed: DiscordError: Discord HTTP 403 (code 50001)"
+    monkeypatch.setattr(discord_rest, "DiscordREST", lambda token: Boom())
+    assert main(["personal", "run", "--mode", "live"]) == 1
+    assert capsys.readouterr().err.strip() == "personal run failed: RuntimeError"

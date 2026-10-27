@@ -216,10 +216,11 @@ class Runner:
                     daily=tuple(sorted({BENCHMARK, *self.spec.universe, *held, *self._symbols})),
                     latest=tuple(sorted({BENCHMARK, *held, *self._symbols})), start=start, end=today,
                     actions=tuple(sorted({BENCHMARK, *held})), actions_start=min(since, today) - timedelta(days=7)))
-            except Exception as exc:
+            except Exception as exc:  # one private note a day; the run then fails visibly
                 self._note("market-down", "⚠️ The market data is unavailable right now, so I'm holding replies and alerts "
                            "until the next run.")
-                raise MarketUnavailable(type(exc).__name__) from None
+                status = getattr(exc, "status", None)  # an HTTP status, never a message
+                raise MarketUnavailable(type(exc).__name__ + (f" {status}" if isinstance(status, int) else "")) from None
         return self._snap
 
     def _final_session(self) -> date | None:

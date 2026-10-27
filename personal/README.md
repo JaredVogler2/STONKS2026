@@ -75,6 +75,19 @@ Its history on old data is a diagnostic only. **Its live record against SPY boug
 7. **Turn on the schedule.** In **Settings → Secrets and variables → Actions → Variables**, add the repository variable `APEX_PERSONAL_ALERTS` with the value `on`. To turn the daily summaries off, also add `APEX_PERSONAL_DAILY_SUMMARY` = `off`.
 8. **Start.** In the channel, send `start 1000` once the money is in your account.
 
+## If a run fails
+
+The Actions log shows one line, such as `personal run failed: DiscordError: Discord HTTP 403 (code 50001)`. It never contains message text.
+
+| Line | Usual cause |
+|---|---|
+| `BLOCKED` / `… not set` | A secret is missing from the `personal-alerts` environment, or its name is misspelled |
+| `DiscordError: Discord HTTP 401` | The bot token is wrong or was reset: store the new one in `DISCORD_BOT_TOKEN` |
+| `DiscordError: Discord HTTP 403` | The bot can't see or post in the channel: give it View Channel, Send Messages and Read Message History there |
+| `DiscordError: Discord HTTP 404` | `APEX_PERSONAL_CHANNEL_ID` isn't the channel's id |
+| `MarketUnavailable: AlpacaError 401/403` | The Alpaca keys are wrong or lack market data |
+| `MarketUnavailable: …` (other) | Alpaca is briefly down: the bot posts one note in the channel and the next run retries |
+
 ## Good to know
 
 - **Timing.** GitHub starts scheduled runs every 30 minutes on weekdays (7 AM–8:30 PM ET), hourly until 11 PM, and every 3 hours at weekends. A run can start a few minutes late. The month-end alert arrives the same evening, well before the next open.

@@ -7,7 +7,8 @@
   smoke  an offline rehearsal with an in-memory channel and synthetic prices: prints the conversation.
 
 `run` prints one line of counts and nothing else, because the Actions log of a public repository is public: no
-symbol, amount, price or message text, and no exception message (only its type).
+symbol, amount, price or message text. A failed run prints the exception's type, plus the HTTP status for a Discord
+or market-data failure, and never an exception message.
 """
 
 from __future__ import annotations
@@ -21,9 +22,9 @@ REQUIRED = ("DISCORD_BOT_TOKEN", "APEX_PERSONAL_CHANNEL_ID", "ALPACA_KEY_ID", "A
 
 
 def cmd_run(args) -> int:
-    from apex_worker.personal.discord_rest import DiscordREST
+    from apex_worker.personal.discord_rest import DiscordError, DiscordREST
     from apex_worker.personal.market import alpaca_source
-    from apex_worker.personal.runner import Config, Runner
+    from apex_worker.personal.runner import Config, MarketUnavailable, Runner
 
     env = os.environ
     missing = [k for k in REQUIRED if not (env.get(k) or "").strip()]
@@ -38,7 +39,10 @@ def cmd_run(args) -> int:
     try:
         report = Runner(cfg, discord, alpaca_source(env["ALPACA_KEY_ID"].strip(), env["ALPACA_SECRET_KEY"].strip()),
                         now=datetime.now(UTC)).run()
-    except Exception as exc:
+    except (DiscordError, MarketUnavailable) as exc:  # statuses and type names only (see their docstrings)
+        print(f"personal run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # any other message could carry personal text: its type only
         print(f"personal run failed: {type(exc).__name__}", file=sys.stderr)
         return 1
     finally:
