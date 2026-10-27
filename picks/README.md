@@ -101,6 +101,7 @@ Prices and volumes are never recorded, only plan distances and returns.
 |---|---|
 | **Start** | Set the repository variable `APEX_PICKS_LANE` to `on`: Settings → Secrets and variables → Actions → Variables. Until then every run is a dry run: it records nothing to the ledger and publishes nothing to the branch (its job summary shows what it would have recorded). Decisions start on 2026-11-02 |
 | Pause | Remove the variable. Later sessions are recorded as missed, never back-filled |
+| Rehearse | Actions → apex-live-picks → Run workflow, with `rehearse` set to a past session (YYYY-MM-DD). It is always a dry run: it decides that session on the real data path (Alpaca, the SEC, the engine), checks the pinned fingerprint and shows the pick in the job summary. Nothing is recorded. Earlier picks are not known there, so no open pick counts toward the caps |
 | Secrets | The Alpaca read-only keys of the `real-equities-research` environment, and the repository secret `APEX_SEC_USER_AGENT` (both already set for the other lanes) |
 | Protect the branch | Recommended: a ruleset on `picks-ledger` that blocks deletion and force pushes (Settings → Rules → Rulesets) |
 | Keep schedules alive | In a public repository, GitHub disables scheduled workflows after 60 days without activity. A commit to `main`, or re-enabling the workflow from the Actions tab, keeps them running |

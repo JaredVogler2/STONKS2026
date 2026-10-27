@@ -14,7 +14,8 @@
 # * ACTIVATION: until the owner sets the repository variable APEX_PICKS_LANE to "on" (Settings -> Secrets and variables
 #   -> Actions -> Variables), every run is a DRY RUN against an in-memory ledger that is discarded: it rehearses the real
 #   data path, posts nothing and publishes nothing. Removing the variable pauses recording (later sessions are recorded
-#   as missed).
+#   as missed). A dispatch with `rehearse: YYYY-MM-DD` is always dry: it decides that past session on the real data
+#   path (Alpaca, the SEC, the engine, the pinned fingerprint) and shows the decision in the job summary.
 # * record job: contents: read + issues: write (the ledger issue). Secrets: ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY of
 #   the `real-equities-research` environment (deployment branch main) and the repository secret APEX_SEC_USER_AGENT,
 #   exposed to the recorder step only and never echoed; missing keys fail the run; no synthetic fallback. No raw OHLCV
@@ -41,6 +42,11 @@ on:
       reason:
         description: "Why this manual run (it records exactly what a scheduled run would at this moment; it never back-fills)"
         required: true
+        type: string
+      rehearse:
+        description: "Optional session (YYYY-MM-DD): a DRY rehearsal that decides it on the real data path and records nothing"
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -105,12 +111,16 @@ jobs:
           APEX_SEC_USER_AGENT: ${{ secrets.APEX_SEC_USER_AGENT }}
           GITHUB_TOKEN: ${{ github.token }}
           PICKS_LANE: ${{ vars.APEX_PICKS_LANE }}
+          REHEARSE: ${{ inputs.rehearse }}
         run: |
           store=dry
           if [ "$PICKS_LANE" = "on" ]; then store=github; fi
+          extra=()
+          if [ -n "$REHEARSE" ]; then store=dry; extra=(--rehearse "$REHEARSE"); fi  # a rehearsal never records
           echo "store=$store" >> "$GITHUB_OUTPUT"
           set +e
-          uv run --no-sync apex research forward-shadow run-picks --store "$store" --source alpaca --out-dir "$APEX_OUT"
+          uv run --no-sync apex research forward-shadow run-picks --store "$store" --source alpaca --out-dir "$APEX_OUT" \
+            "${extra[@]}"
           rc=$?
           set -e
           echo "rc=$rc" >> "$GITHUB_OUTPUT"

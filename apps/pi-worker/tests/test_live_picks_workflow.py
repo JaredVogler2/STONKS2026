@@ -37,7 +37,8 @@ def test_schedules_and_dispatch_only(wf):
         minute, hour, dom, month, dow = c["cron"].split()
         assert (int(minute), int(hour)) == (sched.at.minute, sched.at.hour) and int(minute) not in (0, 30)
         assert (dom, month, dow) == ("*", "*", "1-5") and set(sched.weekdays) == {0, 1, 2, 3, 4}
-    assert set(on["workflow_dispatch"]["inputs"]) == {"reason"}
+    assert set(on["workflow_dispatch"]["inputs"]) == {"reason", "rehearse"}
+    assert on["workflow_dispatch"]["inputs"]["rehearse"]["required"] is False
 
 
 def test_least_privilege_per_job_trusted_branch_and_its_own_concurrency(wf, raw):
@@ -61,12 +62,16 @@ def test_secrets_only_in_the_recorder_step_and_dry_until_activated(wf, raw):
     assert holders[0]["env"] == {"ALPACA_KEY_ID": "${{ secrets.ALPACA_API_KEY_ID }}",
                                  "ALPACA_SECRET_KEY": "${{ secrets.ALPACA_API_SECRET_KEY }}",
                                  "APEX_SEC_USER_AGENT": "${{ secrets.APEX_SEC_USER_AGENT }}",
-                                 "GITHUB_TOKEN": "${{ github.token }}", "PICKS_LANE": "${{ vars.APEX_PICKS_LANE }}"}
+                                 "GITHUB_TOKEN": "${{ github.token }}", "PICKS_LANE": "${{ vars.APEX_PICKS_LANE }}",
+                                 "REHEARSE": "${{ inputs.rehearse }}"}
     assert set(re.findall(r"secrets\.([A-Z_]+)", raw)) == {"ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY",
                                                            "APEX_SEC_USER_AGENT"}
     run = holders[0]["run"]
     assert "store=dry" in run and 'if [ "$PICKS_LANE" = "on" ]; then store=github; fi' in run
     assert "forward-shadow run-picks" in run and '--out-dir "$APEX_OUT"' in run and "--source alpaca" in run
+    # a rehearsal (a dispatch naming a past session) is always dry, whatever the activation variable says
+    assert 'if [ -n "$REHEARSE" ]; then store=dry; extra=(--rehearse "$REHEARSE"); fi' in run
+    assert run.index("store=dry; extra=") < run.index('echo "store=$store"')
     assert "echo $ALPACA" not in raw and "echo $APEX_SEC" not in raw
 
 
