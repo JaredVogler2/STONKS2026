@@ -12,9 +12,10 @@
 #   or exception message), writes no job summary and uploads no artifact. The account lives in the channel only.
 # * ACTIVATION: scheduled runs do nothing until the owner sets the repository variable APEX_PERSONAL_ALERTS to "on".
 #   A manual dispatch works either way; its default mode is `dry` (reads and computes, posts nothing).
-# * Secrets of the `personal-alerts` environment (deployment branch main), in the run step only and never echoed:
-#   DISCORD_BOT_TOKEN, APEX_PERSONAL_CHANNEL_ID, ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY, and optionally
-#   APEX_PERSONAL_USER_IDS. A missing one fails the run; there is no fallback.
+# * Secrets of the `real-equities-research` environment (deployment branch main), in the run step only and never
+#   echoed: the Alpaca data keys already there (ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY) plus the owner's
+#   DISCORD_BOT_TOKEN and APEX_PERSONAL_CHANNEL_ID (optionally APEX_PERSONAL_USER_IDS). A missing one fails the run;
+#   there is no fallback. No other workflow references the Discord secrets, so none of them can read them.
 # * Minutes: standard runners are free for a public repository; about one minute a run.
 # Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-personal
@@ -56,7 +57,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' || vars.APEX_PERSONAL_ALERTS == 'on')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    environment: personal-alerts
+    environment: real-equities-research
     permissions:
       contents: read
     defaults:
@@ -95,6 +96,6 @@ jobs:
           set -e
           case "$rc" in
             0) ;;
-            2) echo "::error title=BLOCKED::a personal-alerts secret is missing (personal/README.md, owner setup)"; exit 2 ;;
+            2) echo "::error title=BLOCKED::a secret is missing (personal/README.md, owner setup)"; exit 2 ;;
             *) echo "::error title=RUN_FAILED::the run stopped; the next scheduled run retries (details stay private)"; exit "$rc" ;;
           esac

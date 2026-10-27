@@ -62,13 +62,10 @@ Its history on old data is a diagnostic only. **Its live record against SPY boug
    - Turn on Discord **Developer Mode**: User Settings → Advanced.
    - Right-click the channel and choose **Copy Channel ID**.
    - Optionally, right-click your own name and choose **Copy User ID**. With it, only your messages count.
-5. **Create the GitHub environment.** Go to the repository **Settings → Environments → New environment** and name it `personal-alerts`.
-   - Under **Deployment branches**, choose **Selected branches** and add `main`.
-   - Add these **environment secrets**:
-     - `DISCORD_BOT_TOKEN`: the token from step 1;
-     - `APEX_PERSONAL_CHANNEL_ID`: the channel id;
-     - `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`: your Alpaca keys. The free market-data plan is enough, and only market data is read;
-     - optionally `APEX_PERSONAL_USER_IDS`: your user id; separate several ids with commas.
+5. **Add two secrets on GitHub.** In the repository **Settings → Environments**, open `real-equities-research`. It already holds your Alpaca data keys, `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`; only market data is read with them. Add these **environment secrets**:
+   - `DISCORD_BOT_TOKEN`: the token from step 1;
+   - `APEX_PERSONAL_CHANNEL_ID`: the channel id;
+   - optionally `APEX_PERSONAL_USER_IDS`: your user id; separate several ids with commas.
 6. **Check the setup.**
    - Go to **Actions → apex-personal → Run workflow** and pick mode **dry**. The log should end with a line of counts, such as `"messages_read": 0`. A dry run posts nothing.
    - Then run it once in mode **live**. The bot posts its welcome in your channel.
@@ -81,7 +78,7 @@ The Actions log shows one line, such as `personal run failed: DiscordError: Disc
 
 | Line | Usual cause |
 |---|---|
-| `BLOCKED` / `… not set` | A secret is missing from the `personal-alerts` environment, or its name is misspelled |
+| `BLOCKED` / `… not set` | A secret is missing from the `real-equities-research` environment, or its name is misspelled |
 | `DiscordError: Discord HTTP 401` | The bot token is wrong or was reset: store the new one in `DISCORD_BOT_TOKEN` |
 | `DiscordError: Discord HTTP 403` | The bot can't see or post in the channel: give it View Channel, Send Messages and Read Message History there |
 | `DiscordError: Discord HTTP 404` | `APEX_PERSONAL_CHANNEL_ID` isn't the channel's id |

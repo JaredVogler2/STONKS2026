@@ -38,7 +38,7 @@ def test_schedule_in_new_york_time_and_a_dry_by_default_dispatch(wf):
 def test_read_only_default_branch_activation_and_its_own_concurrency(wf, raw):
     assert wf["permissions"] == {"contents": "read"}
     (job,) = wf["jobs"].values()
-    assert job["permissions"] == {"contents": "read"} and job["environment"] == "personal-alerts"
+    assert job["permissions"] == {"contents": "read"} and job["environment"] == "real-equities-research"
     assert "default_branch" in job["if"] and "vars.APEX_PERSONAL_ALERTS == 'on'" in job["if"]
     assert "github.event_name == 'workflow_dispatch'" in job["if"]
     assert job["runs-on"] == "ubuntu-24.04" and job["timeout-minutes"] <= 10
@@ -59,6 +59,12 @@ def test_secrets_reach_the_run_step_only_and_schedules_post_live(wf):
     run = holders[0]["run"]
     assert 'apex personal run --mode "$MODE"' in run and "secrets" not in run and "echo $" not in run
     assert "${{" not in run  # inputs and secrets only through env
+
+
+def test_no_other_workflow_references_the_discord_secrets():
+    others = [p for p in WF_DIR.glob("*.yml") if p.name != NAME]
+    assert others and not any("DISCORD_BOT_TOKEN" in p.read_text() or "APEX_PERSONAL_CHANNEL_ID" in p.read_text()
+                              for p in others)
 
 
 def test_actions_are_pinned_and_checkout_keeps_no_credentials(wf):
