@@ -311,6 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     tr.add_argument("--key-version", type=int, default=1)
     tr.add_argument("--champions")
     tr.add_argument("--code-sha", default="local")
+    from apex_worker.personal.cli import register as register_personal_commands
     from apex_worker.release.cli import add_history_args
     from apex_worker.release.cli import register as register_release_commands
     from apex_worker.research.realeq.cli import register as register_research_commands
@@ -358,6 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
     ms.set_defaults(func=cmd_migrate_starter)
     register_release_commands(sub)  # CI: `apex release ...`, `apex drift`, `apex budget check`
     register_research_commands(sub)  # research only: `apex research real-equities`, `apex research budget-check`
+    register_personal_commands(sub)  # `apex personal run|smoke`: the owner's Discord alerts (no orders)
     return p
 
 
