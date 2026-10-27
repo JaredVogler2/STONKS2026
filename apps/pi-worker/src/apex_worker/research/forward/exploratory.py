@@ -96,11 +96,24 @@ def _epa_tournament_c1() -> ExploratoryPolicy:
         universe="U1")
 
 
+def _live_picks() -> ExploratoryPolicy:
+    from apex_worker.discovery.v3 import live_picks as LP
+
+    return ExploratoryPolicy(
+        policy_id="live-picks", major_version=1, hypothesis_id="H-PICKS-001", registration="EXPLORATORY_REGISTERED",
+        mechanism="a track record, not a claim: the live engine's own end-of-day picks (candidate engine H1-H7 and the "
+                  "signal policy's research setups, one a session) with matched same-session controls, recorded before "
+                  "any outcome exists (picks/README.md)",
+        decide_ref="apex_worker.discovery.v3.live_picks.decide", feature_schema_sha256=LP.ENGINE_SCHEMA_SHA256,
+        parameters=LP.PARAMETERS, universe="U1")
+
+
 # Registered exploratory policies (append-only). The first: the evidence tournament (docs/evidence/TOURNAMENT_LANE.md);
-# the second: its cohort 1 (docs/evidence/TOURNAMENT_COHORT_1.md).
+# the second: its cohort 1 (docs/evidence/TOURNAMENT_COHORT_1.md); the third: the live engine's picks (picks/README.md).
 EPA_TOURNAMENT = _epa_tournament()
 EPA_TOURNAMENT_C1 = _epa_tournament_c1()
-EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = (EPA_TOURNAMENT, EPA_TOURNAMENT_C1)
+LIVE_PICKS = _live_picks()
+EXPLORATORY_POLICIES: tuple[ExploratoryPolicy, ...] = (EPA_TOURNAMENT, EPA_TOURNAMENT_C1, LIVE_PICKS)
 
 
 def label_body(body: dict) -> dict:

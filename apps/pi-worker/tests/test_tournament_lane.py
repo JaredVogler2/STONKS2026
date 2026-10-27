@@ -27,7 +27,8 @@ COHORT_1_POLICY_SHA256 = "de7e2fe779148bcfcbcd75c7ac780272a4e571f4e352d37002aad6
 
 
 def test_the_policy_is_registered_exploratory_research_only_and_separate():
-    assert T.SERIES_ID == "v3x-epa-tournament-v1" and (T.POLICY, T.COHORT_1.policy) == X.EXPLORATORY_POLICIES
+    # the registry is append-only: the tournament's cohorts come first (later lanes, e.g. the live picks, follow)
+    assert T.SERIES_ID == "v3x-epa-tournament-v1" and (T.POLICY, T.COHORT_1.policy) == X.EXPLORATORY_POLICIES[:2]
     assert T.config_sha256(T.TournamentLane().config(T.PINNED_FINGERPRINT)) == COHORT_0_CONFIG_SHA256
     assert T.POLICY.config_sha256() == COHORT_0_POLICY_SHA256
     cfg = T.series_config(T.PINNED_FINGERPRINT)

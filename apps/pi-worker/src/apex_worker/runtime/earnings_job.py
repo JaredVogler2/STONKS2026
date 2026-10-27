@@ -76,8 +76,11 @@ def _entry(symbol: str, d: Mapping) -> EarningsEntry:
 
 
 def refresh_earnings(symbols: Iterable[str], ciks: Mapping[str, str], http: PoliteHttpClient, cal: MarketCalendar,
-                     now: datetime, previous: Mapping | None = None) -> dict:
-    """One submissions request per stock with a CIK; returns the JSON document `save_earnings` writes."""
+                     now: datetime, previous: Mapping | None = None, as_of: datetime | None = None) -> dict:
+    """One submissions request per stock with a CIK; returns the JSON document `save_earnings` writes.
+
+    `as_of` (the picks lane): only filings EDGAR accepted by then count, so the releases and the next-release estimate
+    are the ones known at that instant (a release filed a minute later leaves the earlier estimate in place)."""
     prev = (previous or {}).get("symbols") or {}
     start, end = now.date() - timedelta(days=HISTORY_DAYS), now.date()
     by_symbol: dict[str, dict] = {}
@@ -94,6 +97,8 @@ def refresh_earnings(symbols: Iterable[str], ciks: Mapping[str, str], http: Poli
             if sym in prev:
                 by_symbol[sym] = prev[sym]
             continue
+        if as_of is not None:
+            filings = [f for f in filings if f.published_at <= as_of]
         reported = reported_from_8k(sym, filings, cal)
         estimate = estimate_next_from_8k(sym, filings, cal=cal)
         by_symbol[sym] = {"reported": [_entry_json(e) for e in reported[-KEEP_REPORTED:]],

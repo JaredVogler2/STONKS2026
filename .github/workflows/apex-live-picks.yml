@@ -1,0 +1,207 @@
+# Live picks: a prospective track record of the live engine's own picks, series v3x-live-picks-v1 (picks/README.md).
+# The would-be picks of an UNVALIDATED engine, recorded before any outcome exists; research only.
+#
+#   two weekday attempts after the NYSE close -> verify every stored record and the hash chain -> post any record whose
+#   earlier post GitHub did not confirm (same digest) -> MISSED_OBSERVATION for every session whose window closed without
+#   a decision -> DECISION for the session whose window is open (the live engine's end-of-day scan and policy on fresh
+#   Alpaca historical SIP bars through t, the SEC earnings view as of the decision instant, matched controls fixed now)
+#   -> OUTCOME for decisions whose 22 sessions are final (the live lifecycle's own rules, controls, SPY) -> render the
+#   track record from the verified ledger -> job summary -> publish job: picks/ committed to the picks-ledger branch.
+#
+# * Research only, PROSPECTIVE_EXPLORATORY, never confirmatory: no orders, no alerts, no Discord, no promotion, no
+#   group-actionable output, not investment advice. Its own series, chain and ledger issue ("APEX forward-shadow ledger
+#   · v3x-live-picks-v1 · vol 1"); the frozen lane and the tournament are untouched.
+# * ACTIVATION: until the owner sets the repository variable APEX_PICKS_LANE to "on" (Settings -> Secrets and variables
+#   -> Actions -> Variables), every run is a DRY RUN against an in-memory ledger that is discarded: it rehearses the real
+#   data path, posts nothing and publishes nothing. Removing the variable pauses recording (later sessions are recorded
+#   as missed).
+# * record job: contents: read + issues: write (the ledger issue). Secrets: ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY of
+#   the `real-equities-research` environment (deployment branch main) and the repository secret APEX_SEC_USER_AGENT,
+#   exposed to the recorder step only and never echoed; missing keys fail the run; no synthetic fallback. No raw OHLCV
+#   leaves the runner: the store refuses raw bar fields and secrets, and the view holds plan distances and returns only.
+# * publish job: contents: write ONLY, no environment, no secrets, no repository code and no third-party package runs:
+#   it downloads the view rendered by the record job, checks it holds only picks/ text files, and pushes one commit to
+#   refs/heads/picks-ledger (never main, never --force; a rejected push is retried by the next run, which re-renders the
+#   whole folder from the ledger). The ledger stays the record: the branch is a derived, rebuildable view.
+# * Minutes: the repository is public, so standard runners are free; not in apex_worker.release.budget's profile.
+#   Expected ~6-8 min for a decision run (Alpaca fetch, ~500 SEC requests at 5 a second, the scan), ~1 min otherwise.
+# Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in the trailing comment).
+name: apex-live-picks
+
+on:
+  schedule:
+    # 19:23 and 22:53 America/New_York on weekdays: after the forward shadow's and the tournament's first attempts (so
+    # the Alpaca fetches do not overlap), at least 90 minutes after a 16:00 close and well before the next 09:30 open.
+    - cron: "23 19 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "53 22 * * 1-5"
+      timezone: "America/New_York"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this manual run (it records exactly what a scheduled run would at this moment; it never back-fills)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One recorder at a time (records are chained, and the publish job fast-forwards one branch); never cancels a run.
+concurrency:
+  group: apex-live-picks
+  cancel-in-progress: false
+
+jobs:
+  record:
+    name: live picks (exploratory, research only)
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: real-equities-research
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      store: ${{ steps.record.outputs.store }}
+      view: ${{ steps.record.outputs.view }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      APEX_RESEARCH_ONLY: "true"
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - name: Record start
+        working-directory: .
+        run: |
+          echo "APEX_OUT=$RUNNER_TEMP/apex-picks" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/apex-picks"
+          echo "[]" > "$RUNNER_TEMP/apex-picks/outbox.json"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Restore the outbox (unconfirmed records only; no market data)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-picks/outbox.json
+          key: apex-picks-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: apex-picks-outbox-
+      - name: Live picks (research only; nothing is posted to anyone)
+        id: record
+        timeout-minutes: 17
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          APEX_SEC_USER_AGENT: ${{ secrets.APEX_SEC_USER_AGENT }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PICKS_LANE: ${{ vars.APEX_PICKS_LANE }}
+        run: |
+          store=dry
+          if [ "$PICKS_LANE" = "on" ]; then store=github; fi
+          echo "store=$store" >> "$GITHUB_OUTPUT"
+          set +e
+          uv run --no-sync apex research forward-shadow run-picks --store "$store" --source alpaca --out-dir "$APEX_OUT"
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          case "$rc" in
+            0) ;;
+            3) echo "::warning title=SOURCE_PENDING::the decision bar or the SEC view is not ready yet; the next attempt retries before the deadline" ;;
+            4) echo "::error title=MISSED_OBSERVATION::a session closed without a recorded decision (see the job summary)"; exit 4 ;;
+            5) echo "::error title=SOURCE_INVALID::market data or the SEC contact unavailable, or credentials missing (see the job summary)"; exit 5 ;;
+            6) echo "::error title=INTEGRITY::the ledger or series configuration do not verify; nothing was recorded"; exit 6 ;;
+            7) echo "::error title=ANCHOR_PENDING::GitHub did not confirm a record; it is kept in the outbox and re-posted next run"; exit 7 ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$APEX_OUT/summary.md" ]; then cat "$APEX_OUT/summary.md" >> "$GITHUB_STEP_SUMMARY"; fi
+      - name: Save the outbox
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/apex-picks/outbox.json
+          key: apex-picks-outbox-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload the run report (digests, anchors, counts; no market data)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-picks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/apex-picks/report.json
+            ${{ runner.temp }}/apex-picks/summary.md
+            ${{ runner.temp }}/apex-picks/outbox.json
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Upload the rendered track record for the publish job (plan distances and returns; no prices)
+        if: always() && steps.record.outputs.store == 'github' && steps.record.outputs.view == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: apex-picks-view-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/apex-picks/view/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    name: publish picks/ to the picks-ledger branch
+    needs: record
+    if: ${{ !cancelled() && needs.record.outputs.store == 'github' && needs.record.outputs.view == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download the rendered track record
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: apex-picks-view-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/view
+      - name: Commit picks/ to the picks-ledger branch (never main; fast-forward only)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+          view="$RUNNER_TEMP/view"
+          # the artifact may hold only regular text files under picks/ (no links, nothing else), 25 MB at most
+          if [ ! -d "$view/picks" ]; then echo "::error::the artifact has no picks/ folder"; exit 1; fi
+          if [ -n "$(find "$view" -mindepth 1 -not -path "$view/picks" -not -path "$view/picks/*" -print -quit)" ] \
+              || [ -n "$(find "$view/picks" -mindepth 1 \( -type l -o -type d \) -print -quit)" ] \
+              || [ -n "$(find "$view/picks" -type f ! -name '*.md' ! -name '*.csv' ! -name '*.json' ! -name '*.jsonl' -print -quit)" ]; then
+            echo "::error::the artifact holds something other than picks/ text files"; exit 1
+          fi
+          if [ "$(du -sk "$view" | cut -f1)" -gt 25600 ]; then echo "::error::the artifact is larger than 25 MB"; exit 1; fi
+          work="$RUNNER_TEMP/branch"
+          git init -q -b picks-ledger "$work"
+          cd "$work"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch -q --depth=1 "$SERVER/$REPO.git" refs/heads/picks-ledger; then
+            git checkout -q -B picks-ledger FETCH_HEAD
+          fi
+          rm -rf picks
+          cp -R "$view/picks" picks
+          git add -A picks
+          if git diff --cached --quiet; then
+            echo "The track record is unchanged."
+            exit 0
+          fi
+          git commit -q -m "picks: track record after run $GITHUB_RUN_ID" \
+            -m "Rendered from the verified ledger of v3x-live-picks-v1 by apex-live-picks. Research only, not advice."
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.$SERVER/.extraheader=AUTHORIZATION: basic $auth" push -q "$SERVER/$REPO.git" \
+            HEAD:refs/heads/picks-ledger
+          echo "Published: $SERVER/$REPO/tree/picks-ledger/picks" >> "$GITHUB_STEP_SUMMARY"

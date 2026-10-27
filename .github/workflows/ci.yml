@@ -219,11 +219,13 @@ jobs:
         run: |
           uv run --no-sync apex research forward-shadow tournament-smoke --lane tournament-c1 \
             --out "$RUNNER_TEMP/tournament-c1-smoke"
+      - name: Live picks smoke (DEMO; picks/README.md)
+        run: uv run --no-sync apex research forward-shadow picks-smoke --out "$RUNNER_TEMP/picks-smoke"
       - name: Job summary
         if: always()
         run: |
           for f in "$RUNNER_TEMP/forward-smoke/summary.md" "$RUNNER_TEMP/tournament-smoke/summary.md" \
-              "$RUNNER_TEMP/tournament-c1-smoke/summary.md"; do
+              "$RUNNER_TEMP/tournament-c1-smoke/summary.md" "$RUNNER_TEMP/picks-smoke/summary.md"; do
             if [ -f "$f" ]; then cat "$f" >> "$GITHUB_STEP_SUMMARY"; fi
           done
       - name: Upload the DEMO ledgers (synthetic; 7-day retention)
@@ -235,6 +237,7 @@ jobs:
             ${{ runner.temp }}/forward-smoke/
             ${{ runner.temp }}/tournament-smoke/
             ${{ runner.temp }}/tournament-c1-smoke/
+            ${{ runner.temp }}/picks-smoke/
           retention-days: 7
           if-no-files-found: ignore
 
