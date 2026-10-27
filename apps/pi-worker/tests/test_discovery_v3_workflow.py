@@ -48,7 +48,7 @@ def test_pinned_actions_and_aggregate_only_artifact():
     names = [p.strip().rsplit("/", 1)[-1] for p in up["with"]["path"].splitlines() if p.strip()]
     assert names == ["manifest.json", "registry.jsonl", "results.json", "frontier.json", "TRIAL_INDEX.md",
                      "data_quality_summary.json", "cost_study.json", "COST_STUDY.md", "design_study.json",
-                     "DESIGN_STUDY.md"]
+                     "DESIGN_STUDY.md", "personal_study.json", "PERSONAL_STUDY.md"]
     assert up["with"]["retention-days"] <= 7
 
 
@@ -57,5 +57,6 @@ def test_cost_study_plans_route_to_the_measurement():
     run = next(s for s in job["steps"] if s.get("id") == "research")["run"]
     assert 'if [[ "$PLAN" == cost-study-* ]]; then cmd=costs; fi' in run
     assert 'if [[ "$PLAN" == design-study-* ]]; then cmd=design; fi' in run
+    assert 'if [[ "$PLAN" == personal-study-* ]]; then cmd=personal; fi' in run
     assert 'apex research discovery "$cmd" --plan "$PLAN" --source alpaca' in run
     assert 'exit "$rc"' in run  # a blocked endpoint (rc 2) still fails the job visibly, after the warning
