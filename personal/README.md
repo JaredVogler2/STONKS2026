@@ -56,7 +56,9 @@ Its history on old data is a diagnostic only. **Its live record against SPY boug
    - In the **Bot** tab, choose **Reset Token** and copy the token. Keep it secret.
    - Still in the **Bot** tab, turn on **Message Content Intent**. Without it the bot can't read your replies, and it will tell you so in the channel.
    - Optionally, turn off **Public Bot** so only you can add it to servers.
-2. **Invite it to your server.** In **OAuth2 → URL Generator**, tick the scope **bot** and the permissions **View Channels**, **Send Messages** and **Read Message History**. Open the generated URL and pick your server.
+2. **Invite it to your server.** Copy the **Application ID** from **General Information**. Open this link with that id in place of `APP_ID`, then pick your server:
+   `https://discord.com/oauth2/authorize?client_id=APP_ID&scope=bot&permissions=68608`
+   The number 68608 grants exactly **View Channels**, **Send Messages** and **Read Message History**. You can build the same link in **OAuth2 → URL Generator**.
 3. **Make a private channel** (for example `#my-trades`). Only you and the bot should be able to see it: open the channel settings, then **Permissions**, and add the bot with the three permissions above.
 4. **Copy the ids.**
    - Turn on Discord **Developer Mode**: User Settings → Advanced.
@@ -67,7 +69,7 @@ Its history on old data is a diagnostic only. **Its live record against SPY boug
    - `APEX_PERSONAL_CHANNEL_ID`: the channel id;
    - optionally `APEX_PERSONAL_USER_IDS`: your user id; separate several ids with commas.
 6. **Check the setup.**
-   - Go to **Actions → apex-personal → Run workflow** and pick mode **dry**. The log should end with a line of counts, such as `"messages_read": 0`. A dry run posts nothing.
+   - Go to **Actions → apex-personal → Run workflow** and pick mode **dry**. A dry run posts nothing. It reads the channel and Alpaca, and the log ends with a line of counts. `"market_data": true` means Alpaca works; the run reaching that line at all means Discord works.
    - Then run it once in mode **live**. The bot posts its welcome in your channel.
 7. **Turn on the schedule.** In **Settings → Secrets and variables → Actions → Variables**, add the repository variable `APEX_PERSONAL_ALERTS` with the value `on`. To turn the daily summaries off, also add `APEX_PERSONAL_DAILY_SUMMARY` = `off`.
 8. **Start.** In the channel, send `start 1000` once the money is in your account.

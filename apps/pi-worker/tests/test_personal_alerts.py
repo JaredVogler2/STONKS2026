@@ -346,8 +346,12 @@ def test_dry_mode_reads_and_computes_but_posts_nothing(world):
     ch.post_as_owner("start 1000", et(2026, 10, 27, 14, 5))
     before = len(ch.messages)
     rep = run(ch, mk, et(2026, 10, 27, 14, 7), live=False)
-    assert rep.dry and rep.welcome and rep.answered == 1 and rep.alert and rep.posted >= 3
+    assert rep.dry and rep.welcome and rep.answered == 1 and rep.alert and rep.posted >= 3 and rep.market_data
     assert len(ch.messages) == before
+    empty = MemoryChannel(start=et(2026, 10, 27, 14, 0))  # a fresh channel: the dry run still checks Alpaca
+    mk2 = SyntheticMarket(CAL, lambda: empty.clock, bars=cheap_bars())
+    rep = run(empty, mk2, et(2026, 10, 27, 14, 7), live=False)
+    assert rep.market_data and len(mk2.requests) == 1 and not empty.messages
 
 
 def test_incomplete_market_data_never_produces_a_decision(world):

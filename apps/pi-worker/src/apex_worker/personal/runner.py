@@ -60,6 +60,7 @@ class RunReport:
     reminder: bool = False
     notices: int = 0
     waiting_for_bars: bool = False
+    market_data: bool | None = None  # read this run (a dry run always reads it: the setup check)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -159,6 +160,10 @@ class Runner:
             self._note("broken", f"⚠️ Your records don't add up: {self.broken} Reply `undo` to remove the last one.")
         elif self.book.started_at is not None:
             self._scheduled()
+        if not self.cfg.live and self._snap is None:  # the setup check: Discord was read above, now Alpaca
+            _ = self.snap
+        if self._snap is not None:
+            self.report.market_data = self._final_session() is not None or bool(self._snap.bars)
         return self.report
 
     def _from_owner(self, m: dict) -> bool:
