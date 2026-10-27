@@ -283,7 +283,7 @@ to stay conservative.
 | **APEX model workflows, worst case** | | | **505** |
 | `ci.yml` per PR update / push (up to 7 parallel jobs) | 5 + 5 + 5 + 20 + 20 + 10 + 5 | event-driven | 70 per run worst case; typically 12–16 billable minutes per pull-request run, and about 4 for a push to `main` whose tree already passed in its pull request |
 
-Default budget `budgets.actions_monthly_minutes` = **1500** of the 2,000 free. The 500 left over is headroom for
+Default budget `budgets.actions_monthly_minutes` = **1500** of the 2,000 free. That allowance applies while the repository is private; standard GitHub-hosted runners are free for a public repository (it became public on 2026-10-27), so the budget gate is then only a safeguard. The 500 left over is headroom for
 `ci.yml`, coding-agent CI and other repositories. Gate logic:
 
 * **Required** (train, release): proceed while `measured + own timeout ≤ budget`. If measured usage is unknown, the run

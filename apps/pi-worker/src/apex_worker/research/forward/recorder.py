@@ -276,6 +276,8 @@ class Recorder:
         if rr.problems:
             rep.flag("INTEGRITY", f"LEDGER_INVALID: {'; '.join(rr.problems[:5])}")
             raise _Stop
+        if rr.ignored:
+            rep.messages.append(f"{len(rr.ignored)} record-marked comment(s) by others ignored: {rr.ignored[0]}")
         if rr.incomplete_tail:
             rep.messages.append(f"an interrupted multi-part post (seq {rr.incomplete_tail['seq']}) is completed from the "
                                 "outbox or superseded")

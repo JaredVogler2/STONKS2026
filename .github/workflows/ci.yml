@@ -2,7 +2,8 @@
 # read-only token. Release credentials live only in the `model-release` environment used by the apex-model-* workflows,
 # which never run for pull_request events.
 #
-# Minutes (the repository is private: 2,000 free minutes a month, shared with the scheduled research lanes):
+# Speed and minutes. Standard GitHub-hosted runners are free for a public repository; a private one has 2,000 free
+# minutes a month, shared with the scheduled research lanes. Either way:
 # * `changes` skips the jobs a change cannot affect. The Python tests read docs, fixtures and workflow files as well as
 #   the worker, so only a change confined to the web app skips them; the web job runs only when the web app, the
 #   contracts or their generators change. Without a usable base commit every job runs.
