@@ -61,6 +61,14 @@ async def refresh_universe(adapter: MarketDataAdapter, cal: MarketCalendar, now:
             "prefiltered": len(pre), "eligible": len(ranked), "symbols": keep, "meta": {s: meta[s] for s in keep}}
 
 
+def snapshot_sectors() -> dict[str, str]:
+    """S&P 500 symbol -> sector (the live keys of LIVE_SECTOR_ETFS) from the pinned snapshot (APEX-013: Alpaca assets
+    carry no sector, so every live name used to share one "unknown" bucket and its caps)."""
+    from apex_worker.research.realeq.universe_v2 import snapshot
+
+    return {sym: sector for sym, sector, *_rest in snapshot()["rows"] if sector}
+
+
 def save_universe(state_dir: Path, data: dict) -> Path:
     path = state_dir / UNIVERSE_FILE
     tmp = path.with_suffix(".tmp")

@@ -403,6 +403,14 @@ search for `DOC≠CODE`.
 - **Gates.** `market.universe` settings change only the nightly universe, not the scan gates.
 - **H3 placebo and H7 component comparisons** are described but not implemented.
 
+### 7.5 Status updates (2026-10-27)
+
+The rows above are the audit as written. Since then:
+- **APEX-011 — FIXED in the live worker.** A nightly SEC job (`runtime/earnings_job.py`) reads each stock's 8-K item 2.02 history and estimates the next release. The candidate engine's earnings gate now vetoes a setup whose hold overlaps a release window (`WITHIN_HORIZON`). It needs `SEC_USER_AGENT` on the Pi; without it, or for a stock without SEC data, the status stays `UNKNOWN` as before. An estimate never confirms "no earnings", so `NONE_WITHIN_HORIZON_CONFIRMED` still needs a confirmed date.
+- **APEX-013 — FIXED for S&P 500 names.** Their sectors come from the pinned S&P 500 snapshot, and `<state_dir>/sectors.json` entries override them. Other names keep the "unknown" bucket and its caps.
+- **APEX-019 — FIXED.** The end-of-day scan runs at close + 20 minutes. The SIP request then ends after the closing auction.
+- **Group output (APEX-009, amendment 05).** Signals are published only in `DEMO` and `GROUP_POSITION_ALERTS`. In `PAPER_LIVE_DATA` and `PERSONAL_RESEARCH`, the policy still decides; the scan record shows the owner the would-be setups, marked `GROUP_OUTPUT_DISABLED_FOR_MODE`, and nothing reaches a group channel.
+
 ---
 
 ## 8. Refinement program for stock picking and price points

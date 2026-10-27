@@ -17,7 +17,7 @@ The full checklist with comments is [`apps/web/.env.example`](../apps/web/.env.e
 
 | Variable | Required | Purpose / format | Rotate |
 |---|---|---|---|
-| `APEX_MODE` | yes | `DEMO`, `PAPER_LIVE_DATA`, `PERSONAL_RESEARCH`, `GROUP_POSITION_ALERTS`. Previews: `DEMO`. | change + redeploy |
+| `APEX_MODE` | yes | `DEMO`, `PAPER_LIVE_DATA`, `PERSONAL_RESEARCH`, `GROUP_POSITION_ALERTS`. Previews: `DEMO`. Signals reach the group channels only in `DEMO` and `GROUP_POSITION_ALERTS`; in the other two modes the would-be setups appear only in the owner's scan records. | change + redeploy |
 | `DATABASE_URL` | outside DEMO | Supabase transaction-pooler URI (port 6543) | Supabase → reset password |
 | `APEX_PUBLIC_BASE_URL` | for Discord sign-in | production URL, no trailing slash | — |
 | `APEX_SESSION_SECRET` | outside local DEMO | 32+ random bytes, base64; signs session cookies | replace (everyone signs in again) |
@@ -45,6 +45,7 @@ The full annotated list is [`apps/pi-worker/.env.example`](../apps/pi-worker/.en
 | `APEX_MODEL_TRUSTED_KEYS` | to use models | public keys only. They are held on the Pi and **not** taken from the server, so a compromised server cannot push a model. |
 | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `APEX_OWNER_DISCORD_IDS`, `APEX_CHANNEL_MAP` | for the bot | see [DISCORD_BOT.md](DISCORD_BOT.md) |
 | `ALPACA_KEY_ID` / `ALPACA_SECRET_KEY` | **no** | manual fallback only; prefer the dashboard, which delivers them encrypted to the Pi |
+| `SEC_USER_AGENT` | for earnings dates | a name and a contact email (or the email alone), sent to the SEC only. Without it every earnings date stays `UNKNOWN`, so the earnings veto cannot fire. Never logged. |
 
 Device keys (`device_keys.json`), the pairing identity (`agent.json`), the local store and the spool live in `APEX_STATE_DIR` (default `~/.apex`, mode 700).
 

@@ -63,6 +63,23 @@ class PolicyOutcome:
         return [d.signal for d in self.decisions if d.signal]
 
 
+# Release modes whose signals may reach the Discord group channels. In every other mode (PAPER_LIVE_DATA,
+# PERSONAL_RESEARCH) the policy decides exactly as it would, but nothing is published: the scan record shows the owner
+# what would have been posted. Personal research is for the owner only, and group alerts stay off until compliance and
+# validation allow them (amendments/05_SECURITY_DATA_RIGHTS_COMPLIANCE.md; build-prompts/ARCHITECTURE_AND_CONTRACTS.md).
+GROUP_OUTPUT_MODES = frozenset({"DEMO", "GROUP_POSITION_ALERTS"})
+GROUP_OUTPUT_WITHHELD = "GROUP_OUTPUT_DISABLED_FOR_MODE"
+
+
+def withhold_signals(outcome: PolicyOutcome) -> PolicyOutcome:
+    """The same decisions with nothing to publish. A would-be signal becomes REJECTED; its tier stays in the reasons,
+    right after the withheld code (the scan record keeps the first four reasons)."""
+    held = [d for d in outcome.decisions if d.signal]
+    decisions = [PolicyDecision(d.candidate_id, d.symbol, "REJECTED", [GROUP_OUTPUT_WITHHELD, d.outcome, *d.reasons])
+                 if d.signal else d for d in outcome.decisions]
+    return PolicyOutcome(outcome.session, decisions, GROUP_OUTPUT_WITHHELD if held else outcome.no_trade_reason)
+
+
 def model_row(cand: dict, lv: Levels) -> dict | None:
     """The live model input vector, built by the same assembler as the training rows (APEX-001).
 
