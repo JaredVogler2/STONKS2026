@@ -1,0 +1,43 @@
+# START HERE — Copy/Paste Message to Claude Code
+
+Paste everything between the two horizontal dividers below into a **new Claude Code session with GitHub repository access**. Do not treat reading this document as executing its instructions automatically. This version is grounded in GitHub main `cd135bde7c61a72731b30f2063ccacb317bc93d3`; agent must refresh before editing.
+
+---
+
+You are the coding and quantitative research lead for the private GitHub repo **JaredVogler2/STONKS2026**. The owner wants APEX to discover the strongest **repeatable, realistic, net-economic swing-trading methodology**, not merely tune H1–H8 or S1–S5. Novel strategies, new mathematical approaches, conditional horizons, cross-sectional selection, market regime models, graphs, causal event mechanisms, optimization and abstention are encouraged **only when testable and able to outperform simple alternatives without hindsight or overfitting**.
+
+**New specification package:** Branch `planning/apex-discovery-v3-20261022`, folder `amendments/discovery-v3-2026-10-22/`. Read `README.md`, `00_MASTER_AGENT_MISSION.md`, all numbered docs `01` through `10`, and this `11_COPY_PASTE_CLAUDE_CODE.md`. Consult last complete real study `research-results/real-equities/qv2-20261022-s1-s5-u1-presample/QUANT_V2_DECISION_REPORT.md`, its REVIEW/manifest, and `docs/quant-v2/FORWARD_SHADOW_PLAN.md`. FIRST fetch CURRENT main and active PRs, verify which instructions are already implemented, and adapt before writing code.
+
+**Verified background:** PRs #15 and #16 have merged. Last 1.334M real SIP-bar study ran successfully on GitHub Actions [39849016753] and produced **NO_TRADE**. S1's historical +0.325 percentage-point matched selection effect is not statistically confirmed, and its book +6.2% trails exposure-matched SPY/cash +12.7%. S3 +0.767 pp paired is underpowered and only ~6% invested. S2 and S5 failed economic gates; H3/H7/S4 cannot be evaluated without true PIT events. The 2017–2019 PRESAMPLE was exposed in cancelled A0 and is backward-time; 2019–2026 DEV/holdouts have informed prior methods. NONE are a fresh untouched final test for new V3 ideas. Quality score or model accuracy is not a validated chance of profit.
+
+**Your mission consists of ACTUAL IMPLEMENTATION, not another grand planning document. Work in multiple small, reviewable code PRs; preserve old immutable research and safe application/Discord behavior.**
+
+### Task 1 — RIGHT NOW: prospective research-only forward-shadow recorder
+Implement `02_FORWARD_SHADOW_FIRST.md` FIRST. Currently `docs/quant-v2/FORWARD_SHADOW_PLAN.md` is only a plan; no daily immutable recorder is running. Frozen S1 E0X1 and S3 C_X0 must be computed exactly using A1 protocol/selection lock in a sealed research lane; novel V3 ideas go to a SEPARATE exploratory lane. Starting the first actually observable session no earlier than 2026-10-23, write an immutable decision with actual market source/availability, full eligible/reject candidate funnel and matched controls, post a verifiable hash anchor, and append outcome only when the horizon has matured. No backfilling sessions as if observed earlier. Use GitHub standard Actions and/or always-on Pi with safe secrets; operate without periodic laptop use. Add deterministic tests, monitoring, missed-run alarms and an actual smoke-run URL. If credentials/permissions not configured, report exact one-time owner setup and NOT RUN. **Open focused PR-A** with code and tests.
+
+### Task 2 — Build V3 typed discovery & portfolio-economics skeleton
+Implement `03_DISCOVERY_ENGINE_ARCHITECTURE.md` and `05_PORTFOLIO_FIRST_OBJECTIVES.md`, reusing existing validated market/adapters/cost/execution/book rather than rewriting the app. A candidate is a complete **selection + entry + exit + portfolio allocation** policy, not a chart trigger. Add trial/hypothesis registry, causal feature availability and versioned outputs, search budget and source/data lineage. Implement reference “cash/no trade”, SPY/cash and simple momentum/breakout/greedy allocation, same timing/cost/market exposure. Optimize measured net book return/growth with risk/drawdown/tail-loss constraints and cash opportunity costs, not hit rate or quality score. Independent attribution of stock selection vs timing vs stop/target vs capital scheduling. Show Pareto frontier and uncertainty. **Open PR-B**.
+
+### Task 3 — Experimental freedom, scientific restraint
+Per `04_HYPOTHESIS_LAB_AND_NOVEL_RESEARCH.md` and `07_STATISTICAL_DISCOVERY_AND_ANTI_OVERFIT.md`, pick 3–5 mechanistically independent, cost-feasible hypotheses for a first DEV pilot, with falsifiable null, negative controls, alternative causes, fair baselines and bounded trial budget registered BEFORE outcomes. Candidate areas include leader pullback policy redesign, cross-sectional dispersion/opportunity conditions, economically known graph/industry information diffusion, attention/liquidity shocks, PIT event drift, dynamic optimal stopping/replacement, adaptive horizon, and regime-aware capital deployment. You may propose stronger ORIGINAL ideas with better reasoning. Do not launch an endless brute-force search that will always yield an apparent winner. Use actual Alpaca historical SIP data for DEV (not fixture masquerading as real), 25bps/side primary plus 0/10/50 sensitivity and source/microstructure checks, no forced paid data. Track ALL attempted variants and failures. Treat previously seen 2016–2026 outcomes as DEV only; no new claim of independent validation on them. **Open PR-C** with code, actual cloud run link, full aggregate negative/positive results and scientific assessment.
+
+### Task 4 — Expand causal data selectively and improve product research UX
+Use `06_CAUSAL_DATA_AND_MARKET_MICROSTRUCTURE.md` to prioritize true PIT issuer/universe/sector records, economic corporate actions/dividends, first-publication-time earnings/events, intraday fill sensitivity only where licensed. Mark unavailable evidence SOURCE_BLOCKED; never fabricate delistings/events. Integrate owner research lab from `09_PRODUCT_RESEARCH_LAB_AND_DISCORD.md` only after data contracts and engine work. Keep per-member Discord positions private, visible distinction DEMO/EXPLORATORY/PROSPECTIVE/CONFIRMED and NO_TRADE. Operate within `08_CLOUD_ORCHESTRATION_AND_AUTONOMY.md`, free-tier quotas and no daily laptop. **Open PR-D** when prerequisites exist.
+
+### Task 5 — Full adversarial evaluation and accurate completion reporting
+Implement/run `10_EXECUTABLE_ACCEPTANCE_GATES.md` with real commands/CI. Check producer→immutable event→hash verification→independent outcome after maturity; no leakage or backfill; proper portfolio budget/fill/costs; random and future-information controls; correlated bootstrap size/power; no trial selection on inspected historical holdouts; infrastructure security, licenses and Discord privacy. Publish a V3 **decision report** comparing candidate policies vs investable benchmarks and cost/risk alternative. Separate technical completion from true independent future evidence. If not yet powered, return INCONCLUSIVE and NO_TRADE (this is successful scientific integrity). **No live broker order placement, no paid new services without owner approval, no automatically enabled personalized group recommendations, no scientific alpha claims based on backtests alone.**
+
+### Delivery format after every milestone
+- Current `main` SHA and working implementation PR URL.
+- Actual source modules changed and why; real test commands/passed-failed numbers; real GitHub Actions runs and status (DEMO vs REAL).
+- Evidence provenance, risk/cost model, experiment manifest, every attempted hypothesis (including losers) and output path.
+- Prospective capture actual on-time/missed/anchor status; upcoming valid evaluation date, not a promise of immediate profitability.
+- Performance as net portfolio-level risk-adjusted **incremental** result vs SPY/cash plus controls, and confidence/limitations.
+- GitHub minutes/API budget, cloud/Pi setup needs, unresolved data license/legal gates, rollback.
+- One concrete next milestone. Do not ask owner to run shell commands every day or move the research to their laptop.
+
+**Start work in this order: audit latest main → implement PR-A forward recorder with tests → confirm actual activation/owner setup → PR-B portfolio/discovery skeleton → bounded PR-C real DEV hypothesis experiments. Continue only as far as permissions and resources allow, but deliver working incremental code and clear evidence rather than just drafting more specifications.**
+
+---
+
+**Completion is only what has actually been committed/tested/activated; this prompt intentionally does not claim APEX has found any economically validated profitable strategy.**

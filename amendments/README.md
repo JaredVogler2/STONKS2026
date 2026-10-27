@@ -1,3 +1,5 @@
+> **Discovery V3 (October 22, 2026):** [Autonomous, novel, portfolio-first strategy research](discovery-v3-2026-10-22/README.md), [forward-shadow implementation first](discovery-v3-2026-10-22/02_FORWARD_SHADOW_FIRST.md), and [Claude Code handoff](discovery-v3-2026-10-22/11_COPY_PASTE_CLAUDE_CODE.md). This is a proposed **documentation-only** specification superseding fixed-strategy expansion as the next research direction, not a live model or profitability claim.
+
 > **NEW — October 22, 2026:** [APEX Quant V2 methodology remediation and five replacement strategy experiments](quant-v2-2026-10-22/README.md) — comprehensive 15-document follow-up to the *actual Alpaca SIP real-equity backtest*; read [agent handoff](quant-v2-2026-10-22/13_COPY_READY_AGENT_HANDOFF.md). This supersedes outdated PR #1 research snapshots in this amendment program when addressing real-equity profitability, but not the original safety controls.
 
 # APEX — Versioned Amendment and Independent Audit Program
