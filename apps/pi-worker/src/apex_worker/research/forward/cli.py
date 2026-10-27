@@ -343,6 +343,63 @@ def _render_picks(store: IssueLedgerStore, lane, cal: MarketCalendar, out: Path,
     return True
 
 
+def _rehearse_picks(lane, source, cal: MarketCalendar, clock, day: date, out_dir: Path) -> int:
+    """A dry rehearsal of one session's decision on the run's own data path (Alpaca, the SEC, the engine), outside the
+    recorder: nothing is recorded or published, and the window rules do not apply, so any past session can be decided.
+    Earlier picks are unknown here, so no open pick counts toward the caps. Also checks the pinned fingerprint."""
+    import time as _time
+
+    from apex_worker.research.forward import picks_lane as PL
+    from apex_worker.research.forward.records import Ledger
+    from apex_worker.research.forward.source import SourceUnavailable
+
+    started = _time.monotonic()
+    head = (f"# Live picks REHEARSAL for {day.isoformat()}\n\n**DRY: nothing was recorded or published.** The session "
+            "is decided as a scheduled run would decide it, from data through that session; earlier picks are not "
+            "known here, so no open pick counts toward the caps.\n\n")
+    if not cal.is_session(day):
+        _write(str(out_dir / "summary.md"), head + f"{day} is not an NYSE session.\n")
+        return 5
+    fingerprint = PL.golden_fingerprint()
+    fp_ok = fingerprint == PL.PINNED_FINGERPRINT
+    out: dict = {"rehearsal": True, "session": day.isoformat(), "series_id": lane.series_id,
+                 "fingerprint_ok": fp_ok, "fingerprint": fingerprint}
+    try:
+        dd = source.decision_data(day, clock())
+        body = lane.decide(dd, day, Ledger(lane.series_id, lane.lane), cal)
+    except SourceUnavailable as exc:
+        out |= {"status": exc.status, "reason": exc.reason}
+        code = EXIT["SOURCE_PENDING"] if exc.status in ("SOURCE_PENDING", "RATE_LIMITED") else EXIT["SOURCE_INVALID"]
+        md = head + f"**{exc.status}**: {exc.reason}\n"
+    else:
+        scan = body["scan"]
+        earnings = body.get("earnings") or {}
+        out |= {"status": "OK", "summary": body["summary"], "plans": body["plans"], "scan": scan,
+                "candidates": body["candidates"], "earnings": earnings, "source": body.get("source")}
+        code = EXIT["OK"]
+        md = (head + f"**Decision:** {body['summary']}\n\n"
+              f"Scanned {scan.get('universe_size')}, eligible {scan.get('eligible')}, triggered {scan.get('triggered')}; "
+              f"regime {(scan.get('regime') or {}).get('label')}. Earnings: {earnings.get('symbols')} stocks with SEC data, "
+              f"{earnings.get('with_estimate')} with a next-release estimate, {earnings.get('failed')} failed requests.\n")
+        top = [f"{c['symbol']} ({c['strategy_id']}, quality {c['quality']}, {c['outcome']}"
+               + (f": {', '.join(c['reasons'][:2])}" if c["reasons"] else "") + ")" for c in body["candidates"][:8]]
+        if top:
+            md += "\nTop candidates: " + "; ".join(top) + ".\n"
+    if not fp_ok:
+        code = EXIT["INTEGRITY"]
+        md += (f"\n**INTEGRITY:** the golden fingerprint here is {fingerprint[:16]}…, not the pinned "
+               f"{PL.PINNED_FINGERPRINT[:16]}…: a real run would record nothing.\n")
+    out["seconds"] = round(_time.monotonic() - started, 1)
+    md += f"\nFingerprint {'matches the pinned one' if fp_ok else 'MISMATCH'}; {out['seconds']} s.\n"
+    _write(str(out_dir / "report.json"), json.dumps(out, indent=2, sort_keys=True, default=str) + "\n")
+    _write(str(out_dir / "summary.md"), md)
+    print(json.dumps({k: out.get(k) for k in ("session", "status", "summary", "fingerprint_ok", "seconds")}, indent=1))
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+            fh.write(f"status=REHEARSAL\nexit_code={code}\nview=false\n")
+    return code
+
+
 def cmd_run_picks(args) -> int:
     """One recorder pass of the picks lane, then the track record rendered from the verified ledger (view/picks/)."""
     from apex_worker.research.forward import picks_lane as PL
@@ -353,6 +410,9 @@ def cmd_run_picks(args) -> int:
         print("run output may never be written under research-results/", file=sys.stderr)
         return 5
     out_dir.mkdir(parents=True, exist_ok=True)
+    if args.rehearse is not None and args.store != "dry":
+        print("--rehearse runs with --store dry only: it decides one session and records nothing", file=sys.stderr)
+        return 5
     if args.source == "fixture":
         now0 = _parse_now(args.now) or datetime.now(UTC)
         clock = SimClock(now0)
@@ -364,6 +424,8 @@ def cmd_run_picks(args) -> int:
             return ctx
         clock, source, api = ctx
     lane = _picks_lane(args.source, args.decisions_from, cal)
+    if args.rehearse is not None:
+        return _rehearse_picks(lane, source, cal, clock, args.rehearse, out_dir)
     store = IssueLedgerStore(api, lane.series_id, issue_body=PICKS_ISSUE_BODY)
     outbox = out_dir / "outbox.json" if args.store != "dry" else None
     rep = PL.PicksRecorder(lane, store, source, cal, clock=clock, producer=producer_info(), outbox=outbox,
@@ -716,6 +778,8 @@ def register(rsub) -> None:
     rp.add_argument("--out-dir", required=True, help="outbox.json, report.json, summary.md and view/picks/")
     rp.add_argument("--now", help="ISO instant; fixture runs only")
     rp.add_argument("--decide-only", action="store_true", help="skip outcome labelling this run")
+    rp.add_argument("--rehearse", type=date.fromisoformat, default=None, metavar="YYYY-MM-DD",
+                    help="--store dry only: decide this session on the real data path and record nothing")
     rp.set_defaults(func=cmd_run_picks)
     ps = sub.add_parser("picks-smoke", help="DEMO end-to-end of the picks lane (never market data)")
     ps.add_argument("--out", required=True)

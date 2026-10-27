@@ -383,3 +383,30 @@ def test_the_policy_defaults_are_the_workers():
     assert LP.POLICY == PolicyConfig() == EngineConfig().policy and LP.GateConfig() == LP.GATES
     assert LP.EXEC.cost_bps_per_side == LP.LEVELS.cost_bps_per_side == 10.0
     assert (LP.EXEC.entry_valid_sessions, LP.EXEC.horizon_sessions) == (2, 20) and LP.LIFETIME_SESSIONS == 22
+
+
+def test_a_rehearsal_decides_a_past_session_and_records_nothing(tmp_path, monkeypatch):
+    """`run-picks --rehearse DAY` (dry only): the session decided on the run's own data path, outside the windows,
+    with the pinned fingerprint checked; no ledger, outbox or view is written."""
+    import argparse
+
+    from apex_worker.research.forward import cli
+
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    day = next(d for d, b in zip(_sessions(), golden(), strict=True) if any(e["kind"] == LP.PICK for e in b["plans"])
+               and not b["open_picks"])
+    parser = argparse.ArgumentParser()
+    cli.register(parser.add_subparsers(dest="cmd"))
+    args = parser.parse_args(["forward-shadow", "run-picks", "--store", "dry", "--source", "fixture", "--out-dir",
+                              str(tmp_path), "--rehearse", day.isoformat()])
+    assert args.func(args) == 0
+    report = json.loads((tmp_path / "report.json").read_text())
+    expected = next(b for d, b in zip(_sessions(), golden(), strict=True) if d == day)
+    assert report["rehearsal"] is True and report["fingerprint_ok"] is True and report["status"] == "OK"
+    assert [e["symbol"] for e in report["plans"]] == [e["symbol"] for e in expected["plans"]]
+    summary = (tmp_path / "summary.md").read_text()
+    assert "REHEARSAL" in summary and "nothing was recorded or published" in summary and "PICK " in summary
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["report.json", "summary.md"]  # no outbox, no view
+    args = parser.parse_args(["forward-shadow", "run-picks", "--store", "github", "--source", "alpaca", "--out-dir",
+                              str(tmp_path / "x"), "--rehearse", day.isoformat()])
+    assert args.func(args) == 5  # never on a real store
