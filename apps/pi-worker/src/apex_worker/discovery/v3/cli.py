@@ -6,6 +6,8 @@
   design    the registered design measurement (design-study-*): tracking error and worst sessions of tilt designs
             against their twin (docs/evidence/DESIGN_STUDY_1.md; SEC-event designs: DESIGN_STUDY_2.md, which also needs
             the owner's APEX_SEC_USER_AGENT); same arguments; aggregates only
+  personal  the registered personal-method study (personal-study-*): whole-share methods for a $1000 account vs SPY
+            (docs/discovery-v3/PERSONAL_STUDY_1.md); same arguments; aggregates only
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ def cmd_plans(args) -> int:
     from apex_worker.discovery.v3.costs import COST_PLANS
     from apex_worker.discovery.v3.design import DESIGN_PLANS
     from apex_worker.discovery.v3.design_events import EVENT_PLANS
+    from apex_worker.discovery.v3.personal_study import PERSONAL_PLANS
     from apex_worker.discovery.v3.plans import PLANS
 
     out = {k: {"title": p.title, "sha256": p.sha256(), "fixture_only": p.fixture_only,
@@ -28,6 +31,7 @@ def cmd_plans(args) -> int:
     out |= {k: {"title": p.title, "sha256": p.sha256(), "kind": "measurement"} for k, p in DESIGN_PLANS.items()}
     out |= {k: {"title": p.title, "sha256": p.sha256(), "kind": "measurement", "needs": "APEX_SEC_USER_AGENT"}
             for k, p in EVENT_PLANS.items()}
+    out |= {k: {"title": p.title, "sha256": p.sha256(), "kind": "personal method study"} for k, p in PERSONAL_PLANS.items()}
     print(json.dumps(out, indent=1))
     return 0
 
@@ -108,6 +112,30 @@ def cmd_design(args) -> int:
     out = Path(args.out)
     summary = run_design_study(DESIGN_PLANS[args.plan], data, out, experiment_id=args.experiment_id,
                                progress=lambda m: print(m, flush=True))
+    (out / "data_quality_summary.json").write_text(json.dumps(data.data_quality, indent=1, sort_keys=True, default=str))
+    print(json.dumps(summary, indent=1, default=str))
+    return 0
+
+
+def cmd_personal(args) -> int:
+    from apex_worker.discovery.v3.personal_study import PERSONAL_PLANS, run_personal_study
+    from apex_worker.discovery.v3.pipeline import load_data
+    from apex_worker.research.realeq.data import RunStop
+
+    if args.plan not in PERSONAL_PLANS:
+        print(f"unknown personal study {args.plan}; registered: {sorted(PERSONAL_PLANS)}", file=sys.stderr)
+        return 5
+    if (why := _guard(args)) is not None:
+        print(why, file=sys.stderr)
+        return 5
+    try:
+        data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
+    except RunStop as stop:
+        print(f"{stop.status}: {stop.reason}", file=sys.stderr)
+        return 2 if "BLOCKED" in stop.status else 3
+    out = Path(args.out)
+    summary = run_personal_study(PERSONAL_PLANS[args.plan], data, out, experiment_id=args.experiment_id,
+                                 progress=lambda m: print(m, flush=True))
     (out / "data_quality_summary.json").write_text(json.dumps(data.data_quality, indent=1, sort_keys=True, default=str))
     print(json.dumps(summary, indent=1, default=str))
     return 0
@@ -201,3 +229,11 @@ def register(rsub) -> None:
     g.add_argument("--per-sector", type=int, default=6, help="fixture only: synthetic stocks per sector")
     g.add_argument("--max-requests", type=int, default=None)
     g.set_defaults(func=cmd_design)
+    m = sub.add_parser("personal", help="run a registered personal-method study (aggregates only)")
+    m.add_argument("--plan", required=True)
+    m.add_argument("--source", choices=["alpaca", "fixture"], required=True)
+    m.add_argument("--experiment-id", required=True)
+    m.add_argument("--out", required=True)
+    m.add_argument("--per-sector", type=int, default=6, help="fixture only: synthetic stocks per sector")
+    m.add_argument("--max-requests", type=int, default=None)
+    m.set_defaults(func=cmd_personal)

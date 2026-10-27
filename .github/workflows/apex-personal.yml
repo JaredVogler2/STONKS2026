@@ -1,0 +1,101 @@
+# Personal alerts: the owner's $1000 whole-share method on Discord (personal/README.md). The bot suggests trades and
+# records what the owner reports; the owner places every trade by hand at their broker. No order is ever placed.
+#
+#   read the private channel -> rebuild the account from the bot's own records -> answer the owner's new messages
+#   (trades, cash, undo, status, plan) -> once the day's bars are final: the daily summary, the method's decision when
+#   due (the first after `start`, then the last session of each month), the next morning a reminder of open orders.
+#
+# * Personal and UNVALIDATED: alerts for the owner's own manual trading in their private channel; no group channel, no
+#   brokerage execution, no order endpoint, not investment advice. The method is the one personal-study-1 adopted
+#   (docs/discovery-v3/PERSONAL_STUDY_1.md); its live record against SPY with the same cash is the test.
+# * The repository is public, so this log is public: the run prints counts only (no symbol, amount, price, message text
+#   or exception message), writes no job summary and uploads no artifact. The account lives in the channel only.
+# * ACTIVATION: scheduled runs do nothing until the owner sets the repository variable APEX_PERSONAL_ALERTS to "on".
+#   A manual dispatch works either way; its default mode is `dry` (reads and computes, posts nothing).
+# * Secrets of the `real-equities-research` environment (deployment branch main), in the run step only and never
+#   echoed: the Alpaca data keys already there (ALPACA_API_KEY_ID, ALPACA_API_SECRET_KEY) plus the owner's
+#   DISCORD_BOT_TOKEN and APEX_PERSONAL_CHANNEL_ID (optionally APEX_PERSONAL_USER_IDS). A missing one fails the run;
+#   there is no fallback. No other workflow references the Discord secrets, so none of them can read them.
+# * Minutes: standard runners are free for a public repository; about one minute a run.
+# Never runs for pull_request; default branch only. Actions pinned to full commit SHAs (version in the trailing comment).
+name: apex-personal
+
+on:
+  schedule:
+    # Every 30 minutes from 7:07 AM to 8:37 PM ET on weekdays (the morning reminder, replies during the day, the summary
+    # and the month-end decision after the 4 PM close), hourly until 11:17 PM, and every 3 hours at weekends.
+    - cron: "7,37 7-20 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "17 21-23 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "17 9-21/3 * * 0,6"
+      timezone: "America/New_York"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry: read the channel and compute, post nothing (a setup check). live: what a scheduled run does"
+        required: true
+        default: dry
+        type: choice
+        options:
+          - dry
+          - live
+
+permissions:
+  contents: read
+
+# One run at a time: each run reads the channel and answers it; never cancels a run.
+concurrency:
+  group: apex-personal
+  cancel-in-progress: false
+
+jobs:
+  alerts:
+    name: personal alerts
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      (github.event_name == 'workflow_dispatch' || vars.APEX_PERSONAL_ALERTS == 'on')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: real-equities-research
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/pi-worker
+    env:
+      PYTHONHASHSEED: "0"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.11.32"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: apps/pi-worker/uv.lock
+      - name: Install (locked, runtime only)
+        run: uv sync --locked --no-dev
+      - name: Personal alerts (counts only in this public log)
+        timeout-minutes: 6
+        env:
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          APEX_PERSONAL_CHANNEL_ID: ${{ secrets.APEX_PERSONAL_CHANNEL_ID }}
+          APEX_PERSONAL_USER_IDS: ${{ secrets.APEX_PERSONAL_USER_IDS }}
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_API_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_API_SECRET_KEY }}
+          APEX_PERSONAL_DAILY_SUMMARY: ${{ vars.APEX_PERSONAL_DAILY_SUMMARY }}
+          MODE: ${{ github.event_name == 'schedule' && 'live' || inputs.mode }}
+        run: |
+          set +e
+          uv run --no-sync apex personal run --mode "$MODE"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) ;;
+            2) echo "::error title=BLOCKED::a secret is missing (personal/README.md, owner setup)"; exit 2 ;;
+            *) echo "::error title=RUN_FAILED::the run stopped; the next scheduled run retries (details stay private)"; exit "$rc" ;;
+          esac

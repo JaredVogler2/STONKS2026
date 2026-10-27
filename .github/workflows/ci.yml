@@ -221,6 +221,8 @@ jobs:
             --out "$RUNNER_TEMP/tournament-c1-smoke"
       - name: Live picks smoke (DEMO; picks/README.md)
         run: uv run --no-sync apex research forward-shadow picks-smoke --out "$RUNNER_TEMP/picks-smoke"
+      - name: Personal alerts rehearsal (synthetic prices, in-memory channel; personal/README.md)
+        run: uv run --no-sync apex personal smoke > /dev/null
       - name: Job summary
         if: always()
         run: |

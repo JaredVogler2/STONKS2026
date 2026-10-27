@@ -21,6 +21,9 @@
 #   on DEV returns. design-study-2 (docs/evidence/DESIGN_STUDY_2.md) also reads public SEC filings (EDGAR submissions,
 #   the quarterly Form 3/4/5 data sets) with the owner's contact, the repository secret APEX_SEC_USER_AGENT, which the
 #   SEC's fair-access policy requires; it is sent to the SEC only, and a run without it stops before any download.
+# * A `personal-study-*` plan runs the registered personal-method study instead (docs/discovery-v3/
+#   PERSONAL_STUDY_1.md): whole-share methods for a $1000 account against SPY on the DEV window; aggregates and the
+#   sector ETFs' names only (personal_study.json, PERSONAL_STUDY.md).
 # * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-discovery-v3
@@ -104,6 +107,7 @@ jobs:
           cmd=run
           if [[ "$PLAN" == cost-study-* ]]; then cmd=costs; fi  # registered execution-cost measurement (PR-D)
           if [[ "$PLAN" == design-study-* ]]; then cmd=design; fi  # registered design measurement (DESIGN_STUDY_1/2.md)
+          if [[ "$PLAN" == personal-study-* ]]; then cmd=personal; fi  # personal-method study (PERSONAL_STUDY_1.md)
           set +e
           uv run --no-sync apex research discovery "$cmd" --plan "$PLAN" --source alpaca \
             --experiment-id "$EXPERIMENT_ID" --out "$APEX_OUT/report"
@@ -117,6 +121,7 @@ jobs:
           if [ -f "$APEX_OUT/report/TRIAL_INDEX.md" ]; then cat "$APEX_OUT/report/TRIAL_INDEX.md" >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f "$APEX_OUT/report/COST_STUDY.md" ]; then cat "$APEX_OUT/report/COST_STUDY.md" >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f "$APEX_OUT/report/DESIGN_STUDY.md" ]; then cat "$APEX_OUT/report/DESIGN_STUDY.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f "$APEX_OUT/report/PERSONAL_STUDY.md" ]; then cat "$APEX_OUT/report/PERSONAL_STUDY.md" >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f "$APEX_OUT/budget.json" ]; then { echo; echo '```json'; cat "$APEX_OUT/budget.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"; fi
       - name: Upload the aggregate research files (short retention)
         if: always()
@@ -134,5 +139,7 @@ jobs:
             ${{ runner.temp }}/apex-discovery/report/COST_STUDY.md
             ${{ runner.temp }}/apex-discovery/report/design_study.json
             ${{ runner.temp }}/apex-discovery/report/DESIGN_STUDY.md
+            ${{ runner.temp }}/apex-discovery/report/personal_study.json
+            ${{ runner.temp }}/apex-discovery/report/PERSONAL_STUDY.md
           retention-days: 7
           if-no-files-found: ignore
