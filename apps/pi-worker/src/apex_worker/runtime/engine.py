@@ -2,6 +2,10 @@
 
 The engine is transport-agnostic: it writes through a `Sink` (LocalSink for DEMO/offline, the signed cloud
 agent API in connected mode). DEMO replay and live operation therefore exercise the same code path.
+
+Signals are published only in DEMO and GROUP_POSITION_ALERTS (`signals.policy.GROUP_OUTPUT_MODES`). In PAPER_LIVE_DATA
+and PERSONAL_RESEARCH the policy runs unchanged and the scan record carries the would-be setups to the owner, marked
+GROUP_OUTPUT_DISABLED_FOR_MODE; nothing reaches a group channel.
 """
 
 from __future__ import annotations
@@ -22,7 +26,13 @@ from apex_worker.portfolio.assessment import AssessContext, assess, materiality_
 from apex_worker.signals.candidates import CandidateEngine, ScanResult
 from apex_worker.signals.lifecycle import SignalEventRecord
 from apex_worker.signals.monitor import evaluate_daily, evaluate_intraday
-from apex_worker.signals.policy import PolicyConfig, PolicyOutcome, SignalPolicy
+from apex_worker.signals.policy import (
+    GROUP_OUTPUT_MODES,
+    PolicyConfig,
+    PolicyOutcome,
+    SignalPolicy,
+    withhold_signals,
+)
 from apex_worker.timeutil import Clock, iso_utc
 
 
@@ -126,9 +136,12 @@ class ApexEngine:
             now=now,
             compliance=self.cfg.compliance,
         )
-        for d in outcome.decisions:
-            if d.signal:
-                self.sink.publish_signal(d.signal, d.outcome, intents.new_signal(d.signal, d.outcome, now), now)
+        if self.cfg.release_mode in GROUP_OUTPUT_MODES:
+            for d in outcome.decisions:
+                if d.signal:
+                    self.sink.publish_signal(d.signal, d.outcome, intents.new_signal(d.signal, d.outcome, now), now)
+        else:
+            outcome = withhold_signals(outcome)
         self.sink.record_scan(scan, outcome, now)
         self.evaluate_signals_daily()
         return scan, outcome

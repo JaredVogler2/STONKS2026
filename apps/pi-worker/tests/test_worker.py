@@ -77,8 +77,8 @@ def test_eod_timing_early_close_and_never_after_next_open(tmp_path, market):
     w, _srv, _local = make(tmp_path, market, clock)
     half = CAL.session(__import__("datetime").date(2026, 11, 27))  # day after Thanksgiving: 13:00 ET close
     assert half.early_close
-    assert w._eod_day(half.close_utc + timedelta(minutes=10)) is None
-    assert w._eod_day(half.close_utc + timedelta(minutes=16)) == half.day
+    assert w._eod_day(half.close_utc + timedelta(minutes=16)) is None
+    assert w._eod_day(half.close_utc + timedelta(minutes=21)) == half.day
     nxt = CAL.session(CAL.next_session(half.day))
     assert w._eod_day(nxt.open_utc + timedelta(minutes=1)) is None  # stale after the next open
 

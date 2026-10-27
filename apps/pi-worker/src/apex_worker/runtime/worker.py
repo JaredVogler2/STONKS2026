@@ -7,7 +7,9 @@ strategy toggles, model poll minutes). Jobs, all on one asyncio loop:
   config        every 30 min (and at start): sanitized server config; announces newer secret versions
   intraday      during the regular session at open + k x cadence (15/30 min): latest prints for <= 30 slots
                 (IEX Basic cap; bucket/quota in market/ratelimit), lifecycle annotations, member assessments
-  end_of_day    session close + 15 min (early closes included), once per session, never after the next open
+  end_of_day    session close + 20 min (early closes included), once per session, never after the next open. The
+                SIP bars are requested up to now - 16 min (the free plan's delay), so 20 minutes lets the decision
+                bar include the closing auction (APEX-019)
   nightly       at cadence.nightly_refresh_et on session days: universe + open-signal refresh
   models        every models.poll_minutes (default 45): verified atomic model refresh (models/sync.py)
   notices       hourly: missed training (>8 days), registry unreachable, model expiring (<3 days), quota low
@@ -86,7 +88,7 @@ class Schedule:
     work_seconds: int = 30
     config_seconds: int = 1800
     notices_seconds: int = 3600
-    eod_delay_minutes: int = 15
+    eod_delay_minutes: int = 20  # > the 16-minute SIP request delay, so the daily bar covers the close
     tick_seconds: float = 5.0
     stop_grace_seconds: float = 20.0
 
@@ -205,6 +207,7 @@ class Worker:
         catalysts_provider: Callable[[], list[dict]] | None = None,
         earnings_status=None,
         universe_refresh: Callable | None = None,
+        earnings_refresh: Callable | None = None,
     ):
         from apex_worker.runtime.local_sink import LocalSink
 
@@ -233,6 +236,7 @@ class Worker:
         self.universe = list(universe)
         self.catalysts_provider = catalysts_provider
         self.universe_refresh = universe_refresh
+        self.earnings_refresh = earnings_refresh  # async (now, symbols) -> coverage; None without SEC_USER_AGENT
         self.engine = ApexEngine(adapter or NoAdapter(), self.sink, clock, engine_config, models={}, calendar=calendar,
                                  meta=meta, earnings_status=earnings_status)
         self._has_adapter = adapter is not None
@@ -459,6 +463,8 @@ class Worker:
             self._set("scanner", "UNCONFIGURED", "no market data source; nothing is scanned or published")
             return None
         self._apply_server()
+        if self.earnings_refresh is not None and not self.status.get("earnings", {}).get("last_ok_at"):
+            await self._refresh_earnings(now)  # the first scan after a start never runs on an empty calendar
         bench = self.engine.cfg.benchmark
         symbols = sorted(set(self.universe) | {bench} | set(self.engine.cfg.sector_etfs.values())
                          | {s["symbol"] for s, _ in self.sink.open_signals(include_closed=True)}
@@ -502,14 +508,33 @@ class Worker:
                 self.universe = await self.universe_refresh(self.engine.adapter, now, self.server.universe)
             except Exception as exc:
                 log.warning("universe refresh failed: %s", type(exc).__name__)
+        await self._refresh_earnings(now)
         if self.catalysts_provider is not None and isinstance(self.sink, RemoteSink):
             with contextlib.suppress(Exception):
                 self.sink.post_catalysts(self.catalysts_provider())
         return True
 
+    async def _refresh_earnings(self, now: datetime) -> None:
+        """SEC earnings calendar for the earnings gate (runtime/earnings_job.py). A failure keeps the last calendar."""
+        if self.earnings_refresh is None:
+            return
+        try:
+            cov = await self.earnings_refresh(now, list(self.universe))
+        except Exception as exc:
+            log.warning("earnings refresh failed: %s", type(exc).__name__)
+            self._set("earnings", "DEGRADED", f"refresh failed ({type(exc).__name__}); the previous calendar stays in use")
+            return
+        bad = cov["failed"] + cov["no_cik"]
+        self._set("earnings", "DEGRADED" if cov["failed"] else "OK",
+                  f"{cov['with_estimate']} of {cov['symbols']} stocks have a next-release estimate"
+                  + (f"; {bad} without SEC data stay UNKNOWN" if bad else ""), ok=True, metrics=cov)
+
     # ---- loop ---------------------------------------------------------------------------------------------
     def start(self) -> None:
         self.model_sync.load_local()
+        if self.earnings_refresh is None and "earnings" not in self.status:
+            self._set("earnings", "UNCONFIGURED", "SEC_USER_AGENT not set: earnings dates stay UNKNOWN, so the "
+                      "earnings veto cannot fire")
         if isinstance(self.sink, RemoteSink):
             self.sink.refresh_open_signals()
         self.job_config(self.clock.now())
@@ -577,8 +602,22 @@ def build_worker(cfg) -> Worker:
     from apex_worker.agent.secrets import MarketCredentials
     from apex_worker.discord_bot.settings import BotSettings
     from apex_worker.market.calendar import default_calendar
+    from apex_worker.research.sec_history import sec_http
     from apex_worker.runtime.agent_state import STATE_FILE
-    from apex_worker.runtime.universe_job import asset_meta, load_universe, refresh_universe, save_universe
+    from apex_worker.runtime.earnings_job import (
+        EarningsBook,
+        load_earnings,
+        refresh_earnings,
+        resolve_ciks,
+        save_earnings,
+    )
+    from apex_worker.runtime.universe_job import (
+        asset_meta,
+        load_universe,
+        refresh_universe,
+        save_universe,
+        snapshot_sectors,
+    )
     from apex_worker.timeutil import SystemClock
 
     state_dir = Path(cfg.state_dir)
@@ -604,9 +643,24 @@ def build_worker(cfg) -> Worker:
 
     adapter = adapter_factory(manual, {}) if manual and secrets is None and cfg.release_mode != "DEMO" else None
     uni = load_universe(state_dir)
-    sector_map = {}
+    sector_map = snapshot_sectors()  # S&P 500 sectors; <state_dir>/sectors.json entries override them (APEX-013)
     with contextlib.suppress(OSError, ValueError):
-        sector_map = json.loads((state_dir / "sectors.json").read_text())
+        sector_map.update(json.loads((state_dir / "sectors.json").read_text()))
+    book = EarningsBook(cal, load_earnings(state_dir), clock=clock.now)
+    earnings_refresh = None
+    if (contact := sec_contact(cfg)) is not None:
+        sec = sec_http(contact)
+
+        async def earnings_refresh(now, symbols):
+            stocks = [s for s in symbols if (m := worker.engine.meta.get(s)) is None or m.asset_kind == "stock"]
+
+            def fetch() -> dict:
+                return refresh_earnings(stocks, resolve_ciks(stocks, sec), sec, cal, now, previous=book.data)
+
+            data = await asyncio.to_thread(fetch)
+            save_earnings(state_dir, data)
+            book.replace(data)
+            return book.coverage()
 
     async def universe_refresh(ad, now, ucfg):
         data = await refresh_universe(ad, cal, now, ucfg, max_symbols=int(os.environ.get("APEX_UNIVERSE_MAX", "400")))
@@ -623,9 +677,24 @@ def build_worker(cfg) -> Worker:
         meta=asset_meta(uni, sector_map, LIVE_SECTOR_ETFS, LIVE_BENCHMARK), universe=uni.get("symbols") or [],
         client=client, adapter=adapter, secrets=secrets, adapter_factory=adapter_factory if secrets else None,
         bridge=OutboxBridge(client, local, component_secret=cfg.component_secret) if client else None,
-        universe_refresh=universe_refresh,
+        universe_refresh=universe_refresh, earnings_status=book.status, earnings_refresh=earnings_refresh,
     )
     return worker
+
+
+def sec_contact(cfg) -> str | None:
+    """SEC_USER_AGENT normalized as the research lanes do (a name and an email; the SEC's fair-access policy), or None.
+    The value is never logged."""
+    if not cfg.sec_user_agent:
+        return None
+    from apex_worker.research.realeq.data import RunStop
+    from apex_worker.research.sec_history import user_agent_from_env
+
+    try:
+        return user_agent_from_env({"APEX_SEC_USER_AGENT": cfg.sec_user_agent})
+    except RunStop:
+        log.warning("SEC_USER_AGENT is not a usable contact (a name and an email): earnings dates stay UNKNOWN")
+        return None
 
 
 EXIT_OK, EXIT_CONFIG, EXIT_LOCKED = 0, 2, 3  # systemd: RestartPreventExitStatus=2 3; anything else is restarted

@@ -75,7 +75,7 @@ Only listed ids can sign in. Members never sign in to the dashboard.
    - Framework: Next.js.
    - Production branch: `main`.
 2. **Settings → Environment Variables.** Use [`apps/web/.env.example`](../apps/web/.env.example) as the checklist.
-   - Production: `APEX_MODE=PAPER_LIVE_DATA` to start, `DATABASE_URL`, `APEX_PUBLIC_BASE_URL`, the four random secrets, `DISCORD_OAUTH_*`, `APEX_OWNER_DISCORD_IDS`, and `APEX_MODEL_TRUSTED_KEYS` (public key only).
+   - Production: `APEX_MODE=PAPER_LIVE_DATA` to start (it publishes nothing to the group channels; the owner sees the would-be setups in the scan records), `DATABASE_URL`, `APEX_PUBLIC_BASE_URL`, the four random secrets, `DISCORD_OAUTH_*`, `APEX_OWNER_DISCORD_IDS`, and `APEX_MODEL_TRUSTED_KEYS` (public key only).
    - Preview: `APEX_MODE=DEMO` and **no** `DATABASE_URL`.
      - Previews then run on an embedded demo database.
      - They cannot touch production data or Discord.
