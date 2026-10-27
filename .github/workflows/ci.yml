@@ -2,6 +2,15 @@
 # read-only token. Release credentials live only in the `model-release` environment used by the apex-model-* workflows,
 # which never run for pull_request events.
 #
+# Minutes (the repository is private: 2,000 free minutes a month, shared with the scheduled research lanes):
+# * `changes` skips the jobs a change cannot affect. The Python tests read docs, fixtures and workflow files as well as
+#   the worker, so only a change confined to the web app skips them; the web job runs only when the web app, the
+#   contracts or their generators change. Without a usable base commit every job runs.
+# * `tested` (push to main only): when the merged file tree already passed this workflow in its pull request, the
+#   heavy jobs are skipped instead of repeated. That job alone can list this workflow's runs (actions: read); it never
+#   runs for pull_request events, so pull-request code never holds that token.
+# * pytest runs on every core of the runner (pytest-xdist, one file per worker).
+#
 # Third-party actions are pinned to full commit SHAs (version in the trailing comment), resolved with
 # `git ls-remote https://github.com/<owner>/<action> refs/tags/<tag>` (annotated tags dereferenced with ^{}).
 name: ci
@@ -19,6 +28,80 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: changed paths
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.areas.outputs.python }}
+      smoke: ${{ steps.areas.outputs.smoke }}
+      node: ${{ steps.areas.outputs.node }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Classify the changed files
+        id: areas
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          everything() {
+            printf 'python=true\nsmoke=true\nnode=true\n' >> "$GITHUB_OUTPUT"
+            echo "No usable base commit: every job runs." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          case "$BASE" in "" | 0000000000000000000000000000000000000000) everything ;; esac
+          git cat-file -e "$BASE^{commit}" 2> /dev/null || everything
+          files=$(git diff --name-only "$BASE" HEAD) || everything
+          [ -n "$files" ] || everything
+          python=false smoke=false node=false
+          while IFS= read -r f; do
+            case "$f" in
+              apps/web/* | package.json | pnpm-lock.yaml | pnpm-workspace.yaml | .nvmrc | .npmrc) ;;
+              *) python=true ;;
+            esac
+            case "$f" in
+              apps/pi-worker/* | fixtures/* | packages/* | .github/workflows/ci.yml) smoke=true ;;
+            esac
+            case "$f" in
+              apps/web/* | packages/* | supabase/* | apps/pi-worker/src/apex_worker/contracts/* \
+                | apps/pi-worker/pyproject.toml | apps/pi-worker/uv.lock | package.json | pnpm-lock.yaml \
+                | pnpm-workspace.yaml | .nvmrc | .npmrc | .github/workflows/ci.yml) node=true ;;
+            esac
+          done <<< "$files"
+          printf 'python=%s\nsmoke=%s\nnode=%s\n' "$python" "$smoke" "$node" >> "$GITHUB_OUTPUT"
+          echo "$(wc -l <<< "$files") changed files: python=$python smoke=$smoke node=$node" >> "$GITHUB_STEP_SUMMARY"
+
+  tested:
+    name: already passed in its pull request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      duplicate: ${{ steps.tree.outputs.duplicate }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Same file tree as a passing pull-request run?
+        id: tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          if gh api "repos/$REPO/actions/workflows/ci.yml/runs?event=pull_request&status=success&per_page=50" \
+              --jq '.workflow_runs[].head_commit.tree_id' | grep -qxF "$tree"; then
+            echo "duplicate=true" >> "$GITHUB_OUTPUT"
+            echo "Tree $tree already passed CI in its pull request: the heavy jobs are skipped." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "duplicate=false" >> "$GITHUB_OUTPUT"
+          fi
+
   secret-scan:
     name: secret scan
     runs-on: ubuntu-24.04
@@ -38,6 +121,8 @@ jobs:
 
   node:
     name: web + contracts (lint, typecheck, test, build)
+    needs: [changes, tested]
+    if: ${{ !cancelled() && needs.changes.outputs.node != 'false' && needs.tested.outputs.duplicate != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -78,6 +163,8 @@ jobs:
 
   python:
     name: pi-worker (ruff, pytest)
+    needs: [changes, tested]
+    if: ${{ !cancelled() && needs.changes.outputs.python != 'false' && needs.tested.outputs.duplicate != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
@@ -97,13 +184,15 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Ruff
         run: uv run --no-sync ruff check src tests
-      - name: Pytest
-        run: uv run --no-sync pytest -q -p no:cacheprovider
+      - name: Pytest (one worker per core; a file's tests share a worker)
+        run: uv run --no-sync pytest -q -p no:cacheprovider -n auto --dist loadfile
 
   forward-shadow-smoke:
     # DEMO only: the forward-shadow recorder end to end on the synthetic fixture over a simulated calendar (decisions,
     # a pending source, a missed session, catch-up, maturity, chain verification). No secrets, no market data, no writes.
     name: forward-shadow smoke (synthetic fixture, DEMO)
+    needs: [changes, tested]
+    if: ${{ !cancelled() && needs.changes.outputs.smoke != 'false' && needs.tested.outputs.duplicate != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
