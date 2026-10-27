@@ -11,11 +11,15 @@
   run-tournament    one recorder pass for every tournament cohort, sharing one market-data fetch (the scheduled
                     workflow): --out-dir DIR gets each cohort's outbox{suffix}.json and report{suffix}.json and one
                     summary.md (cohort 0: no suffix; cohort 1: -c1).
+  run-picks         one recorder pass of the live engine's picks (v3x-live-picks-v1, picks/README.md): --out-dir DIR
+                    gets outbox.json, report.json, summary.md and view/picks/ (the track record rendered from the
+                    verified ledger, which the workflow publishes on the picks-ledger branch).
+  picks-smoke       DEMO end to end of the picks lane on the synthetic fixture (never market data).
 
 `--lane tournament` selects the exploratory lane v3x-epa-tournament-v1 (cohort 0, docs/evidence/TOURNAMENT_LANE.md);
-`--lane tournament-c1` its cohort 1, v3x-epa-tournament-c1-v1 (docs/evidence/TOURNAMENT_COHORT_1.md). `--store dry`
-runs a recorder pass against an in-memory ledger that is discarded: nothing is posted (a rehearsal of the real data
-path before the owner activates a lane).
+`--lane tournament-c1` its cohort 1, v3x-epa-tournament-c1-v1 (docs/evidence/TOURNAMENT_COHORT_1.md); `--lane picks`
+the live engine's picks. `--store dry` runs a recorder pass against an in-memory ledger that is discarded: nothing is
+posted (a rehearsal of the real data path before the owner activates a lane).
 """
 
 from __future__ import annotations
@@ -61,6 +65,14 @@ ISSUE_BODY = ("Append-only ledger of the APEX forward shadow (research only: no 
               "sha256 hash chain; GitHub's comment timestamp is the independent anchor. Do not edit or delete comments: "
               "an edited record fails verification. Verify with `apex research forward-shadow verify --store github`. "
               "See docs/discovery-v3/FORWARD_SHADOW.md.")
+PICKS_ISSUE_BODY = ("Append-only ledger of the APEX live picks (exploratory lane v3x-live-picks-v1; "
+                    "PROSPECTIVE_EXPLORATORY, never confirmatory): the would-be picks of an unvalidated engine, recorded "
+                    "before any outcome exists. Research only: no orders, no alerts, not investment advice. Records are "
+                    "written by the scheduled `apex-live-picks` workflow and carry a sha256 hash chain; GitHub's comment "
+                    "timestamp is the independent anchor. Do not edit or delete comments. The readable track record is "
+                    "picks/ on the picks-ledger branch. Verify with `apex research forward-shadow verify --lane picks "
+                    "--store github`. See picks/README.md.")
+PICKS_FIXTURE_FROM = date(2026, 8, 31)  # the synthetic fixture has picks and open picks in the following sessions
 FIXTURE_PER_SECTOR = 3
 FIXTURE_MIN_USABLE = 20
 
@@ -115,9 +127,23 @@ def _tournament_lane(name: str, source: str, decisions_from: date | None = None)
     return T.TournamentLane.for_cohort(cohort)
 
 
+def _picks(args) -> bool:
+    return getattr(args, "lane", "frozen") == "picks"
+
+
+def _picks_lane(source: str, decisions_from: date | None = None, cal: MarketCalendar | None = None):
+    from apex_worker.research.forward import picks_lane as PL
+
+    if source == "fixture":
+        return PL.PicksLane.fixture(decisions_from or PICKS_FIXTURE_FROM)
+    return PL.PicksLane(earnings=PL.SecEarnings.from_env(cal or default_calendar()))
+
+
 def _lane(args):
     if _tournament(args):
         return _tournament_lane(args.lane, args.source, args.decisions_from)
+    if _picks(args):
+        return _picks_lane(args.source, args.decisions_from)
     if args.source == "fixture":
         return FrozenLane.fixture(args.decisions_from or F.DECISIONS_FROM)
     return FrozenLane()
@@ -128,6 +154,10 @@ def _expected_config_sha(args, lane) -> str:
         from apex_worker.research.forward import tournament_lane as T
 
         return T.config_sha256(lane.config(lane.cohort.pinned_fingerprint))
+    if _picks(args):
+        from apex_worker.research.forward import picks_lane as PL
+
+        return F.config_sha256(lane.config(PL.PINNED_FINGERPRINT))
     return F.config_sha256(lane.config(F.PINNED_FINGERPRINT))
 
 
@@ -209,6 +239,9 @@ def _print_run(out: dict, rep) -> None:
 
 
 def cmd_run(args) -> int:
+    if _picks(args):
+        print("the picks lane records with `run-picks --out-dir DIR` (it also renders the track record)", file=sys.stderr)
+        return 5
     cal = default_calendar()
     ctx = _context(args, cal)
     if isinstance(ctx, int):
@@ -279,6 +312,80 @@ def cmd_run_tournament(args) -> int:
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
             fh.write("".join(outputs))
     return max(codes, key=lambda c: _RANK.get(c, len(_RANK)), default=0)
+
+
+def _picks_frames():
+    from apex_worker.research.forward import picks_lane as PL
+
+    return PL._golden_frames()  # the DEMO synthetic market (universe_frames_v2), on which the live engine has setups
+
+
+def _render_picks(store: IssueLedgerStore, lane, cal: MarketCalendar, out: Path, now: datetime) -> bool:
+    """Write view/picks/ from a fresh read of the ledger, only if every record and the chain verify."""
+    from apex_worker.research.forward import picks_view as PV
+
+    try:
+        rr = store.read()
+    except StoreError as exc:
+        print(f"view not rendered: {exc}", file=sys.stderr)
+        return False
+    terminal = [r["session"] for r in rr.records if r["record_type"] in ("DECISION", "MISSED_OBSERVATION")]
+    exp = [d.isoformat() for d in cal.sessions_between(lane.decisions_from, date.fromisoformat(max(terminal)))] \
+        if terminal else []
+    problems = rr.problems + verify_chain(rr.records, series_id=lane.series_id, lane=lane.lane, expected_sessions=exp)
+    if problems or not rr.records:
+        print(f"view not rendered: {'; '.join(problems[:3]) or 'no records'}", file=sys.stderr)
+        return False
+    files = PV.render(rr.records, rr.anchors, series_id=lane.series_id,
+                      ledger_url=(rr.volumes[0].get("url") if rr.volumes else None), generated_at=W.iso(now))
+    for rel, text in files.items():
+        _write(str(out / rel), text)
+    return True
+
+
+def cmd_run_picks(args) -> int:
+    """One recorder pass of the picks lane, then the track record rendered from the verified ledger (view/picks/)."""
+    from apex_worker.research.forward import picks_lane as PL
+
+    cal = default_calendar()
+    out_dir = Path(args.out_dir)
+    if "research-results" in out_dir.resolve().parts:
+        print("run output may never be written under research-results/", file=sys.stderr)
+        return 5
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if args.source == "fixture":
+        now0 = _parse_now(args.now) or datetime.now(UTC)
+        clock = SimClock(now0)
+        source = _fixture_source(_picks_frames(), cal, clock)
+        api = MemoryGitHubAPI(clock=clock) if args.store == "dry" else _file_api(Path(args.store_file), clock)
+    else:
+        ctx = _context(args, cal)
+        if isinstance(ctx, int):
+            return ctx
+        clock, source, api = ctx
+    lane = _picks_lane(args.source, args.decisions_from, cal)
+    store = IssueLedgerStore(api, lane.series_id, issue_body=PICKS_ISSUE_BODY)
+    outbox = out_dir / "outbox.json" if args.store != "dry" else None
+    rep = PL.PicksRecorder(lane, store, source, cal, clock=clock, producer=producer_info(), outbox=outbox,
+                           decide_only=args.decide_only).run()
+    out = rep.to_dict() | {"store": args.store}
+    view = _render_picks(store, lane, cal, out_dir / "view", clock())
+    md = _dry_banner(args.store) + markdown(rep.health, out)
+    try:
+        md += PL.summary_md(store.read().records)
+    except StoreError as exc:
+        md += f"\n_Picks summary unavailable: {exc}_\n"
+    md += "\nTrack record rendered for publication (picks/ on the picks-ledger branch).\n" if view and \
+        args.store == "github" else ""
+    if args.store == "file":
+        Path(args.store_file).write_text(json.dumps(api.to_json(), indent=1, sort_keys=True))
+    _write(str(out_dir / "report.json"), json.dumps(out | {"view_rendered": view}, indent=2, sort_keys=True) + "\n")
+    _write(str(out_dir / "summary.md"), md)
+    _print_run(out, rep)
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+            fh.write(f"status={rep.status}\nexit_code={rep.exit_code}\nview={'true' if view else 'false'}\n")
+    return rep.exit_code
 
 
 def _read(args):
@@ -470,12 +577,97 @@ def cmd_tournament_smoke(args) -> int:
     return 0 if all(checks.values()) else 1
 
 
+def cmd_picks_smoke(args) -> int:
+    """DEMO: the picks lane on the synthetic fixture over a simulated calendar, then its rendered track record. Exit 0
+    only if the scenario behaves."""
+    from apex_worker.research.forward import picks_lane as PL
+    from apex_worker.research.forward import picks_view as PV
+    from apex_worker.research.forward.records import publication_problems
+
+    cal = default_calendar()
+    out = Path(args.out)
+    if "research-results" in out.resolve().parts:
+        print("DEMO output may never be written under research-results/", file=sys.stderr)
+        return 5
+    out.mkdir(parents=True, exist_ok=True)
+    start = PICKS_FIXTURE_FROM
+    days = cal.sessions_between(start, cal.add_sessions(start, 9))
+    final = date(2026, 10, 16)  # the fixture's last session: the earliest decisions have matured by then
+    frames = _picks_frames()
+    clock = SimClock(at_et(days[0], 19, 23))
+    api = MemoryGitHubAPI(clock=clock)
+    lane = PL.PicksLane.fixture(start)
+    fp = functools.cache(PL.golden_fingerprint)
+    log = []
+    hide: dict = {}
+
+    def run(when: datetime, note: str):
+        clock.now = when
+        store = IssueLedgerStore(api, lane.series_id, issue_body=PICKS_ISSUE_BODY)
+        rep = PL.PicksRecorder(lane, store, _fixture_source(frames, cal, clock, hide), cal, clock=clock,
+                               producer=producer_info() | {"note": "DEMO picks smoke"}, outbox=out / "outbox.json",
+                               fingerprint_fn=fp, expected_fingerprint=fp()).run()
+        log.append({"at": W.iso(when), "note": note, "status": rep.status, "exit_code": rep.exit_code,
+                    "actions": [(a["record_type"], a["session"]) for a in rep.actions], "messages": rep.messages})
+        print(f"[picks-smoke] {W.iso(when)} {note}: {rep.status} {log[-1]['actions']}", flush=True)
+
+    for i, d in enumerate(days):
+        if i == 4:
+            continue  # no run that day: recorded as missed by the next run, never back-filled
+        if i == 2:
+            hide[d] = None  # the provider has not published the session yet at the first attempt
+            run(at_et(d, 19, 23), "source pending")
+            hide.clear()
+            run(at_et(d, 22, 53), "retry: decision")
+            continue
+        run(at_et(d, 19, 23), "decision" + (" (retry: idempotent no-op follows)" if i == 0 else ""))
+        if i == 0:
+            run(at_et(d, 22, 53), "retry: idempotent no-op")
+    run(at_et(final, 19, 23), "catch-up misses, a decision, then outcomes for the matured decisions")
+    store = IssueLedgerStore(api, lane.series_id)
+    rr = store.read()
+    last = max(r["session"] for r in rr.records if r["record_type"] in ("DECISION", "MISSED_OBSERVATION"))
+    exp = [d.isoformat() for d in cal.sessions_between(start, date.fromisoformat(last))]
+    problems = rr.problems + verify_chain(rr.records, series_id=lane.series_id, lane=lane.lane, expected_sessions=exp)
+    viewed = _render_picks(store, lane, cal, out / "view", clock())
+    decisions = [r for r in rr.records if r["record_type"] == "DECISION"]
+    outs = [r for r in rr.records if r["record_type"] == "OUTCOME"]
+    labelled = [p for r in outs for p in r["body"]["plans"] if p.get("outcome") not in (None, "NO_DATA")]
+    readme = (out / "view" / "picks" / "README.md").read_text() if viewed else ""
+    csv_rows = (out / "view" / "picks" / "picks.csv").read_text().count("\n") - 1 if viewed else -1
+    checks = {
+        "genesis_first": rr.records[0]["record_type"] == "SERIES_GENESIS",
+        "decisions": len(decisions) >= 9,
+        "pending_recorded": any(r["record_type"] == "OBSERVATION_ATTEMPT_FAILED" for r in rr.records),
+        "missed_recorded": any(r["record_type"] == "MISSED_OBSERVATION" and r["session"] == days[4].isoformat()
+                               for r in rr.records),
+        "no_duplicate_on_retry": sum(1 for r in decisions if r["session"] == days[0].isoformat()) == 1,
+        "picks_recorded": any(e["kind"] == "pick" for r in decisions for e in r["body"]["plans"]),
+        "open_picks_tracked": any(r["body"]["open_picks"] for r in decisions),
+        "controls_frozen_at_decision": all(e["controls"]["reserve"] for r in decisions for e in r["body"]["plans"]),
+        "outcomes": len(outs) >= 5 and bool(labelled), "chain_verifies": not problems,
+        "exploratory_labels": all(r["body"].get("evidence_tier") == "PROSPECTIVE_EXPLORATORY"
+                                  for r in rr.records if r["record_type"] in ("DECISION", "OUTCOME")),
+        "no_raw_bar_fields": not any(publication_problems(r, env={}) for r in rr.records),
+        "view_rendered": viewed and PV.DISCLAIMER in readme and "## Track record: picks" in readme
+        and csv_rows == sum(len(r["body"]["plans"]) for r in decisions),
+    }
+    (out / "ledger.records.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rr.records))
+    (out / "smoke_report.json").write_text(json.dumps({"data_class": "SYNTHETIC_FIXTURE_DEMO", "checks": checks,
+                                                       "runs": log}, indent=1, sort_keys=True))
+    (out / "summary.md").write_text("# Live picks DEMO smoke (synthetic fixture, never market data)\n\n"
+                                    + "\n".join(f"- {k}: {'PASS' if v else 'FAIL'}" for k, v in checks.items())
+                                    + "\n" + PL.summary_md(rr.records))
+    print(json.dumps(checks, indent=1))
+    return 0 if all(checks.values()) else 1
+
+
 def register(rsub) -> None:
     fs = rsub.add_parser("forward-shadow", help="prospective forward shadow of the frozen protocol-2 arms (research only)")
     sub = fs.add_subparsers(dest="forward_cmd", required=True)
 
     def common(p, store_default="github"):
-        p.add_argument("--lane", choices=["frozen", *TOURNAMENT_ISSUE_BODIES], default="frozen")
+        p.add_argument("--lane", choices=["frozen", *TOURNAMENT_ISSUE_BODIES, "picks"], default="frozen")
         p.add_argument("--store", choices=["github", "file", "dry"], default=store_default)
         p.add_argument("--store-file", default="forward-shadow-ledger.json", help="ledger file for --store file (DEMO)")
         p.add_argument("--source", choices=["alpaca", "fixture"], default="alpaca")
@@ -516,4 +708,16 @@ def register(rsub) -> None:
     rt.add_argument("--now", help="ISO instant; fixture runs only")
     rt.add_argument("--decide-only", action="store_true", help="skip outcome labelling this run")
     rt.set_defaults(func=cmd_run_tournament)
+    rp = sub.add_parser("run-picks", help="one recorder pass of the live engine's picks, then its rendered track record")
+    rp.add_argument("--store", choices=["github", "file", "dry"], default="github")
+    rp.add_argument("--store-file", default="forward-shadow-ledger.json", help="ledger file for --store file (DEMO)")
+    rp.add_argument("--source", choices=["alpaca", "fixture"], default="alpaca")
+    rp.add_argument("--decisions-from", type=date.fromisoformat, default=None, help="fixture lane only")
+    rp.add_argument("--out-dir", required=True, help="outbox.json, report.json, summary.md and view/picks/")
+    rp.add_argument("--now", help="ISO instant; fixture runs only")
+    rp.add_argument("--decide-only", action="store_true", help="skip outcome labelling this run")
+    rp.set_defaults(func=cmd_run_picks)
+    ps = sub.add_parser("picks-smoke", help="DEMO end-to-end of the picks lane (never market data)")
+    ps.add_argument("--out", required=True)
+    ps.set_defaults(func=cmd_picks_smoke)
 

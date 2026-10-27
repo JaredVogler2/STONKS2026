@@ -68,6 +68,10 @@ FORWARD_SHADOW_WEEKEND = Schedule("forward_shadow_weekend", frozenset({5}), time
 EVIDENCE_TOURNAMENT = Schedule("evidence_tournament", frozenset({0, 1, 2, 3, 4}), time(18, 42), timedelta(hours=4))
 EVIDENCE_TOURNAMENT_RETRY = Schedule("evidence_tournament_retry", frozenset({0, 1, 2, 3, 4}), time(22, 22),
                                      timedelta(hours=4))
+# Live picks (apex-live-picks.yml): the track record of the live engine's picks, two weekday attempts after the
+# tournament's (no overlapping Alpaca fetches). Not training runs either; its alarm is the recorder's MISSED record.
+LIVE_PICKS = Schedule("live_picks", frozenset({0, 1, 2, 3, 4}), time(19, 23), timedelta(hours=4))
+LIVE_PICKS_RETRY = Schedule("live_picks_retry", frozenset({0, 1, 2, 3, 4}), time(22, 53), timedelta(hours=4))
 
 
 def month_bounds(now: datetime) -> tuple[datetime, datetime]:

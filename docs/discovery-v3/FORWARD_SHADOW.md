@@ -7,7 +7,7 @@
 | Arms | the official run's selection lock `017070e1…`: **S1 E0X1, S2 E0X1, S3 C_X0, S5 R10**. S1 and S3 are Discovery V3's arms of primary interest; S2 and S5 are recorded too, because the registered forward test is Holm over all four |
 | Mode | **Research only.** No orders, alerts, Discord messages, model signing, promotion or group-actionable output, whatever is recorded |
 | Status | Implemented in PR-A. It **records nothing until the workflow is on `main` and its first scheduled run succeeds**. Read the ledger's health (below) before calling it "running" |
-| Exploratory lanes | The evidence tournament's cohorts, `v3x-epa-tournament-v1` and `v3x-epa-tournament-c1-v1`, use the same recorder machinery, but run in their own workflow (`apex-evidence-tournament.yml`), each with its own chain and ledger issue. They share nothing with this lane: [TOURNAMENT_LANE.md](../evidence/TOURNAMENT_LANE.md), [TOURNAMENT_COHORT_1.md](../evidence/TOURNAMENT_COHORT_1.md) |
+| Exploratory lanes | The evidence tournament's cohorts, `v3x-epa-tournament-v1` and `v3x-epa-tournament-c1-v1`, use the same recorder machinery, but run in their own workflow (`apex-evidence-tournament.yml`), each with its own chain and ledger issue. They share nothing with this lane: [TOURNAMENT_LANE.md](../evidence/TOURNAMENT_LANE.md), [TOURNAMENT_COHORT_1.md](../evidence/TOURNAMENT_COHORT_1.md). The live engine's picks, `v3x-live-picks-v1`, are recorded the same way by `apex-live-picks.yml`: [picks/README.md](../../picks/README.md) |
 
 ## 1. How it works
 

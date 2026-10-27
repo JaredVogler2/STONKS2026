@@ -65,6 +65,8 @@ PROFILE: tuple[JobProfile, ...] = (
                optional=False),
     JobProfile("evidence_tournament_retry", "apex-evidence-tournament.yml", "tournament", 8,
                EVIDENCE_TOURNAMENT_RETRY, optional=False),
+    # apex-live-picks.yml is not reserved here: it was added after the repository became public, where standard
+    # runners are free, so it cannot use up the private-repository minutes this budget protects.
 )
 
 
