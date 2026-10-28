@@ -607,10 +607,12 @@ def test_a_failed_run_prints_the_type_and_status_never_a_message(monkeypatch, ca
 
 
 def test_the_default_method_is_registered_and_labelled():
+    from apex_worker.discovery.v3.personal_study import PERSONAL_STUDY_3B as PS3B
     from apex_worker.personal.method import METHODS
     from apex_worker.personal.runner import METHOD_STATUS, PERSONAL_METHOD
 
     assert PERSONAL_METHOD in METHODS and PERSONAL_METHOD in METHOD_STATUS
+    assert set(METHOD_STATUS) <= set(METHODS) and all(METHOD_STATUS[k] for k in PS3B.candidates)  # every studied rule
     assert set(METHODS[PERSONAL_METHOD].data_symbols) <= set(synthetic_bars(CAL, date(2026, 1, 2), date(2026, 1, 9)))
 
 

@@ -26,11 +26,18 @@ from apex_worker.personal.records import decode_all, encode, nonce
 from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
 
-PERSONAL_METHOD = "sso-trend200"  # adopted by personal-study-2 (research-results/discovery-v3/personal-study-2-*)
+PERSONAL_METHOD = "sso-trend200"  # adopted by personal-study-2; studies 3b-4 compared it with ten more (the owner chooses)
 METHOD_STATUS = {  # what the registered studies found, shown in the alerts (research-results/discovery-v3/)
     "sector-mom-3": "EXPERIMENT: it did not beat SPY on 2019-2026 data (personal-study-1, -4.0%/yr)",
-    "sso-trend200": "ADOPTED on 2019-2026 data, +2.9%/yr vs SPY with a similar worst drop (personal-study-2); not "
-                    "statistically significant, and SSO is a 2x leveraged fund",
+    "sso-trend200": "ADOPTED: +2.9%/yr vs SPY on 2019-2026 (personal-study-2), +1.4%/yr on 2017-2026 with a similar "
+                    "worst drop but behind in 2022-26 (personal-study-3b), +4.4%/yr over 1927-2026 (personal-study-4); "
+                    "not statistically significant on recent data, and SSO is a 2x leveraged fund",
+    "sso-hold": "EXPERIMENT: +6.8%/yr vs SPY on 2017-2026 but a -59% worst drop (personal-study-3b) and -98% in "
+                "1929-32 (personal-study-4)",
+    "mtum-hold": "EXPERIMENT: +1.4%/yr vs SPY on 2017-2026, behind in 2022-26 (personal-study-3b)",
+    **{k: f"EXPERIMENT: it did not beat SPY on 2017-2026 data (personal-study-3b, {v}/yr)" for k, v in (
+        ("hfea", "-1.5%"), ("voltarget-sso", "-1.5%"), ("adm", "-3.9%"), ("halloween-sso", "-5.8%"),
+        ("tom-sso", "-7.9%"), ("gtaa5", "-8.3%"), ("vaa-g4", "-8.4%"), ("rsi2-sso", "-8.5%"))},
 }
 SETTLE = timedelta(minutes=30)  # a session's daily bars are final 30 minutes after its close (SIP: 15-minute delay)
 HISTORY_DAYS = 400  # calendar days of daily bars: the 126-session signal with room to spare
