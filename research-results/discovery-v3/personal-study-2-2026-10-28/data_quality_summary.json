@@ -1,0 +1,36 @@
+{
+ "data_end_after_finality_lag": "2026-10-23",
+ "provider_requests_total": 2,
+ "symbols": {
+  "AGG": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  },
+  "BIL": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  },
+  "EFA": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  },
+  "SPY": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  },
+  "SSO": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  },
+  "UPRO": {
+   "expected": 2718,
+   "invalid_rows": 0,
+   "sessions": 2718
+  }
+ }
+}
