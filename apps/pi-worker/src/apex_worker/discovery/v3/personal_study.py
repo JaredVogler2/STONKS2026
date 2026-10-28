@@ -172,8 +172,34 @@ PERSONAL_PLANS: dict[str, PersonalStudyPlan | EtfStudyPlan | BatteryPlan | LongH
 
 
 # Funds tracking the same index as another in a plan. SPYM was SPLG until 2025-10-31: its history before then comes from
-# the provider's symbol mapping, which this check holds to SPY's daily moves.
+# the provider's symbol mapping, which `twin_check` holds to SPY's moves.
 TWINS = {"SPYM": BENCHMARK}
+TWIN_DRIFT_SESSIONS = 21
+TWIN_MAX_DRIFT = 0.015
+TWIN_MIN_CORRELATION = 0.98
+
+
+def twin_check(a: pd.Series, b: pd.Series, top: int = 5) -> dict:
+    """Does close series `a` move with its twin `b`? A wrongly mapped or spliced history shifts `a`'s level against
+    `b` for good, so the test is the largest move of their log-level gap between two points 21 sessions apart (each
+    the median of 5 sessions, so one or two bad prints do not count): at most 1.5 points, with a daily-return
+    correlation of at least 0.98. A bad closing print moves one day and reverses the next: it shows among the largest
+    daily gaps (reported with the next day's gap) but not as drift."""
+    import numpy as np
+
+    both = pd.concat([np.log(a.astype(float)).diff(), np.log(b.astype(float)).diff()], axis=1, join="inner").dropna()
+    gap = both.iloc[:, 0] - both.iloc[:, 1]
+    level = gap.cumsum().rolling(5, center=True).median()
+    drift = (level - level.shift(TWIN_DRIFT_SESSIONS)).abs()
+    corr = float(both.corr().iloc[0, 1])
+    nxt = gap.shift(-1)
+    largest = [{"day": d.date().isoformat(), "gap": float(gap[d]),
+                "next_day_gap": None if pd.isna(nxt[d]) else float(nxt[d])} for d in gap.abs().nlargest(top).index]
+    max_drift = float(drift.max()) if len(drift.dropna()) else 0.0
+    return {"correlation": corr, "max_daily_return_gap": float(gap.abs().max()), "max_drift": max_drift,
+            "max_drift_ends": drift.idxmax().date().isoformat() if len(drift.dropna()) else None,
+            "largest_daily_gaps": largest,
+            "consistent": corr >= TWIN_MIN_CORRELATION and max_drift <= TWIN_MAX_DRIFT}
 
 
 def _holm(p: dict[str, float | None]) -> dict[str, float | None]:
@@ -346,13 +372,14 @@ def load_etf_data(plan: EtfStudyPlan | BatteryPlan, source: str, *, now: datetim
     twins = {}
     for sym, twin in TWINS.items():  # a renamed fund's history must move with a fund that tracks the same index
         if sym in plan.symbols and twin in plan.symbols:
-            both = pd.concat([bars[sym]["close"].pct_change(), bars[twin]["close"].pct_change()], axis=1,
-                             join="inner").dropna()
-            gap, corr = float((both.iloc[:, 0] - both.iloc[:, 1]).abs().max()), float(both.corr().iloc[0, 1])
-            twins[sym] = {"twin": twin, "max_daily_return_gap": gap, "correlation": corr}
-            if gap > 0.03 or corr < 0.98:
-                raise RunStop(STATUS_SOURCE_INVALID, f"{sym} does not track {twin} (largest daily gap {100 * gap:.1f} "
-                              f"points, correlation {corr:.3f}): its history may be mapped or spliced wrongly")
+            twins[sym] = twin_check(bars[sym]["close"], bars[twin]["close"]) | {"twin": twin}
+            if not twins[sym]["consistent"]:
+                t = twins[sym]
+                stop = RunStop(STATUS_SOURCE_INVALID, f"{sym} does not track {twin} (correlation {t['correlation']:.3f}, "
+                               f"largest {TWIN_DRIFT_SESSIONS}-session drift {100 * t['max_drift']:.1f} points): its "
+                               "history may be mapped or spliced wrongly")
+                stop.diagnostics = {"symbols": quality, "twins": twins}  # written by the CLI for review
+                raise stop
     b = compute_boundaries_v2(bars[BENCHMARK].index)
     spy_days = bars[BENCHMARK].index
     d0, d1 = b.dev_range

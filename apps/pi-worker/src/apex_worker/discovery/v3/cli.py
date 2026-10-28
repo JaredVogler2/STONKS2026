@@ -148,6 +148,10 @@ def cmd_personal(args) -> int:
             data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
     except RunStop as stop:
         print(f"{stop.status}: {stop.reason}", file=sys.stderr)
+        if getattr(stop, "diagnostics", None):  # a data check's evidence, kept for review (derived numbers only)
+            out.mkdir(parents=True, exist_ok=True)
+            (out / "data_quality_summary.json").write_text(json.dumps(stop.diagnostics | {"stopped": stop.status},
+                                                                     indent=1, sort_keys=True, default=str))
         return 2 if "BLOCKED" in stop.status else 3
     run = (run_long_history if isinstance(plan, LongHistoryPlan) else run_battery if isinstance(plan, BatteryPlan)
            else run_etf_study if isinstance(plan, EtfStudyPlan) else run_personal_study)
