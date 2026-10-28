@@ -50,7 +50,11 @@ These choices are stated before the run because they were made by the author:
   - The bars start on 2016-01-04, so every rule has a year of history at the first decision.
   - Protocol-2's finality lag applies, and the run makes at most 40 provider requests.
   - Each symbol needs at least 99% of the sessions with valid prices. Otherwise the run stops `SOURCE_INVALID` and evaluates nothing.
-  - **SPYM's history before 2025-10-31** comes from Alpaca's mapping of the renamed symbol. Its daily returns must track SPY's: correlation at least 0.98, and no daily gap over 3 points. Otherwise the run stops `SOURCE_INVALID`, because a wrongly mapped or spliced history would distort three rules.
+  - **SPYM's history before 2025-10-31** comes from Alpaca's mapping of the renamed symbol. It must move with SPY. A wrongly mapped or spliced history would shift SPYM's level against SPY for good and distort three rules. So the run stops `SOURCE_INVALID` unless both hold:
+    - the log-level gap between the two moves at most 1.5 points between any two points 21 sessions apart (each the median of 5 sessions, so a bad closing print that reverses the next day does not count);
+    - their daily returns correlate at least 0.98.
+    
+    The largest daily gaps are reported with the next day's gap, so a bad print can be told from a shift (section 11).
 - **FULL window.** The first decision is at the close of **2017-01-31**. The last session is protocol-2's last DEV session at run time, about five weeks before the run. FULL therefore adds protocol-2's PRESAMPLE years (2017 to 2019) to the DEV dates.
 - **Halves.** FULL is split at its middle session. Each half starts again from $1000, so the two halves do not share a single day of returns.
 - **DEV window.** The first decision is 2019-10-22, the window of studies 1 and 2. It is reported for comparison and is not one of the tests.
@@ -145,10 +149,22 @@ The scoreboard goes to the owner with the recommendation and its caveats, and th
 **What changed.** `personal-study-3b` differs only in these points:
 - the rules `gtaa5`, `vaa-g4` and `adm` hold SPYM, and the study reads SPYM's bars instead of SPLG's;
 - the plan's notes say so;
-- a twin check holds SPYM's history to SPY's daily moves. It is a data check, so it changes no rule or test.
+- a twin check holds SPYM's history to SPY's moves. It is a data check, so it changes no rule or test.
 
 Everything else is unchanged: the rules' parameters, the windows, the battery and the decision rule. The alerts would also name SPYM, the ticker the owner can actually buy.
 
 `personal-study-3` is no longer runnable, since its plan reads a symbol that no longer trades. Its registration stays in git and in this note, and the trial index lists the stop.
 
 **Fund history.** The fund tracked a different US large-cap index before it was renamed SPDR Portfolio S&P 500 ETF in January 2020. For the "US stocks" role in these rules, the difference is negligible.
+
+### The twin check, corrected before any evaluation
+
+**What happened.** The first `personal-study-3b` run ([40619079654](https://github.com/JaredVogler2/STONKS2026/actions/runs/40619079654)) got past the coverage check: Alpaca returned SPYM's full history through its mapping of the renamed symbol. It then stopped at the first version of the twin check: `SPYM does not track SPY (largest daily gap 3.4 points, correlation 0.987)`. That version required a daily-return correlation of at least 0.98, which passed, and no single daily gap over 3 points, which failed. Nothing was simulated.
+
+**Why it was corrected.** A single daily gap cannot tell the two cases apart:
+- **A bad print.** A bad or stale closing print moves one day and comes back the next. Such prints are common in a fund's thinly traded early years.
+- **A splice error.** This, the error the check exists to catch, shifts SPYM's level for good.
+
+The corrected check tests that purpose directly. SPYM's log level against SPY may move at most 1.5 points between any two points 21 sessions apart, each the median of 5 sessions; the correlation floor of 0.98 is unchanged. The largest daily gaps are reported with the next day's gap. A stopped run now writes this evidence to its artifact (`data_quality_summary.json`), so a stop can be reviewed.
+
+**Disclosed.** The corrected check was written after the first version failed, so the next run's data quality summary shows the largest gaps and whether each reversed. The rules, windows, battery and decision rule are unchanged, and the plan sha is the same.

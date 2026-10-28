@@ -239,11 +239,32 @@ def test_ten_distinct_published_rules_are_registered_beside_the_adopted_method()
     assert PS.TWINS["SPYM"] == "SPY"
 
 
-def test_a_renamed_fund_that_does_not_move_with_its_twin_stops_the_study():
+def test_the_twin_check_tells_a_bad_print_from_a_shifted_history():
+    idx = pd.DatetimeIndex([pd.Timestamp(d) for d in CAL.sessions_between(date(2016, 1, 4), date(2026, 6, 30))])
+    spy = pd.Series(100 * np.exp(np.cumsum(0.01 * np.random.default_rng(5).standard_normal(len(idx)))), index=idx)
+    twin = spy * 0.11
+    assert PS.twin_check(twin, spy)["consistent"] and PS.twin_check(twin, spy)["max_drift"] < 1e-9
+    printed = twin.copy()
+    printed.iloc[1000] *= 1.034  # one bad closing print: up 3.4 points, back the next day
+    out = PS.twin_check(printed, spy)
+    assert out["consistent"] and out["max_daily_return_gap"] == pytest.approx(np.log(1.034), rel=1e-6)
+    top = out["largest_daily_gaps"][0]
+    assert top["day"] == idx[1000].date().isoformat() and top["next_day_gap"] == pytest.approx(-top["gap"])
+    shifted = twin.copy()
+    shifted.iloc[2000:] *= 1.034  # a spliced history: the level moves for good
+    bad = PS.twin_check(shifted, spy)
+    assert not bad["consistent"] and bad["max_drift"] == pytest.approx(np.log(1.034), rel=1e-6)
+
+
+def test_a_renamed_fund_that_does_not_move_with_its_twin_stops_the_study_and_leaves_its_evidence(tmp_path):
+    from argparse import Namespace
+
+    from apex_worker.discovery.v3.cli import cmd_personal
+
     plan = PS.PERSONAL_STUDY_3B
     good = PS.synthetic_etf_bars(plan.symbols, date(2016, 1, 4), date(2026, 10, 14))
     data = PS.load_etf_data(plan, "fixture")
-    assert data.data_quality["twins"]["SPYM"]["correlation"] > 0.999
+    assert data.data_quality["twins"]["SPYM"]["correlation"] > 0.999 and data.data_quality["twins"]["SPYM"]["consistent"]
 
     def spliced(_symbols, _start, _end, seed=11):
         out = dict(good)
@@ -257,9 +278,15 @@ def test_a_renamed_fund_that_does_not_move_with_its_twin_stops_the_study():
     try:
         with pytest.raises(RunStop) as err:
             PS.load_etf_data(plan, "fixture")
+        args = Namespace(plan=plan.plan_id, source="fixture", experiment_id="demo-twin", out=str(tmp_path / "out"),
+                         per_sector=6, max_requests=None)
+        assert cmd_personal(args) == 3
     finally:
         PS.synthetic_etf_bars = original
     assert err.value.status == "SOURCE_INVALID" and "SPYM does not track SPY" in str(err.value)
+    evidence = json.loads((tmp_path / "out" / "data_quality_summary.json").read_text())
+    assert evidence["stopped"] == "SOURCE_INVALID" and evidence["twins"]["SPYM"]["largest_daily_gaps"][0]["day"] == \
+        "2025-10-31" and not evidence["twins"]["SPYM"]["consistent"]
 
 
 def test_every_registered_method_simulates_on_the_fixture_within_its_cash():
