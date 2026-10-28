@@ -24,7 +24,7 @@ Two published single-asset rules (`personal-study-2`, docs/discovery-v3/PERSONAL
 Single-asset sizing: EXIT whatever is not the target, BUY floor(cash / price) of the target, and at month-end ADD
 floor(cash / price) when idle cash buys at least one share.
 
-RuleSpec (`personal-study-3`, docs/discovery-v3/PERSONAL_STUDY_3.md) expresses ten more published rules as target
+RuleSpec (`personal-study-3b`, docs/discovery-v3/PERSONAL_STUDY_3.md) expresses ten more published rules as target
 weights: buy-and-hold, volatility targeting, Faber's GTAA-5, Keller's VAA-G4, Accelerating Dual Momentum, a fixed
 leveraged stock/bond mix (HFEA), the Halloween season, the turn of the month and Connors' RSI(2). Whole-share orders move
 the holdings to the weights at the rule's rebalance closes (month-end or quarter-end); a daily rule also trades when its
@@ -56,7 +56,7 @@ ETF_NAMES = {
 NAMES = ETF_NAMES | {
     "SPY": "SPDR S&P 500 ETF", "SSO": "ProShares Ultra S&P500 (2x daily)", "UPRO": "ProShares UltraPro S&P500 (3x daily)",
     "EFA": "iShares MSCI EAFE ETF", "AGG": "iShares Core US Aggregate Bond ETF",
-    "BIL": "SPDR Bloomberg 1-3 Month T-Bill ETF", "SPLG": "SPDR Portfolio S&P 500 ETF",
+    "BIL": "SPDR Bloomberg 1-3 Month T-Bill ETF", "SPYM": "SPDR Portfolio S&P 500 ETF (SPLG until 2025-10-31)",
     "TMF": "Direxion Daily 20+ Year Treasury Bull 3X", "EEM": "iShares MSCI Emerging Markets ETF",
     "LQD": "iShares iBoxx $ Investment Grade Corporate Bond ETF", "IEF": "iShares 7-10 Year Treasury Bond ETF",
     "SHY": "iShares 1-3 Year Treasury Bond ETF", "TLT": "iShares 20+ Year Treasury Bond ETF",
@@ -200,14 +200,14 @@ RULES = (
              source="Harvey, Hoyle, Korgaonkar, Rattray, Sargaison & Van Hemert (2018), The Impact of Volatility "
              "Targeting; after Moreira & Muir (2017), Volatility-Managed Portfolios"),
     RuleSpec("gtaa5", "GTAA-5: US stocks, foreign stocks, bonds, REITs, commodities, a fifth each, each only above its "
-             "10-month average (else T-bills), monthly", "gtaa", ("SPLG", "EFA", "IEF", "VNQ", "DBC"),
+             "10-month average (else T-bills), monthly", "gtaa", ("SPYM", "EFA", "IEF", "VNQ", "DBC"),
              params=(("sma_months", 10.0),), source="Faber (2007), A Quantitative Approach to Tactical Asset Allocation"),
     RuleSpec("vaa-g4", "VAA-G4: the best of US, foreign, emerging stocks and bonds while all four have positive 13612W "
              "momentum, else the best of corporate, 7-10y and 1-3y Treasuries, monthly", "vaa",
-             ("SPLG", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY"), source="Keller & Keuning (2017), Breadth Momentum and "
+             ("SPYM", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY"), source="Keller & Keuning (2017), Breadth Momentum and "
              "Vigilant Asset Allocation"),
     RuleSpec("adm", "Accelerating Dual Momentum: S&P 500 or foreign small caps (1+3+6-month return, the stronger) while "
-             "positive, else long Treasuries, monthly", "adm", ("SPLG", "SCZ", "TLT"),
+             "positive, else long Treasuries, monthly", "adm", ("SPYM", "SCZ", "TLT"),
              source="EngineeredPortfolio (2018), Accelerating Dual Momentum"),
     RuleSpec("hfea", "55% UPRO (3x S&P 500) and 45% TMF (3x long Treasuries), rebalanced each quarter", "fixed-mix",
              ("UPRO", "TMF"), params=(("UPRO", 0.55), ("TMF", 0.45)), schedule="quarterly",

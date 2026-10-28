@@ -1,4 +1,4 @@
-"""personal-study-3 (docs/discovery-v3/PERSONAL_STUDY_3.md): ten more published rules as target weights, their whole-share
+"""personal-study-3b (docs/discovery-v3/PERSONAL_STUDY_3.md): ten more published rules as target weights, their whole-share
 orders, their rebalance schedules in the simulator and the alerts, the battery's statistics and the registered plan.
 Synthetic prices only; no network."""
 
@@ -18,11 +18,13 @@ from apex_worker.personal import method as M
 from apex_worker.personal.discord_rest import MemoryChannel
 from apex_worker.personal.runner import PERSONAL_METHOD
 from apex_worker.personal.smoke import SyntheticMarket
+from apex_worker.research.realeq.data import RunStop
 
 CAL = default_calendar()
 R = M.METHODS
-# Registered before the run that evaluates it; any change needs a new plan id.
-PERSONAL_STUDY_3_SHA256 = "4b67f1db20f0ecf2cf0072b0a184ef897dce7c4b168956ed6a4a21be43c0cac0"
+# Registered before the run that evaluates it; any change needs a new plan id. (personal-study-3, 4b67f1db...cac0,
+# stopped SOURCE_INVALID before any evaluation: SPLG became SPYM.)
+PERSONAL_STUDY_3B_SHA256 = "7c94e4c7c28bc1568fec8f0748a653e3f0a3f2e93b8ec08d013489406f48cf86"
 
 
 def series(values, start=date(2024, 1, 2)) -> pd.Series:
@@ -65,34 +67,34 @@ def test_volatility_targeting_scales_2x_exposure_by_last_months_volatility():
 
 def test_gtaa_holds_a_fifth_of_each_asset_above_its_10_month_average_and_t_bills_for_the_rest():
     up, down = trend(0.001), trend(-0.001)
-    closes = {"SPLG": up, "EFA": up, "IEF": down, "VNQ": up, "DBC": down}
+    closes = {"SPYM": up, "EFA": up, "IEF": down, "VNQ": up, "DBC": down}
     t = up.index[-1]
     w, sig, why = weights("gtaa5", closes, t)
-    assert w == pytest.approx({"SPLG": 0.2, "EFA": 0.2, "VNQ": 0.2, "BIL": 0.4})
-    assert sig["IEF"] < 0 < sig["SPLG"] and "IEF below" in why and "SPLG above" in why
+    assert w == pytest.approx({"SPYM": 0.2, "EFA": 0.2, "VNQ": 0.2, "BIL": 0.4})
+    assert sig["IEF"] < 0 < sig["SPYM"] and "IEF below" in why and "SPYM above" in why
     assert weights("gtaa5", {k: v.iloc[-150:] for k, v in closes.items()}, t)[0] is None  # 7 month-ends only
     assert weights("gtaa5", closes | {"DBC": down.iloc[:-1]}, t)[0] is None  # no close at t
 
 
 def test_vaa_takes_the_best_risky_asset_only_while_all_four_have_positive_13612w_momentum():
-    risky = {"SPLG": trend(0.0010), "EFA": trend(0.0006), "EEM": trend(0.0004), "AGG": trend(0.0001)}
+    risky = {"SPYM": trend(0.0010), "EFA": trend(0.0006), "EEM": trend(0.0004), "AGG": trend(0.0001)}
     safe = {"LQD": trend(0.0002), "IEF": trend(0.0003), "SHY": trend(0.00005)}
-    t = risky["SPLG"].index[-1]
+    t = risky["SPYM"].index[-1]
     w, mom, why = weights("vaa-g4", risky | safe, t)
-    assert w == {"SPLG": 1.0} and why.endswith("→ SPLG")
-    s = risky["SPLG"]
+    assert w == {"SPYM": 1.0} and why.endswith("→ SPYM")
+    s = risky["SPYM"]
     r1, r3, r6, r12 = (s.iloc[-1] / s.iloc[-1 - k] - 1 for k in (21, 63, 126, 252))
-    assert mom["SPLG"] == pytest.approx(12 * r1 + 4 * r3 + 2 * r6 + r12)
+    assert mom["SPYM"] == pytest.approx(12 * r1 + 4 * r3 + 2 * r6 + r12)
     weak = risky | {"EEM": trend(-0.0002)}  # one risky asset turns negative: the best of the safe three
     assert weights("vaa-g4", weak | safe, t)[0] == {"IEF": 1.0}
     assert weights("vaa-g4", {k: v.iloc[-200:] for k, v in (risky | safe).items()}, t)[0] is None  # no 12 months
 
 
 def test_accelerating_dual_momentum_holds_the_stronger_equity_while_positive_else_long_treasuries():
-    closes = {"SPLG": trend(0.0008, 200), "SCZ": trend(0.0012, 200), "TLT": trend(0.0001, 200)}
-    t = closes["SPLG"].index[-1]
+    closes = {"SPYM": trend(0.0008, 200), "SCZ": trend(0.0012, 200), "TLT": trend(0.0001, 200)}
+    t = closes["SPYM"].index[-1]
     assert weights("adm", closes, t)[0] == {"SCZ": 1.0}
-    w, score, _ = weights("adm", closes | {"SPLG": trend(-0.0005, 200), "SCZ": trend(-0.001, 200)}, t)
+    w, score, _ = weights("adm", closes | {"SPYM": trend(-0.0005, 200), "SCZ": trend(-0.001, 200)}, t)
     assert w == {"TLT": 1.0} and max(score.values()) < 0
 
 
@@ -142,11 +144,11 @@ def test_weight_orders_sell_first_then_buy_the_largest_weight_first_in_whole_sha
 
 def test_a_rule_trades_at_its_rebalance_or_when_its_holdings_change_and_never_on_a_partial_picture():
     up, down = trend(0.001), trend(-0.001)
-    closes = {"SPLG": up, "EFA": up, "IEF": down, "VNQ": up, "DBC": down, "BIL": trend(0.0001)}
+    closes = {"SPYM": up, "EFA": up, "IEF": down, "VNQ": up, "DBC": down, "BIL": trend(0.0001)}
     d = up.index[-1].date()
     first = M.decide(R["gtaa5"], closes, d, {}, 1000.0)
-    assert {o.symbol for o in first.orders} == {"SPLG", "EFA", "VNQ", "BIL"} and first.cash_after >= 0
-    assert first.weights == pytest.approx({"SPLG": 0.2, "EFA": 0.2, "VNQ": 0.2, "BIL": 0.4}) and first.ranks == {}
+    assert {o.symbol for o in first.orders} == {"SPYM", "EFA", "VNQ", "BIL"} and first.cash_after >= 0
+    assert first.weights == pytest.approx({"SPYM": 0.2, "EFA": 0.2, "VNQ": 0.2, "BIL": 0.4}) and first.ranks == {}
     held = {o.symbol: o.shares for o in first.orders}
     assert M.decide(R["gtaa5"], closes, d, held, first.cash_after, rebalance=False).orders == []  # same holdings
     gap = M.decide(R["gtaa5"], closes | {"VNQ": up.iloc[:-1]}, d, held, first.cash_after)
@@ -185,7 +187,7 @@ def test_the_simulator_rebalances_the_mix_each_quarter_and_times_the_month_turns
 def test_a_rebalance_without_a_close_is_taken_at_the_next_complete_close():
     n = 360
     closes = {s: trend(0.0006 + 0.0001 * i, n, 50.0 + 10 * i) for i, s in
-              enumerate(("SPY", "SPLG", "EFA", "IEF", "VNQ", "DBC", "BIL"))}
+              enumerate(("SPY", "SPYM", "EFA", "IEF", "VNQ", "DBC", "BIL"))}
     gap = pd.Timestamp("2025-01-31")
     closes["DBC"] = closes["DBC"].drop(gap)
     bars = bars_from(closes)
@@ -220,8 +222,8 @@ def test_rolling_windows_compare_growth_over_every_span_of_months():
 
 # ---- the registered study -------------------------------------------------------------------------------------------
 def test_ten_distinct_published_rules_are_registered_beside_the_adopted_method():
-    plan = PS.PERSONAL_STUDY_3
-    assert plan.sha256() == PERSONAL_STUDY_3_SHA256
+    plan = PS.PERSONAL_STUDY_3B
+    assert plan.sha256() == PERSONAL_STUDY_3B_SHA256
     assert PS.PERSONAL_PLANS["personal-study-1"].sha256() == "89bd5a40a7160304447c5583da2d0665402c08e7e37d2cf3490622b282b66aba"
     assert PS.PERSONAL_PLANS["personal-study-2"].sha256() == "1bbef24b9ce5168cce29a368f23e9469682a4bc8627f23a61a1f2352364cd6f3"
     specs = [R[k] for k in plan.candidates]
@@ -231,10 +233,37 @@ def test_ten_distinct_published_rules_are_registered_beside_the_adopted_method()
     needed = {sym for k in (*plan.references, *plan.candidates) for sym in R[k].data_symbols}
     assert needed <= set(plan.symbols)
     assert plan.full_first == "2017-01-31" and "first_half" not in plan.notes and "each half" in plan.notes
+    # the stopped personal-study-3 read SPLG, whose ticker became SPYM: only the amended plan can run
+    assert plan.plan_id == "personal-study-3b" and "personal-study-3" not in PS.PERSONAL_PLANS
+    assert "SPYM" in plan.symbols and "SPLG" not in plan.symbols and plan.notes.startswith("Amended before any")
+    assert PS.TWINS["SPYM"] == "SPY"
+
+
+def test_a_renamed_fund_that_does_not_move_with_its_twin_stops_the_study():
+    plan = PS.PERSONAL_STUDY_3B
+    good = PS.synthetic_etf_bars(plan.symbols, date(2016, 1, 4), date(2026, 10, 14))
+    data = PS.load_etf_data(plan, "fixture")
+    assert data.data_quality["twins"]["SPYM"]["correlation"] > 0.999
+
+    def spliced(_symbols, _start, _end, seed=11):
+        out = dict(good)
+        jump = out["SPYM"].copy()
+        jump.loc[jump.index >= pd.Timestamp("2025-10-31"), ["open", "high", "low", "close"]] *= 1.10
+        out["SPYM"] = jump
+        return out
+
+    original = PS.synthetic_etf_bars
+    PS.synthetic_etf_bars = spliced
+    try:
+        with pytest.raises(RunStop) as err:
+            PS.load_etf_data(plan, "fixture")
+    finally:
+        PS.synthetic_etf_bars = original
+    assert err.value.status == "SOURCE_INVALID" and "SPYM does not track SPY" in str(err.value)
 
 
 def test_every_registered_method_simulates_on_the_fixture_within_its_cash():
-    plan = PS.PERSONAL_STUDY_3
+    plan = PS.PERSONAL_STUDY_3B
     bars = PS.synthetic_etf_bars(plan.symbols, date(2016, 1, 4), date(2026, 9, 30))
     for k in (*plan.references, *plan.candidates):
         sim = B.simulate(R[k], bars, date(2024, 1, 31), date(2025, 12, 31), CAL)
@@ -245,7 +274,7 @@ def test_every_registered_method_simulates_on_the_fixture_within_its_cash():
 def test_the_battery_runs_on_the_fixture_and_publishes_aggregates_only(tmp_path):
     from dataclasses import replace
 
-    plan = replace(PS.PERSONAL_STUDY_3, candidates=("sso-hold", "hfea", "tom-sso"), bootstrap_resamples=300)
+    plan = replace(PS.PERSONAL_STUDY_3B, candidates=("sso-hold", "hfea", "tom-sso"), bootstrap_resamples=300)
     data = PS.load_etf_data(plan, "fixture")
     assert data.provenance["data_class"] == "SYNTHETIC_FIXTURE_DEMO"
     summary = PS.run_battery(plan, data, tmp_path, experiment_id="demo-personal-3")
