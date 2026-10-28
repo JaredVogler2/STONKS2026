@@ -176,8 +176,9 @@ def world():
 
 
 def run(ch, mk, when, **cfg):
+    """One run; the rotation unless a test names another method (independent of the default PERSONAL_METHOD)."""
     ch.clock = when
-    return Runner(Config("chan", **cfg), ch, mk, now=when, cal=CAL).run()
+    return Runner(Config("chan", **({"method_id": "sector-mom-3"} | cfg)), ch, mk, now=when, cal=CAL).run()
 
 
 def records(ch, kind=None) -> list[dict]:
@@ -459,10 +460,11 @@ def test_market_outage_posts_one_private_note_and_fails_the_run(world):
         raise ConnectionError("provider down")
 
     with pytest.raises(MarketUnavailable) as err:
-        Runner(Config("chan"), ch, down, now=et(2026, 10, 27, 14, 7), cal=CAL).run()
+        Runner(Config("chan", method_id="sector-mom-3"), ch, down, now=et(2026, 10, 27, 14, 7), cal=CAL).run()
     assert str(err.value) == "ConnectionError"  # the type only: "provider down" never leaves
     with pytest.raises(MarketUnavailable):
-        Runner(Config("chan"), ch, down, now=et(2026, 10, 27, 14, 37), cal=CAL).run()
+        Runner(Config("chan", method_id="sector-mom-3"), ch, down, now=et(2026, 10, 27, 14, 37),
+               cal=CAL).run()
     assert [r["what"] for r in records(ch, "note")] == ["market-down"] and not records(ch, "start")
     run(ch, mk, et(2026, 10, 27, 15, 7))
     assert records(ch, "start")  # answered once the data is back
@@ -602,3 +604,11 @@ def test_a_failed_run_prints_the_type_and_status_never_a_message(monkeypatch, ca
     monkeypatch.setattr(discord_rest, "DiscordREST", lambda token: Boom())
     assert main(["personal", "run", "--mode", "live"]) == 1
     assert capsys.readouterr().err.strip() == "personal run failed: RuntimeError"
+
+
+def test_the_default_method_is_registered_and_labelled():
+    from apex_worker.personal.method import METHODS
+    from apex_worker.personal.runner import METHOD_STATUS, PERSONAL_METHOD
+
+    assert PERSONAL_METHOD in METHODS and PERSONAL_METHOD in METHOD_STATUS
+    assert set(METHODS[PERSONAL_METHOD].data_symbols) <= set(synthetic_bars(CAL, date(2026, 1, 2), date(2026, 1, 9)))
