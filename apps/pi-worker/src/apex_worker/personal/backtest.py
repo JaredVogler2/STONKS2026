@@ -1,14 +1,15 @@
 """Whole-share simulation of a personal method (personal/method.py) on daily bars, and its comparison with SPY.
 
 * The first decision is taken at the close of `first_decision` (the account starts in cash), later ones at the close of
-  each month's last session. Every decision's orders fill at the next session's OPEN: sells first, then buys in the
-  method's order. `cost_bps` per side is charged on the traded value (spread and slippage; Ally charges no
-  commission). A buy that no longer fits the cash at the open is cut to the shares that fit; a symbol without an open
-  that session is retried at the next open.
+  each month's last session, and for a daily method (TrendSpec) at every close too, where only a switch makes orders.
+  Every decision's orders fill at the next session's OPEN: sells first, then buys in the method's order. `cost_bps` per
+  side is charged on the traded value (spread and slippage; Ally charges no commission). A buy that no longer fits the
+  cash at the open is cut to the shares that fit; a symbol without an open that session is retried at the next open.
 * Equity is marked at every close (a missing close carries the last one). Cash earns nothing.
 * The benchmark is SPY bought with the whole starting cash at the same first open, fractional and frictionless: the
   index return a $1000 account would have earned without any method.
-Returns are price returns (split-adjusted bars, dividends excluded) for the method and SPY alike.
+Returns follow the bars' adjustment for the method and SPY alike: price returns on split-adjusted bars
+(personal-study-1), total returns on split- and dividend-adjusted bars (personal-study-2).
 """
 
 from __future__ import annotations
@@ -41,7 +42,7 @@ def _closes(bars: dict[str, pd.DataFrame]) -> dict[str, pd.Series]:
     return {s: df["close"].astype(float) for s, df in bars.items()}
 
 
-def simulate(spec: M.MethodSpec, bars: dict[str, pd.DataFrame], first_decision: date, end: date,
+def simulate(spec: M.Spec, bars: dict[str, pd.DataFrame], first_decision: date, end: date,
              cal: MarketCalendar, *, initial_cash: float = 1000.0, cost_bps: float = 5.0) -> SimResult:
     sessions = [d for d in cal.sessions_between(first_decision, end)]
     closes = _closes(bars)
@@ -89,10 +90,12 @@ def simulate(spec: M.MethodSpec, bars: dict[str, pd.DataFrame], first_decision: 
         value = cash + sum(q * last_close.get(s, 0.0) for s, q in holdings.items())
         eq[ts], ca[ts], npos[ts] = value, cash, len(holdings)
         last = i == len(sessions) - 1
-        if not last and (i == 0 or M.is_decision_day(cal, d)):
-            dec = M.decide(spec, closes, d, holdings, cash)
+        scheduled = i == 0 or M.is_decision_day(cal, d)
+        if not last and (scheduled or spec.daily):
+            dec = M.decide(spec, closes, d, holdings, cash, rebalance=scheduled)
             pending = [*pending, *dec.orders]
-            decisions.append({"day": d.isoformat(), "target": dec.target, "orders": len(dec.orders)})
+            if scheduled or dec.orders:  # a daily check without a switch is not a decision
+                decisions.append({"day": d.isoformat(), "target": dec.target, "orders": len(dec.orders)})
     return SimResult(pd.Series(eq), pd.Series(ca), pd.Series(npos), trades, decisions, paid)
 
 

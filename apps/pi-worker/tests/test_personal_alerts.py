@@ -215,7 +215,7 @@ def test_first_contact_welcome_once_then_start_brings_the_starting_allocation(wo
     assert all(o["a"] == "BUY" and o["n"] >= 1 for o in alert["orders"]) and len(alert["orders"]) == 3
     assert sum(o["n"] * float(o["px"]) for o in alert["orders"]) <= 1000 and float(alert["cash"]) >= 0
     text = ch.bot_texts()[-1]
-    assert "Starting allocation" in text and "Trade today" in text and "UNVALIDATED" in text
+    assert "Starting allocation" in text and "Trade today" in text and "EXPERIMENT: it did not beat SPY" in text
     assert run(ch, mk, et(2026, 10, 27, 15, 7)).posted == 0 and ch.duplicates == 0  # idempotent
 
 
@@ -277,6 +277,54 @@ def test_one_message_can_report_every_fill_one_line_each(world):
     xle = next(m for m in ch.messages if any(r.get("sym") == "XLE" for r in decode_all(m["content"])))
     assert void["target"] == xle["id"] and replies_to(ch, batch)[-1].startswith("❌ Not recorded")
     assert run(ch, mk, et(2026, 10, 27, 15, 37)).answered == 0 and ch.duplicates == 0
+
+
+def trend_bars() -> dict:
+    """SPY rises steadily, then falls 20% on Wed 2026-10-28 and stays there: the 200-day signal flips that evening.
+    SSO compounds twice SPY's daily return; BIL drifts like T-bills (all synthetic)."""
+    import numpy as np
+    import pandas as pd
+
+    base = cheap_bars()
+    idx = base["SPY"].index
+    r = np.where(idx < pd.Timestamp("2026-10-28"), 0.0008, 0.0)
+    r[idx == pd.Timestamp("2026-10-28")] = np.log(0.8)
+
+    def frame(c):
+        return pd.DataFrame({"open": np.concatenate([[c[0]], c[:-1]]), "high": c * 1.01, "low": c * 0.99,
+                             "close": c}, index=idx)
+
+    return base | {"SPY": frame(400 * np.exp(np.cumsum(r))), "SSO": frame(50 * np.exp(np.cumsum(2 * r))),
+                   "BIL": frame(91 * np.exp(0.0001 * np.arange(len(idx))))}
+
+
+def test_a_trend_method_alerts_once_when_its_signal_flips(world):
+    ch = MemoryChannel(start=et(2026, 10, 22, 14, 0))
+    mk = SyntheticMarket(CAL, lambda: ch.clock, bars=trend_bars())
+    sso = {"method_id": "sso-trend200"}
+    ch.post_as_owner("start 1000", et(2026, 10, 22, 14, 5))
+    run(ch, mk, et(2026, 10, 22, 14, 7), **sso)
+    assert "SSO (ProShares Ultra S&P500 (2x daily))" in ch.bot_texts()[0] and "signal flips" in ch.bot_texts()[0]
+    (alert,) = records(ch, "alert")
+    assert alert["day"] == "2026-10-21" and alert["sel"] == ["SSO"] and alert["m"] == "sso-trend200"
+    assert [(o["a"], o["s"]) for o in alert["orders"]] == [("BUY", "SSO")]
+    assert "Signal: SPY" in ch.bot_texts()[-1] and "above its 200-day average" in ch.bot_texts()[-1]
+    fill_all(ch, mk, et(2026, 10, 22, 15, 0))
+    run(ch, mk, et(2026, 10, 22, 15, 37), **sso)
+    for d in (23, 26, 27):
+        assert not run(ch, mk, et(2026, 10, d, 18, 7), **sso).alert  # the signal holds: summaries only
+    assert run(ch, mk, et(2026, 10, 28, 18, 7), **sso).alert
+    flip = records(ch, "alert")[-1]
+    assert flip["day"] == "2026-10-28" and flip["sel"] == ["BIL"]
+    assert [(o["a"], o["s"]) for o in flip["orders"]] == [("EXIT", "SSO"), ("BUY", "BIL")]
+    assert "Signal change" in ch.bot_texts()[-1] and "below its 200-day average" in ch.bot_texts()[-1]
+    assert run(ch, mk, et(2026, 10, 29, 7, 37), **sso).reminder  # the next morning: still to do
+    assert not run(ch, mk, et(2026, 10, 29, 18, 7), **sso).alert  # not re-sent while the owner hasn't traded
+    fill_all(ch, mk, et(2026, 10, 29, 9, 45))
+    rep = run(ch, mk, et(2026, 10, 30, 18, 7), **sso)  # month-end: the signal holds, idle cash is sized
+    assert rep.alert and records(ch, "alert")[-1]["day"] == "2026-10-30" and records(ch, "alert")[-1]["sel"] == ["BIL"]
+    assert all(o["a"] in ("ADD",) for o in records(ch, "alert")[-1]["orders"])
+    assert ch.duplicates == 0
 
 
 def test_wrong_reports_are_answered_and_never_recorded(world):

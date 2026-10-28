@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from apex_worker.personal.book import ZERO, Book, Record, spy_dividend_cash
-from apex_worker.personal.method import ETF_NAMES, SELLS, MethodSpec, Order
+from apex_worker.personal.method import NAMES, SELLS, Order, Spec
 from apex_worker.timeutil import ET
 
 CENT = Decimal("0.01")
@@ -116,12 +116,15 @@ def account_text(v: Valuation, *, title: str) -> str:
     return "\n".join(out)
 
 
-def order_line(o: dict, spec: MethodSpec, per_slot: Decimal | None = None, ranks: dict | None = None) -> str:
+def order_line(o: dict, spec: Spec, per_slot: Decimal | None = None, ranks: dict | None = None) -> str:
     n = o.get("left", o["n"])
     what = f"BUY {n} {o['s']}" if o["a"] == "BUY" else f"{o['a']}: {'sell' if o['a'] in SELLS else 'buy'} {n} {o['s']}"
-    why = {"EXIT": "left the selection", "TRIM": f"above {spec.trim_above:g}x its target", "BUY": "new pick",
+    trim = getattr(spec, "trim_above", 1.5)
+    why = {"EXIT": "left the selection", "TRIM": f"above {trim:g}x its target", "BUY": "new pick",
            "ADD": "below its target"}[o["a"]]
-    if ranks and o["s"] in ranks:
+    if spec.slots == 1:  # single-asset methods: the signal decides, not a rank
+        why = {"EXIT": "the signal moved away", "BUY": "the signal's asset", "ADD": "idle cash", "TRIM": why}[o["a"]]
+    elif ranks and o["s"] in ranks:
         why += f", rank {ranks[o['s']]}"
     if per_slot is not None and o["a"] in ("ADD", "TRIM"):
         why += f" ({usd(per_slot)} a slot)"
@@ -132,56 +135,59 @@ def orders_payload(orders: list[Order]) -> list[dict]:
     return [{"a": o.action, "s": o.symbol, "n": o.shares, "px": f"{o.ref_price:.2f}"} for o in orders]
 
 
-def alert_text(*, spec: MethodSpec, decided: date, trade_when: str, orders: list[dict], target: list[str],
-               held: set[str], signals: dict[str, float], ranks: dict[str, int], equity: float, cash_after: float,
-               closes: dict[str, float], late: bool, notes: list[str], first: bool) -> str:
-    head = "📣 **Starting allocation**" if first else ("📣 **Month-end rebalance**" if orders else "📣 **Month-end check**")
-    out = [f"{head} · decided on the close of {day(decided)} · `{spec.method_id}` ({LABEL})"]
+def alert_text(*, spec: Spec, head: str, status: str, decided: date, trade_when: str, orders: list[dict],
+               target: list[str], held: set[str], basis: str, equity: float, cash_after: float,
+               closes: dict[str, float], ranks: dict[str, int], late: bool, notes: list[str]) -> str:
+    out = [f"{head} · decided on the close of {day(decided)} · `{spec.method_id}` ({status})"]
     if late:
         out.append(f"⚠️ Posted late: these orders were sized on the {day(decided)} closes.")
-    sel = ", ".join(f"{s} ({spct(signals[s])})" for s in target) or "none (cash)"
     per_slot = Decimal(str(equity)) / spec.slots
     bought = {o["s"] for o in orders if o["a"] in ("BUY", "ADD")}
     too_dear = [s for s in target if s not in held and s not in bought and s in closes]
     if orders:
         out.append(f"{trade_when}, whole shares (a limit order near the price is fine):")
-        out += [f"- {order_line(o, spec, per_slot, ranks)}" for o in orders]
+        out += [f"- {order_line(o, spec, per_slot if spec.slots > 1 else None, ranks)}" for o in orders]
     else:
-        out.append("No trades this month." + (f" Keep {', '.join(s for s in target if s in held)}."
-                                               if any(s in held for s in target) else ""))
-    out.append(f"Selection (6-month return): {sel}")
+        out.append("No trades." + (f" Keep {', '.join(s for s in target if s in held)}."
+                                   if any(s in held for s in target) else ""))
+    out.append(basis)
     out += [f"- {s}: one share (≈ ${pfmt(round(closes[s], 2))}) costs more than this account can put in it now "
-            f"(a slot is ≈ {usd(per_slot)}), so that slot stays in cash." for s in too_dear]
+            f"(≈ {usd(per_slot)}), so that money stays in cash." for s in too_dear]
     if orders:
         out.append(f"Account at the close: {usd(equity)} · cash after these ≈ {usd(cash_after)}")
-        out.append("Reply when done: `bought 1 XLK at 245.40` · `sold 3 XLE at 90.10` · or `skip XLK`")
+        example = orders[0]["s"]
+        out.append(f"Reply when done: `{'sold' if orders[0]['a'] in SELLS else 'bought'} {orders[0]['n']} {example} at "
+                   f"{pfmt(orders[0]['px'])}` (your fill price) · or `skip {example}`")
     out += [f"Note: {n}" for n in notes]
     return "\n".join(out)
 
 
-def reminder_text(alert: Record, left: list[dict], spec: MethodSpec, trade_day: date) -> str:
+def reminder_text(alert: Record, left: list[dict], spec: Spec, trade_day: date) -> str:
     items = " · ".join(order_line(o, spec) for o in left)
     return (f"⏰ {day(trade_day)}: still to do from the {day(date.fromisoformat(alert.data['day']))} alert: {items}. "
             "Reply `bought …` / `sold …` when done, or `skip XLK`.")
 
 
-def pending_text(alert: Record, left: list[dict], spec: MethodSpec) -> str:
+def pending_text(alert: Record, left: list[dict], spec: Spec) -> str:
     return (f"⏳ Not reported yet from the {day(date.fromisoformat(alert.data['day']))} alert: "
             + " · ".join(order_line(o, spec) for o in left))
 
 
-def help_text(spec: MethodSpec) -> str:
-    names = ", ".join(sorted(ETF_NAMES))
+def help_text(spec: Spec, status: str) -> str:
+    names = ", ".join(f"{s} ({NAMES.get(s, s)})" for s in spec.universe) if spec.slots == 1 else \
+        ", ".join(sorted(spec.universe))
+    when = ("I check every close and alert you when the signal flips, and after the last close of each month I size "
+            "any idle cash" if spec.daily else "I check after the last close of each month")
     return "\n".join([
-        f"👋 I'm your personal alert bot for `{spec.method_id}`. {spec.title} ({names}).",
-        "I check after the last close of each month and suggest whole-share trades sized on what you hold; you "
-        "place them yourself at Ally and tell me what you did. I never place orders.",
+        f"👋 I'm your personal alert bot for `{spec.method_id}`: {spec.title} ({names}).",
+        f"{when}, and suggest whole-share trades sized on what you hold; you place them yourself at Ally and tell me "
+        "what you did. I never place orders.",
         "**Start:** `start 1000` once the cash is in the account.",
         "**Trades:** `bought 2 XLK at 245.10` · `sold 3 XLE at 90.20` (add `on 10/30 9:45` if it was earlier)",
         "**Cash:** `deposit 500` · `withdraw 200` · `dividend XLU 3.12` · a broker split: `split XLK 2:1`",
         "**Alerts:** `skip XLK` (you won't take it) · `skip all`",
         "**See:** `status` · `plan` (what the method would do today) · `trades` · `undo` (removes your last record)",
-        f"{LABEL}, compared with SPY bought with the same cash. Not investment advice.",
+        f"Method status: {status}. {LABEL}, compared with SPY bought with the same cash. Not investment advice.",
     ])
 
 

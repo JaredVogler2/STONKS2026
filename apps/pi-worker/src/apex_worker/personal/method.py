@@ -14,6 +14,15 @@ that follows the method, so what the study measured is exactly what an alert wou
   - ADD: a kept holding at least one share below its target is topped up, as far as cash allows (deposits flow here).
 * Cadence: decided after the close of the last session of each month, traded during the next session. A first
   decision may also be taken on any session (an account that starts in cash).
+
+Two published single-asset rules (`personal-study-2`, docs/discovery-v3/PERSONAL_STUDY_2.md) share the same orders:
+* TrendSpec (Gayed & Bilello 2016, "Leverage for the Long Run"): hold `asset` while `signal` closes above its 200-session
+  simple moving average, otherwise `risk_off` (T-bills). The signal is read at every close; a switch trades at the next
+  session; month-end decisions also put idle cash to work.
+* DualMomentumSpec (Antonacci 2014, Global Equities Momentum): at each month-end, if `us` beat `bills` over 252 sessions,
+  hold the better of `us` and `intl` over that span; otherwise `bonds`.
+Single-asset sizing: EXIT whatever is not the target, BUY floor(cash / price) of the target, and at month-end ADD
+floor(cash / price) when idle cash buys at least one share.
 """
 
 from __future__ import annotations
@@ -37,6 +46,11 @@ ETF_NAMES = {
     "XLB": "Materials Select Sector SPDR", "XLRE": "Real Estate Select Sector SPDR",
     "XLC": "Communication Services Select Sector SPDR",
 }
+NAMES = ETF_NAMES | {
+    "SPY": "SPDR S&P 500 ETF", "SSO": "ProShares Ultra S&P500 (2x daily)", "UPRO": "ProShares UltraPro S&P500 (3x daily)",
+    "EFA": "iShares MSCI EAFE ETF", "AGG": "iShares Core US Aggregate Bond ETF",
+    "BIL": "SPDR Bloomberg 1-3 Month T-Bill ETF",
+}
 
 
 @dataclass(frozen=True)
@@ -51,14 +65,86 @@ class MethodSpec:
     trim_above: float = 1.5
     cadence: str = "last session of each month"
 
+    daily = False  # decided at month-end only (class traits, not fields: personal-study-1's sha covers the fields)
+
+    @property
+    def data_symbols(self) -> tuple[str, ...]:
+        return self.universe
+
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class TrendSpec:
+    """Gayed & Bilello (2016): `asset` while `signal` closes above its `sma`-session average, else `risk_off`."""
+
+    method_id: str
+    title: str
+    asset: str
+    risk_off: str = "BIL"
+    signal: str = "SPY"
+    sma: int = 200
+    cadence: str = "every close (a switch trades at the next session); last session of each month (idle cash)"
+    source: str = "Gayed & Bilello (2016), Leverage for the Long Run"
+
+    daily = True
+    slots = 1
+
+    @property
+    def universe(self) -> tuple[str, ...]:
+        return (self.asset, self.risk_off)
+
+    @property
+    def data_symbols(self) -> tuple[str, ...]:
+        return tuple(sorted({self.signal, self.asset, self.risk_off}))
+
+    def to_dict(self) -> dict:
+        return asdict(self) | {"kind": "trend"}
+
+
+@dataclass(frozen=True)
+class DualMomentumSpec:
+    """Antonacci (2014), Global Equities Momentum: `us` or `intl` (the better) while `us` beats `bills`, else `bonds`."""
+
+    method_id: str
+    title: str
+    us: str = "SPY"
+    intl: str = "EFA"
+    bonds: str = "AGG"
+    bills: str = "BIL"
+    lookback: int = 252
+    cadence: str = "last session of each month"
+    source: str = "Antonacci (2014), Dual Momentum Investing"
+
+    daily = False
+    slots = 1
+
+    @property
+    def universe(self) -> tuple[str, ...]:
+        return (self.us, self.intl, self.bonds)
+
+    @property
+    def data_symbols(self) -> tuple[str, ...]:
+        return tuple(sorted({self.us, self.intl, self.bonds, self.bills}))
+
+    def to_dict(self) -> dict:
+        return asdict(self) | {"kind": "dual-momentum"}
 
 
 SECTOR_MOM_3 = MethodSpec("sector-mom-3", "Top 3 sector ETFs by 6-month return, monthly, kept while in the top 5")
 SECTOR_MOM_3_ABS = MethodSpec("sector-mom-3-abs", "The same, but only sectors with a positive 6-month return; the rest "
                               "in cash", absolute=True)
-METHODS: dict[str, MethodSpec] = {m.method_id: m for m in (SECTOR_MOM_3, SECTOR_MOM_3_ABS)}
+SPY_TREND = TrendSpec("spy-trend200", "SPY while SPY is above its 200-day average, else T-bills (BIL)", asset="SPY")
+SSO_TREND = TrendSpec("sso-trend200", "SSO (2x S&P 500) while SPY is above its 200-day average, else T-bills (BIL)",
+                      asset="SSO")
+UPRO_TREND = TrendSpec("upro-trend200", "UPRO (3x S&P 500) while SPY is above its 200-day average, else T-bills (BIL)",
+                       asset="UPRO")
+GEM = DualMomentumSpec("gem", "Dual Momentum: SPY or EFA (the stronger) while SPY beats T-bills over 12 months, else "
+                       "bonds (AGG)")
+Spec = MethodSpec | TrendSpec | DualMomentumSpec
+METHODS: dict[str, Spec] = {m.method_id: m for m in (SECTOR_MOM_3, SECTOR_MOM_3_ABS, SPY_TREND, SSO_TREND,
+                                                       UPRO_TREND, GEM)}
 
 
 @dataclass(frozen=True)
@@ -80,6 +166,7 @@ class Decision:
     equity: float  # cash + holdings at the decision closes
     cash_after: float  # estimated cash once every order fills at its reference price
     notes: list[str] = field(default_factory=list)
+    explain: str = ""  # the signal in words (single-asset methods)
 
 
 def is_decision_day(cal: MarketCalendar, day: date) -> bool:
@@ -161,9 +248,12 @@ def orders(spec: MethodSpec, target: list[str], holdings: dict[str, int], cash: 
     return out, cash
 
 
-def decide(spec: MethodSpec, closes: dict[str, pd.Series], day: date, holdings: dict[str, int],
-           cash: float) -> Decision:
-    """The method's decision at the close of `day`: signals, selection and whole-share orders sized on the closes."""
+def decide(spec: Spec, closes: dict[str, pd.Series], day: date, holdings: dict[str, int], cash: float, *,
+           rebalance: bool = True) -> Decision:
+    """The method's decision at the close of `day`: signals, selection and whole-share orders sized on the closes.
+    `rebalance` (single-asset methods): also put idle cash to work; otherwise only a switch produces orders."""
+    if isinstance(spec, TrendSpec | DualMomentumSpec):
+        return _decide_single(spec, closes, day, holdings, cash, rebalance)
     t = pd.Timestamp(day)
     sig = signals(closes, t, spec)
     held = {s: q for s, q in holdings.items() if q > 0}
@@ -186,5 +276,68 @@ def decide(spec: MethodSpec, closes: dict[str, pd.Series], day: date, holdings: 
     return Decision(day, sig, rank, target, ords, equity, cash_after, notes)
 
 
-__all__ = ["ADD", "BUY", "BUYS", "ETF_NAMES", "EXIT", "METHODS", "SECTOR_MOM_3", "SECTOR_MOM_3_ABS", "SELLS", "TRIM",
-           "Decision", "MethodSpec", "Order", "decide", "is_decision_day", "orders", "select", "signals"]
+def _upto(closes: dict[str, pd.Series], sym: str, t: pd.Timestamp) -> pd.Series:
+    s = closes.get(sym)
+    return s[s.index <= t].dropna() if s is not None else pd.Series(dtype=float)
+
+
+def _target(spec: TrendSpec | DualMomentumSpec, closes: dict[str, pd.Series],
+            t: pd.Timestamp) -> tuple[str | None, dict[str, float], str]:
+    """(the asset to hold after the close t, the signals, the reason in words); no target without full data at t."""
+    if isinstance(spec, TrendSpec):
+        s = _upto(closes, spec.signal, t)
+        if len(s) < spec.sma or s.index[-1] != t:
+            return None, {}, f"not enough {spec.signal} history for its {spec.sma}-day average"
+        close, avg = float(s.iloc[-1]), float(s.iloc[-spec.sma:].mean())
+        on = close > avg
+        target = spec.asset if on else spec.risk_off
+        gap = close / avg - 1
+        return target, {spec.signal: gap}, (f"{spec.signal} {close:,.2f} is {100 * abs(gap):.1f}% "
+                                            f"{'above' if on else 'below'} its {spec.sma}-day average ({avg:,.2f}) → "
+                                            f"{target}")
+    rets = {}
+    for sym in (spec.us, spec.intl, spec.bills):
+        s = _upto(closes, sym, t)
+        if len(s) <= spec.lookback or s.index[-1] != t or float(s.iloc[-1 - spec.lookback]) <= 0:
+            return None, {}, f"not enough {sym} history for its {spec.lookback}-session return"
+        rets[sym] = float(s.iloc[-1]) / float(s.iloc[-1 - spec.lookback]) - 1
+    if rets[spec.us] > rets[spec.bills]:
+        target = spec.us if rets[spec.us] >= rets[spec.intl] else spec.intl
+    else:
+        target = spec.bonds
+    words = ", ".join(f"{k} {100 * v:+.1f}%" for k, v in rets.items())
+    return target, rets, f"12-month returns: {words} → {target}"
+
+
+def _decide_single(spec: TrendSpec | DualMomentumSpec, closes: dict[str, pd.Series], day: date,
+                   holdings: dict[str, int], cash: float, rebalance: bool) -> Decision:
+    t = pd.Timestamp(day)
+    target, sig, explain = _target(spec, closes, t)
+    held = {s: q for s, q in holdings.items() if q > 0}
+    last = {s: c for s in {*held, *([target] if target else [])} if len(c := _upto(closes, s, t))}
+    prices = {s: float(c.iloc[-1]) for s, c in last.items()}
+    equity = cash + sum(q * prices.get(s, 0.0) for s, q in held.items())
+    if target is None:
+        return Decision(day, sig, {}, [], [], equity, cash, [explain], explain)
+    stale = sorted(s for s in held if s not in last or last[s].index[-1] != t)
+    notes = [f"no {day.isoformat()} close for {', '.join(stale)}: kept as is"] if stale else []
+    out: list[Order] = []
+    for s in sorted(held):
+        if s != target and s not in stale:
+            out.append(Order(EXIT, s, held[s], prices[s], f"the signal says {target}"))
+            cash += held[s] * prices[s]
+    if target not in last or last[target].index[-1] != t:
+        return Decision(day, sig, {target: 1}, [target], out, equity, cash, [*notes, f"no {target} close"], explain)
+    px = prices[target]
+    if held.get(target, 0) == 0 or rebalance:
+        n = int(cash // px)
+        if n > 0:
+            out.append(Order(BUY if held.get(target, 0) == 0 else ADD, target, n, px,
+                             "the signal's asset" if held.get(target, 0) == 0 else "idle cash"))
+            cash -= n * px
+    return Decision(day, sig, {target: 1}, [target], out, equity, cash, notes, explain)
+
+
+__all__ = ["ADD", "BUY", "BUYS", "ETF_NAMES", "EXIT", "GEM", "METHODS", "NAMES", "SECTOR_MOM_3", "SECTOR_MOM_3_ABS",
+           "SELLS", "SPY_TREND", "SSO_TREND", "TRIM", "UPRO_TREND", "Decision", "DualMomentumSpec", "MethodSpec",
+           "Order", "Spec", "TrendSpec", "decide", "is_decision_day", "orders", "select", "signals"]
