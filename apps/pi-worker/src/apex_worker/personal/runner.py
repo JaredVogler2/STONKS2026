@@ -26,10 +26,11 @@ from apex_worker.personal.records import decode_all, encode, nonce
 from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
 
-PERSONAL_METHOD = "sso-trend200"  # adopted by personal-study-2; studies 3b-4 compared it with ten more (the owner chooses)
+PERSONAL_METHOD = "sso-trend200"  # adopted by personal-study-2; kept by the owner on 2026-10-28 after studies 3b-4
 METHOD_STATUS = {  # what the registered studies found, shown in the alerts (research-results/discovery-v3/)
     "sector-mom-3": "EXPERIMENT: it did not beat SPY on 2019-2026 data (personal-study-1, -4.0%/yr)",
-    "sso-trend200": "ADOPTED: +2.9%/yr vs SPY on 2019-2026 (personal-study-2), +1.4%/yr on 2017-2026 with a similar "
+    "sso-trend200": "ADOPTED, kept after comparing eleven methods: +2.9%/yr vs SPY on 2019-2026 (personal-study-2), "
+                    "+1.4%/yr on 2017-2026 with a similar "
                     "worst drop but behind in 2022-26 (personal-study-3b), +4.4%/yr over 1927-2026 (personal-study-4); "
                     "not statistically significant on recent data, and SSO is a 2x leveraged fund",
     "sso-hold": "EXPERIMENT: +6.8%/yr vs SPY on 2017-2026 but a -59% worst drop (personal-study-3b) and -98% in "
