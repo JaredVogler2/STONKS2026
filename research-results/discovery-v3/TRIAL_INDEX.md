@@ -10,8 +10,9 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 |---|---|---|---|---|---|
 | [`v3-pilot-1-2026-10-23`](v3-pilot-1-2026-10-23/) ([review](v3-pilot-1-2026-10-23/REVIEW.md), [decision report](v3-pilot-1-2026-10-23/DECISION_REPORT.md)) | [39884381394](https://github.com/JaredVogler2/STONKS2026/actions/runs/39884381394), 2026-10-23 | `dddf352` | `v3-pilot-1` (`11d0af37…ae2c7`) | 10 | **10 REJECTED_DEV.** Aggregate NO_TRADE; nothing nominated |
 | [`v3-pilot-2-2026-10-23`](v3-pilot-2-2026-10-23/) ([review](v3-pilot-2-2026-10-23/REVIEW.md), [decision report](v3-pilot-2-2026-10-23/DECISION_REPORT.md)) | [39921190552](https://github.com/JaredVogler2/STONKS2026/actions/runs/39921190552), 2026-10-23 | `ed8c8e5` | `v3-pilot-2` (`5a2cc40c…8c0e`), `obj-v3-2`, `cost-v3-2` | 7 | **5 REJECTED_DEV, 2 INCONCLUSIVE_DEV** (G2 quarterly buffered momentum, +8.6 pp/yr vs SPY, Holm 0.62; risk-loaded, survivorship-exposed). Aggregate NO_TRADE; nothing nominated |
+| [`personal-study-1-2026-10-27`](personal-study-1-2026-10-27/) ([review](personal-study-1-2026-10-27/REVIEW.md)) | [40604191780](https://github.com/JaredVogler2/STONKS2026/actions/runs/40604191780), 2026-10-27 | `e81e561` | `personal-study-1` (`89bd5a40…6aba`) | 2 | **2 DOES_NOT_BEAT_SPY_ON_DEV** (best: sector-mom-3, −4.0 pp/yr vs SPY, Holm 1.0). Runs only as a labelled EXPERIMENT in the owner's personal alerts |
 
-**Cumulative real-data V3 trials:** 17. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2. Measurements (not trials): `cost-study-1-2026-10-23`, `design-study-1-2026-10-23`, `design-study-2-2026-10-25`.
+**Cumulative real-data V3 trials:** 19. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2, p1-sector-etf-momentum-whole-shares 2. Measurements (not trials): `cost-study-1-2026-10-23`, `design-study-1-2026-10-23`, `design-study-2-2026-10-25`.
 
 ## `v3-pilot-1-2026-10-23`
 
@@ -66,3 +67,17 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 - **P2-4:** the gain decomposes into the mask and costs plus the buffer.
 - **P2-5:** S1's selection value is partly earned on the entry day.
 - **P2-6:** forking paths.
+
+## `personal-study-1-2026-10-27`
+
+- **Data:** the same DEV window as the pilots (first decision 2019-10-22, last session 2026-09-23), Alpaca SIP daily bars, split-adjusted, dataset `602147ab…a6`; only SPY and the 11 sector ETFs are read.
+- **Simulation:** $1000, whole shares, decisions at month-end closes, fills at the next open, 5 bps a side.
+- **Holm:** over the 2 trials.
+- **Benchmark:** SPY bought with the same $1000 at the first fill open, fractional, frictionless: +14.7% a year (CAGR), price returns.
+
+| Trial | Method | Disposition | Excess log growth / yr vs SPY | Max drawdown (SPY −34.2%) | One-sided p | Holm p |
+|---|---|---|---|---|---|---|
+| `personal-study-1/sector-mom-3` | top 3 sector ETFs by 126-session return, monthly, kept while in the top 5 | DOES_NOT_BEAT_SPY_ON_DEV | −0.0403 | −35.4% | 0.877 | 1.0 |
+| `personal-study-1/sector-mom-3-abs` | the same, positive 126-session return required, else cash | DOES_NOT_BEAT_SPY_ON_DEV | −0.0862 | −35.4% | 0.983 | 1.0 |
+
+**Disclosed with the result** ([REVIEW.md §2](personal-study-1-2026-10-27/REVIEW.md)): P1-1 DEV contamination; P1-2 price returns; P1-3 whole-share sizing on split-adjusted prices; P1-4 nothing tuned after the run.
