@@ -1,0 +1,952 @@
+{
+ "benchmark": "the 1x fund (the US market less SPY's fee) bought at the method's first fill",
+ "code_sha": "4700f1b01ec84b91e6c02db5b5fa5acb6cd2db61",
+ "experiment_id": "personal-study-4-2026-10-28",
+ "finished_at": "2026-10-28T02:08:10Z",
+ "methods": {
+  "halloween-sso": {
+   "cost_stress_excess_log_growth_per_year": 0.0039048812153957696,
+   "decades_ahead": 7,
+   "disposition": "HOLDS_UP_PARTLY",
+   "full": {
+    "best_year_vs_market": 0.4372394199262106,
+    "cagr": 0.11160437200971507,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": -0.10006752395577255,
+      "market_growth": -0.05457826650243158,
+      "method_growth": -0.652290687382147
+     },
+     "1940s": {
+      "excess_log_growth_per_year": -0.04946089378470363,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 0.4395437595062537
+     },
+     "1950s": {
+      "excess_log_growth_per_year": 0.06125740659651122,
+      "market_growth": 4.262297953551371,
+      "method_growth": 8.70904585964428
+     },
+     "1960s": {
+      "excess_log_growth_per_year": 0.05339103919372326,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 2.746706661769931
+     },
+     "1970s": {
+      "excess_log_growth_per_year": 0.06711422559812036,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 2.4953076286149467
+     },
+     "1980s": {
+      "excess_log_growth_per_year": 0.01002694055215738,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 4.172105252012675
+     },
+     "1990s": {
+      "excess_log_growth_per_year": 0.04783631572045437,
+      "market_growth": 4.141201700484266,
+      "method_growth": 7.29660550838881
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.005792144869992843,
+      "market_growth": -0.04721202451703832,
+      "method_growth": 0.00961240169829991
+     },
+     "2010s": {
+      "excess_log_growth_per_year": 0.04751969639093426,
+      "market_growth": 2.544325080022455,
+      "method_growth": 4.700076913779997
+     }
+    },
+    "end_value_per_dollar": 36959.40359137515,
+    "excess_log_growth_per_year": 0.009910471729571838,
+    "log_growth_per_year": 0.10580435195666614,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.8811324117191313,
+    "monthly_active": {
+     "hac_t": 1.2783491807605587,
+     "holm_p": 0.40225266824223116,
+     "mean": 0.001851691604290889,
+     "months": 1192,
+     "one_sided_p": 0.10056316706055779
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.01590226321679603,
+     "excess_log_growth_per_year": -0.009178433730187594,
+     "from": "2003-01-02",
+     "years": 23.748117727583846
+    },
+    "rolling_10y": {
+     "beat_share": 0.7576887232059646,
+     "median_excess": 0.9448573773236393,
+     "windows": 1073,
+     "worst_excess": -2.534009591544387
+    },
+    "switches_per_year": 2.0018935220887957,
+    "turnover_per_year": 3.9937272777349344,
+    "worst_day": -0.24015555555555557,
+    "worst_year_vs_market": -0.44581774343175407,
+    "years": 99.40588637919234
+   },
+   "published": 2002,
+   "role": "replication",
+   "same_close_excess_log_growth_per_year": 0.012544732173332573,
+   "source": "Bouman & Jacobsen (2002), The Halloween Indicator",
+   "tests": {
+    "ahead_in_6_of_9_decades": true,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": true,
+    "positive_at_20bps": true,
+    "post_publication_excess_positive": false,
+    "rolling_10y_share_at_least_60pct": true
+   },
+   "title": "SSO (2x S&P 500) from November through April, T-bills from May through October"
+  },
+  "rsi2-sso": {
+   "cost_stress_excess_log_growth_per_year": -0.10169641955867481,
+   "decades_ahead": 3,
+   "disposition": "DOES_NOT_HOLD_UP",
+   "full": {
+    "best_year_vs_market": 0.44730700559791414,
+    "cagr": 0.04550112074219981,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": 0.040946739481770585,
+      "market_growth": -0.05457826650243158,
+      "method_growth": 0.4235803385992254
+     },
+     "1940s": {
+      "excess_log_growth_per_year": -0.08998626608230673,
+      "market_growth": 1.3611252172399526,
+      "method_growth": -0.04026101479478994
+     },
+     "1950s": {
+      "excess_log_growth_per_year": -0.12702651311984853,
+      "market_growth": 4.262297953551371,
+      "method_growth": 0.47768483642360704
+     },
+     "1960s": {
+      "excess_log_growth_per_year": -0.12778087849249362,
+      "market_growth": 1.1965627458292376,
+      "method_growth": -0.3880409785402985
+     },
+     "1970s": {
+      "excess_log_growth_per_year": -0.015071837665991062,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 0.5367553303610746
+     },
+     "1980s": {
+      "excess_log_growth_per_year": -0.08873664198619216,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 0.9271641800047425
+     },
+     "1990s": {
+      "excess_log_growth_per_year": 0.0036504285436720634,
+      "market_growth": 4.141201700484266,
+      "method_growth": 4.33242508730749
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.07990934675935826,
+      "market_growth": -0.04721202451703832,
+      "method_growth": 1.1187789935340566
+     },
+     "2010s": {
+      "excess_log_growth_per_year": -0.101366406020477,
+      "market_growth": 2.544325080022455,
+      "method_growth": 0.28636763304561774
+     }
+    },
+    "end_value_per_dollar": 83.36222927724955,
+    "excess_log_growth_per_year": -0.051397568373446896,
+    "log_growth_per_year": 0.044496311853647406,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.5690106087394615,
+    "monthly_active": {
+     "hac_t": -3.497870627526752,
+     "holm_p": 1.0,
+     "mean": -0.0049996039152706,
+     "months": 1192,
+     "one_sided_p": 0.9997655057139855
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": -0.04652011164737705,
+     "excess_log_growth_per_year": -0.07384049097631007,
+     "from": "2009-01-02",
+     "years": 17.746748802190282
+    },
+    "rolling_10y": {
+     "beat_share": 0.20689655172413793,
+     "median_excess": -1.4013862320347426,
+     "windows": 1073,
+     "worst_excess": -4.678741453887184
+    },
+    "switches_per_year": 16.72939159413903,
+    "turnover_per_year": 33.4487234218354,
+    "worst_day": -0.3485555555555555,
+    "worst_year_vs_market": -0.409572931882886,
+    "years": 99.40588637919234
+   },
+   "published": 2008,
+   "role": "replication",
+   "same_close_excess_log_growth_per_year": -0.09058536748672695,
+   "source": "Connors & Alvarez (2008), Short Term Trading Strategies That Work",
+   "tests": {
+    "ahead_in_6_of_9_decades": false,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": false,
+    "positive_at_20bps": false,
+    "post_publication_excess_positive": false,
+    "rolling_10y_share_at_least_60pct": false
+   },
+   "title": "SSO (2x S&P 500) after SPY's 2-day RSI closes below 10 above its 200-day average, until SPY closes above its 5-day average; T-bills otherwise"
+  },
+  "spy-trend200": {
+   "cost_stress_excess_log_growth_per_year": -0.01874013063506136,
+   "decades_ahead": 5,
+   "disposition": "DOES_NOT_HOLD_UP",
+   "full": {
+    "best_year_vs_market": 0.42568387333954905,
+    "cagr": 0.09874887415295475,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": 0.04949880500620427,
+      "market_growth": -0.05457826650243158,
+      "method_growth": 0.5506289104904112
+     },
+     "1940s": {
+      "excess_log_growth_per_year": 0.002260136373978737,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 1.4151199098671756
+     },
+     "1950s": {
+      "excess_log_growth_per_year": -0.02712704606290313,
+      "market_growth": 4.262297953551371,
+      "method_growth": 3.012178974579702
+     },
+     "1960s": {
+      "excess_log_growth_per_year": 0.009413753525649056,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 1.4134184158300225
+     },
+     "1970s": {
+      "excess_log_growth_per_year": 0.017512766718780486,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 1.1286217474276756
+     },
+     "1980s": {
+      "excess_log_growth_per_year": -0.012987155376991947,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 3.1092205589647604
+     },
+     "1990s": {
+      "excess_log_growth_per_year": -0.03654222076207783,
+      "market_growth": 4.141201700484266,
+      "method_growth": 2.566963122014677
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.03201696616915955,
+      "market_growth": -0.04721202451703832,
+      "method_growth": 0.31239092769115717
+     },
+     "2010s": {
+      "excess_log_growth_per_year": -0.055933672833348755,
+      "market_growth": 2.544325080022455,
+      "method_growth": 1.0260490100796775
+     }
+    },
+    "end_value_per_dollar": 11629.096799653715,
+    "excess_log_growth_per_year": -0.0017217348720716813,
+    "log_growth_per_year": 0.09417214535502262,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.41219570633435354,
+    "monthly_active": {
+     "hac_t": -0.8529631748912928,
+     "holm_p": null,
+     "mean": -0.0009224088780442468,
+     "months": 1192,
+     "one_sided_p": 0.8031601370307692
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.0016801469736657246,
+     "excess_log_growth_per_year": -0.03300548235939648,
+     "from": "2017-01-03",
+     "years": 9.749486652977414
+    },
+    "rolling_10y": {
+     "beat_share": 0.315004659832246,
+     "median_excess": -0.3151376900923317,
+     "windows": 1073,
+     "worst_excess": -2.5828316227205064
+    },
+    "switches_per_year": 5.66364850721604,
+    "turnover_per_year": 11.317237247989423,
+    "worst_day": -0.17492946785714303,
+    "worst_year_vs_market": -0.45116922077410115,
+    "years": 99.40588637919234
+   },
+   "published": 2016,
+   "role": "reference",
+   "same_close_excess_log_growth_per_year": 0.006215682662325014,
+   "source": "Gayed & Bilello (2016), Leverage for the Long Run",
+   "tests": {
+    "ahead_in_6_of_9_decades": false,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": false,
+    "positive_at_20bps": false,
+    "post_publication_excess_positive": false,
+    "rolling_10y_share_at_least_60pct": false
+   },
+   "title": "SPY while SPY is above its 200-day average, else T-bills (BIL)"
+  },
+  "sso-hold": {
+   "cost_stress_excess_log_growth_per_year": 0.020787600086390343,
+   "decades_ahead": 6,
+   "disposition": "HOLDS_UP_PARTLY",
+   "full": {
+    "best_year_vs_market": 0.690881342970987,
+    "cagr": 0.12377841106054377,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": -0.11398699595561008,
+      "market_growth": -0.05457826650243158,
+      "method_growth": -0.6974552300671075
+     },
+     "1940s": {
+      "excess_log_growth_per_year": 0.052842989653632266,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 3.00596781592822
+     },
+     "1950s": {
+      "excess_log_growth_per_year": 0.12592405676287058,
+      "market_growth": 4.262297953551371,
+      "method_growth": 17.53453950427664
+     },
+     "1960s": {
+      "excess_log_growth_per_year": 0.01894962546019683,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 1.654923778261244
+     },
+     "1970s": {
+      "excess_log_growth_per_year": -0.03290987276990598,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 0.2857180207346828
+     },
+     "1980s": {
+      "excess_log_growth_per_year": 0.03256339799920589,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 5.4789070650421
+     },
+     "1990s": {
+      "excess_log_growth_per_year": 0.08629505152780456,
+      "market_growth": 4.141201700484266,
+      "method_growth": 11.189705154979546
+     },
+     "2000s": {
+      "excess_log_growth_per_year": -0.0940299543842269,
+      "market_growth": -0.04721202451703832,
+      "method_growth": -0.6279738550463774
+     },
+     "2010s": {
+      "excess_log_growth_per_year": 0.08601297523699032,
+      "market_growth": 2.544325080022455,
+      "method_growth": 7.375910283976117
+     }
+    },
+    "end_value_per_dollar": 109133.57309692664,
+    "excess_log_growth_per_year": 0.020802708624563376,
+    "log_growth_per_year": 0.11669658885165768,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.9843361638897546,
+    "monthly_active": {
+     "hac_t": 3.657185087162918,
+     "holm_p": 0.000637500632803227,
+     "mean": 0.006094619550484141,
+     "months": 1192,
+     "one_sided_p": 0.00012750012656064538
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.015815194877206947,
+     "excess_log_growth_per_year": 0.06666794667137062,
+     "from": "2017-01-03",
+     "years": 9.749486652977414
+    },
+    "rolling_10y": {
+     "beat_share": 0.739049394221808,
+     "median_excess": 1.167524832300836,
+     "windows": 1073,
+     "worst_excess": -0.7701031912714126
+    },
+    "switches_per_year": 0.010059766442657265,
+    "turnover_per_year": 0.010059766442657265,
+    "worst_day": -0.3485555555555555,
+    "worst_year_vs_market": -0.3030911212956925,
+    "years": 99.40588637919234
+   },
+   "published": 2016,
+   "role": "replication",
+   "same_close_excess_log_growth_per_year": 0.020835266629064847,
+   "source": "the leveraged buy-and-hold baseline of Gayed & Bilello (2016)",
+   "tests": {
+    "ahead_in_6_of_9_decades": true,
+    "drawdown_within_10_points": false,
+    "full_excess_positive": true,
+    "positive_at_20bps": true,
+    "post_publication_excess_positive": true,
+    "rolling_10y_share_at_least_60pct": true
+   },
+   "title": "SSO (2x S&P 500) held throughout"
+  },
+  "sso-trend200": {
+   "cost_stress_excess_log_growth_per_year": 0.027112395357054425,
+   "decades_ahead": 8,
+   "disposition": "HOLDS_UP",
+   "full": {
+    "best_year_vs_market": 0.6908813429709852,
+    "cagr": 0.15030217801149748,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": 0.054399410690627946,
+      "market_growth": -0.05457826650243158,
+      "method_growth": 0.628479127258899
+     },
+     "1940s": {
+      "excess_log_growth_per_year": 0.078867053204214,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 4.197265977459389
+     },
+     "1950s": {
+      "excess_log_growth_per_year": 0.08190222239873443,
+      "market_growth": 4.262297953551371,
+      "method_growth": 10.93503163747746
+     },
+     "1960s": {
+      "excess_log_growth_per_year": 0.051693309387699816,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 2.6836260564026597
+     },
+     "1970s": {
+      "excess_log_growth_per_year": 0.023738977072621445,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 1.2653477602161853
+     },
+     "1980s": {
+      "excess_log_growth_per_year": 0.020981484237458388,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 4.770624229634318
+     },
+     "1990s": {
+      "excess_log_growth_per_year": 0.024064243177725476,
+      "market_growth": 4.141201700484266,
+      "method_growth": 5.540594766657382
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.023023628039304796,
+      "market_growth": -0.04721202451703832,
+      "method_growth": 0.19950013615983742
+     },
+     "2010s": {
+      "excess_log_growth_per_year": -0.008764543930506456,
+      "market_growth": 2.544325080022455,
+      "method_growth": 2.246944220220006
+     }
+    },
+    "end_value_per_dollar": 1109340.8523782808,
+    "excess_log_growth_per_year": 0.04413079112004406,
+    "log_growth_per_year": 0.14002467134713836,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.6841323487442897,
+    "monthly_active": {
+     "hac_t": 3.3115677333974043,
+     "holm_p": null,
+     "mean": 0.004809019628928905,
+     "months": 1192,
+     "one_sided_p": 0.00046387388930387214
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.04584989261610622,
+     "excess_log_growth_per_year": 0.02832191252090132,
+     "from": "2017-01-03",
+     "years": 9.749486652977414
+    },
+    "rolling_10y": {
+     "beat_share": 0.8350419384902144,
+     "median_excess": 1.0055044338244428,
+     "windows": 1073,
+     "worst_excess": -1.706024016423026
+    },
+    "switches_per_year": 5.66364850721604,
+    "turnover_per_year": 11.317237247989423,
+    "worst_day": -0.34920700000000005,
+    "worst_year_vs_market": -0.4690785306089811,
+    "years": 99.40588637919234
+   },
+   "published": 2016,
+   "role": "reference",
+   "same_close_excess_log_growth_per_year": 0.06048179181319198,
+   "source": "Gayed & Bilello (2016), Leverage for the Long Run",
+   "tests": {
+    "ahead_in_6_of_9_decades": true,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": true,
+    "positive_at_20bps": true,
+    "post_publication_excess_positive": true,
+    "rolling_10y_share_at_least_60pct": true
+   },
+   "title": "SSO (2x S&P 500) while SPY is above its 200-day average, else T-bills (BIL)"
+  },
+  "tom-sso": {
+   "cost_stress_excess_log_growth_per_year": -0.0712781885981956,
+   "decades_ahead": 4,
+   "disposition": "HOLDS_UP_PARTLY",
+   "full": {
+    "best_year_vs_market": 0.7850673343655352,
+    "cagr": 0.10159444257707118,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": 0.18701356719213358,
+      "market_growth": -0.05457826650243158,
+      "method_growth": 5.130298703188077
+     },
+     "1940s": {
+      "excess_log_growth_per_year": -0.011249215464037081,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 1.1098143117940302
+     },
+     "1950s": {
+      "excess_log_growth_per_year": -0.016662649933915658,
+      "market_growth": 4.262297953551371,
+      "method_growth": 3.454719585775206
+     },
+     "1960s": {
+      "excess_log_growth_per_year": 0.021553425504275792,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 1.7249702493278631
+     },
+     "1970s": {
+      "excess_log_growth_per_year": 0.048377981426306595,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 1.8981847659913842
+     },
+     "1980s": {
+      "excess_log_growth_per_year": -0.01953603959187025,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 2.848838514181056
+     },
+     "1990s": {
+      "excess_log_growth_per_year": -0.04769725166633668,
+      "market_growth": 4.141201700484266,
+      "method_growth": 2.190311137827739
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.00372774992842924,
+      "market_growth": -0.04721202451703832,
+      "method_growth": -0.011019118723525678
+     },
+     "2010s": {
+      "excess_log_growth_per_year": -0.08458312395249576,
+      "market_growth": 2.544325080022455,
+      "method_growth": 0.5214020391110346
+     }
+    },
+    "end_value_per_dollar": 15038.618516154831,
+    "excess_log_growth_per_year": 0.0008647433278106825,
+    "log_growth_per_year": 0.09675862355490499,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.5410291941758106,
+    "monthly_active": {
+     "hac_t": -0.21922745405489338,
+     "holm_p": 1.0,
+     "mean": -0.00028786980985346733,
+     "months": 1192,
+     "one_sided_p": 0.5867635648170532
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.032167741995637274,
+     "excess_log_growth_per_year": -0.050262579706672555,
+     "from": "1989-01-03",
+     "years": 37.74948665297741
+    },
+    "rolling_10y": {
+     "beat_share": 0.46877912395153776,
+     "median_excess": -0.12451497316210736,
+     "windows": 1073,
+     "worst_excess": -3.176836430843568
+    },
+    "switches_per_year": 23.992542965737577,
+    "turnover_per_year": 47.975026165032496,
+    "worst_day": -0.19305555555555554,
+    "worst_year_vs_market": -0.38356139172099046,
+    "years": 99.40588637919234
+   },
+   "published": 1988,
+   "role": "replication",
+   "same_close_excess_log_growth_per_year": 0.018487135551714898,
+   "source": "Lakonishok & Smidt (1988); McConnell & Xu (2008), Equity Returns at the Turn of the Month",
+   "tests": {
+    "ahead_in_6_of_9_decades": false,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": true,
+    "positive_at_20bps": false,
+    "post_publication_excess_positive": false,
+    "rolling_10y_share_at_least_60pct": false
+   },
+   "title": "SSO (2x S&P 500) over the last session of each month and the first three of the next, T-bills otherwise"
+  },
+  "voltarget-sso": {
+   "cost_stress_excess_log_growth_per_year": 0.005296398537961253,
+   "decades_ahead": 6,
+   "disposition": "HOLDS_UP_PARTLY",
+   "full": {
+    "best_year_vs_market": 0.5383688326562839,
+    "cagr": 0.11250849791013184,
+    "decades": {
+     "1930s": {
+      "excess_log_growth_per_year": 0.00698451099504008,
+      "market_growth": -0.05457826650243158,
+      "method_growth": 0.013786422128767795
+     },
+     "1940s": {
+      "excess_log_growth_per_year": -0.007541841730672632,
+      "market_growth": 1.3611252172399526,
+      "method_growth": 1.1895343648110925
+     },
+     "1950s": {
+      "excess_log_growth_per_year": 0.06259533324812229,
+      "market_growth": 4.262297953551371,
+      "method_growth": 8.839800621212904
+     },
+     "1960s": {
+      "excess_log_growth_per_year": -0.0025340204635418005,
+      "market_growth": 1.1965627458292376,
+      "method_growth": 1.1415932830087612
+     },
+     "1970s": {
+      "excess_log_growth_per_year": -0.004935917744623868,
+      "market_growth": 0.7867011915043383,
+      "method_growth": 0.7006637045100688
+     },
+     "1980s": {
+      "excess_log_growth_per_year": 0.014361684573770234,
+      "market_growth": 3.6788464005337644,
+      "method_growth": 4.401136797368684
+     },
+     "1990s": {
+      "excess_log_growth_per_year": 0.012310016160944003,
+      "market_growth": 4.141201700484266,
+      "method_growth": 4.814981253226438
+     },
+     "2000s": {
+      "excess_log_growth_per_year": 0.007714494911780858,
+      "market_growth": -0.04721202451703832,
+      "method_growth": 0.029211143259825212
+     },
+     "2010s": {
+      "excess_log_growth_per_year": 0.0010210656817948615,
+      "market_growth": 2.544325080022455,
+      "method_growth": 2.5806953538113184
+     }
+    },
+    "end_value_per_dollar": 40070.45369507439,
+    "excess_log_growth_per_year": 0.010723493372895285,
+    "log_growth_per_year": 0.10661737359998959,
+    "market_cagr": 0.10064225788991221,
+    "market_end_value_per_dollar": 13799.893618543889,
+    "market_log_growth_per_year": 0.0958938802270943,
+    "market_max_drawdown": -0.8412209980526357,
+    "max_drawdown": -0.6775433552728098,
+    "monthly_active": {
+     "hac_t": 1.265556369939521,
+     "holm_p": 0.40225266824223116,
+     "mean": 0.0010958673543511425,
+     "months": 1192,
+     "one_sided_p": 0.10283597741445187
+    },
+    "post_publication": {
+     "before_excess_log_growth_per_year": 0.014887855449918995,
+     "excess_log_growth_per_year": -0.032406376108597486,
+     "from": "2018-01-02",
+     "years": 8.752908966461328
+    },
+    "rolling_10y": {
+     "beat_share": 0.6421248835041938,
+     "median_excess": 0.17097745612641901,
+     "windows": 1073,
+     "worst_excess": -1.9986794790715428
+    },
+    "switches_per_year": 11.07580285336565,
+    "turnover_per_year": 3.615606964082203,
+    "worst_day": -0.1503093658752903,
+    "worst_year_vs_market": -0.5047175429717532,
+    "years": 99.40588637919234
+   },
+   "published": 2017,
+   "role": "replication",
+   "same_close_excess_log_growth_per_year": 0.010563524297998492,
+   "source": "Harvey, Hoyle, Korgaonkar, Rattray, Sargaison & Van Hemert (2018), The Impact of Volatility Targeting; after Moreira & Muir (2017), Volatility-Managed Portfolios",
+   "tests": {
+    "ahead_in_6_of_9_decades": true,
+    "drawdown_within_10_points": true,
+    "full_excess_positive": true,
+    "positive_at_20bps": true,
+    "post_publication_excess_positive": false,
+    "rolling_10y_share_at_least_60pct": true
+   },
+   "title": "Exposure 15% / last month's SPY volatility (0-2x), held as SSO plus T-bills, monthly"
+  }
+ },
+ "plan": {
+  "bill_fee": 0.0014,
+  "candidates": [
+   "sso-hold",
+   "voltarget-sso",
+   "halloween-sso",
+   "tom-sso",
+   "rsi2-sso"
+  ],
+  "cost_bps": 5.0,
+  "cost_stress_bps": 20.0,
+  "decades": [
+   1930,
+   1940,
+   1950,
+   1960,
+   1970,
+   1980,
+   1990,
+   2000,
+   2010
+  ],
+  "financing_spread": 0.005,
+  "fund_fee": 0.009,
+  "index_fee": 0.0009,
+  "lag_sessions": 1,
+  "max_extra_drawdown": 0.1,
+  "methods": {
+   "halloween-sso": {
+    "assets": [
+     "SSO"
+    ],
+    "cash": "BIL",
+    "daily_switch": false,
+    "kind": "seasonal",
+    "method_id": "halloween-sso",
+    "params": [
+     [
+      "first_month",
+      11.0
+     ],
+     [
+      "last_month",
+      4.0
+     ]
+    ],
+    "schedule": "monthly",
+    "signal": "SPY",
+    "source": "Bouman & Jacobsen (2002), The Halloween Indicator",
+    "title": "SSO (2x S&P 500) from November through April, T-bills from May through October"
+   },
+   "rsi2-sso": {
+    "assets": [
+     "SSO"
+    ],
+    "cash": "BIL",
+    "daily_switch": true,
+    "kind": "rsi2",
+    "method_id": "rsi2-sso",
+    "params": [
+     [
+      "rsi_days",
+      2.0
+     ],
+     [
+      "entry",
+      10.0
+     ],
+     [
+      "trend_days",
+      200.0
+     ],
+     [
+      "exit_days",
+      5.0
+     ]
+    ],
+    "schedule": "monthly",
+    "signal": "SPY",
+    "source": "Connors & Alvarez (2008), Short Term Trading Strategies That Work",
+    "title": "SSO (2x S&P 500) after SPY's 2-day RSI closes below 10 above its 200-day average, until SPY closes above its 5-day average; T-bills otherwise"
+   },
+   "spy-trend200": {
+    "asset": "SPY",
+    "cadence": "every close (a switch trades at the next session); last session of each month (idle cash)",
+    "kind": "trend",
+    "method_id": "spy-trend200",
+    "risk_off": "BIL",
+    "signal": "SPY",
+    "sma": 200,
+    "source": "Gayed & Bilello (2016), Leverage for the Long Run",
+    "title": "SPY while SPY is above its 200-day average, else T-bills (BIL)"
+   },
+   "sso-hold": {
+    "assets": [
+     "SSO"
+    ],
+    "cash": "BIL",
+    "daily_switch": false,
+    "kind": "hold",
+    "method_id": "sso-hold",
+    "params": [],
+    "schedule": "monthly",
+    "signal": "SPY",
+    "source": "the leveraged buy-and-hold baseline of Gayed & Bilello (2016)",
+    "title": "SSO (2x S&P 500) held throughout"
+   },
+   "sso-trend200": {
+    "asset": "SSO",
+    "cadence": "every close (a switch trades at the next session); last session of each month (idle cash)",
+    "kind": "trend",
+    "method_id": "sso-trend200",
+    "risk_off": "BIL",
+    "signal": "SPY",
+    "sma": 200,
+    "source": "Gayed & Bilello (2016), Leverage for the Long Run",
+    "title": "SSO (2x S&P 500) while SPY is above its 200-day average, else T-bills (BIL)"
+   },
+   "tom-sso": {
+    "assets": [
+     "SSO"
+    ],
+    "cash": "BIL",
+    "daily_switch": true,
+    "kind": "turn-of-month",
+    "method_id": "tom-sso",
+    "params": [
+     [
+      "days_before",
+      1.0
+     ],
+     [
+      "days_after",
+      3.0
+     ]
+    ],
+    "schedule": "monthly",
+    "signal": "SPY",
+    "source": "Lakonishok & Smidt (1988); McConnell & Xu (2008), Equity Returns at the Turn of the Month",
+    "title": "SSO (2x S&P 500) over the last session of each month and the first three of the next, T-bills otherwise"
+   },
+   "voltarget-sso": {
+    "assets": [
+     "SSO"
+    ],
+    "cash": "BIL",
+    "daily_switch": false,
+    "kind": "vol-target",
+    "method_id": "voltarget-sso",
+    "params": [
+     [
+      "target_vol",
+      0.15
+     ],
+     [
+      "lookback",
+      21.0
+     ],
+     [
+      "max_exposure",
+      2.0
+     ]
+    ],
+    "schedule": "monthly",
+    "signal": "SPY",
+    "source": "Harvey, Hoyle, Korgaonkar, Rattray, Sargaison & Van Hemert (2018), The Impact of Volatility Targeting; after Moreira & Muir (2017), Volatility-Managed Portfolios",
+    "title": "Exposure 15% / last month's SPY volatility (0-2x), held as SSO plus T-bills, monthly"
+   }
+  },
+  "min_decades_ahead": 6,
+  "min_rolling_share": 0.6,
+  "notes": "Registered before the run. A robustness replication of personal-study-3's S&P 500 timing methods and the adopted sso-trend200 (with its 1x twin) on the Kenneth R. French Data Library's daily market and T-bill returns since July 1926: the methods are unchanged, nothing is fitted, and no new trial is counted. HOLDS_UP needs all of: excess log growth over the market above 0 over the whole history; ahead of the market in at least 6 of the 9 complete decades (1930s-2010s); maximum drawdown at most 10 points worse than the market's; ahead in at least 60% of rolling 10-year windows; excess above 0 after its publication (from the January after the year listed); and excess above 0 at 20 bps a side. HOLDS_UP_PARTLY: whole-history excess above 0 but another test failed. Otherwise DOES_NOT_HOLD_UP. Trading at the signal's own close, Holm over the five replications and the calendar-year extremes are reported, not tested. KNOWN_HISTORY: the forward record of the alerts is the test.",
+  "plan_id": "personal-study-4",
+  "published": [
+   [
+    "sso-trend200",
+    2016
+   ],
+   [
+    "spy-trend200",
+    2016
+   ],
+   [
+    "sso-hold",
+    2016
+   ],
+   [
+    "voltarget-sso",
+    2017
+   ],
+   [
+    "halloween-sso",
+    2002
+   ],
+   [
+    "tom-sso",
+    1988
+   ],
+   [
+    "rsi2-sso",
+    2008
+   ]
+  ],
+  "references": [
+   "sso-trend200",
+   "spy-trend200"
+  ],
+  "rolling_years": 10,
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip",
+  "title": "The S&P 500 timing methods on a century of daily US market returns (1926-2026): decades, rolling 10-year windows, drawdowns and post-publication returns",
+  "warmup_sessions": 252
+ },
+ "plan_sha256": "ea525e61d08455ed2bd734a75f3f508f1c85dc152ab3cd9f504b27c44541d333",
+ "provenance": {
+  "data_class": "REAL_MARKET_DATA",
+  "fetched_at": "2026-10-28T02:08:09Z",
+  "file_bytes": 178326,
+  "file_notes": "This file was created by using the 202609 CRSP database. The Tbill return is the simple daily rate that, over the number of trading days compounds to 1-month TBill rate. The 1-month TBill rate data until 202405 are from Ibbotson Associates. Starting from 202406, the 1-month TBill rate is from ICE BofA US 1-Month Treasury Bill Index.",
+  "file_sha256": "96c23b88e651cbfff3740a53f8225e59ee39893371e96385a1d8125ec2cd9c89",
+  "first_day": "1926-07-01",
+  "last_day": "2026-09-30",
+  "provider": "Kenneth R. French Data Library",
+  "rights_note": "derived aggregates only; the file is not stored or published",
+  "url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
+ },
+ "publication": "aggregates only: no return series and not the downloaded file",
+ "research_only": true,
+ "returns": "total",
+ "rule": "Registered before the run. A robustness replication of personal-study-3's S&P 500 timing methods and the adopted sso-trend200 (with its 1x twin) on the Kenneth R. French Data Library's daily market and T-bill returns since July 1926: the methods are unchanged, nothing is fitted, and no new trial is counted. HOLDS_UP needs all of: excess log growth over the market above 0 over the whole history; ahead of the market in at least 6 of the 9 complete decades (1930s-2010s); maximum drawdown at most 10 points worse than the market's; ahead in at least 60% of rolling 10-year windows; excess above 0 after its publication (from the January after the year listed); and excess above 0 at 20 bps a side. HOLDS_UP_PARTLY: whole-history excess above 0 but another test failed. Otherwise DOES_NOT_HOLD_UP. Trading at the signal's own close, Holm over the five replications and the calendar-year extremes are reported, not tested. KNOWN_HISTORY: the forward record of the alerts is the test.",
+ "schema": "apex-discovery-v3-personal-study-4",
+ "status": "COMPLETED",
+ "window": {
+  "first_decision": "1927-05-05",
+  "label": "KNOWN_HISTORY",
+  "last_session": "2026-09-30",
+  "tier": "ROBUSTNESS_REPLICATION"
+ }
+}
