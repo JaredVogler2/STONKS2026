@@ -142,16 +142,20 @@ class BatteryPlan:
         return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-PERSONAL_STUDY_3 = BatteryPlan(
-    plan_id="personal-study-3",
+# personal-study-3 (sha 4b67f1db...cac0, commit dd343be) stopped SOURCE_INVALID before evaluating anything: SPLG's bars
+# end on 2025-10-30 because the fund's ticker became SPYM on 2025-10-31. personal-study-3b is the same study with SPYM.
+PERSONAL_STUDY_3B = BatteryPlan(
+    plan_id="personal-study-3b",
     title="Ten more published methods for a $1000 whole-share account vs SPY: full 2017-2026 and DEV windows, rolling "
           "1- and 3-year windows, block-bootstrap intervals, cost stress (total returns)",
     candidates=("sso-hold", "voltarget-sso", "gtaa5", "vaa-g4", "adm", "hfea", "halloween-sso", "tom-sso", "rsi2-sso",
                 "mtum-hold"),
     references=("sso-trend200",),
-    symbols=(BENCHMARK, "SPLG", "SSO", "UPRO", "TMF", "BIL", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY", "TLT", "VNQ",
+    symbols=(BENCHMARK, "SPYM", "SSO", "UPRO", "TMF", "BIL", "EFA", "EEM", "AGG", "LQD", "IEF", "SHY", "TLT", "VNQ",
              "DBC", "SCZ", "MTUM"),
-    notes="Registered before the run. Each rule is a published one with its published parameters (sources in "
+    notes="Amended before any evaluation: personal-study-3 stopped SOURCE_INVALID because SPLG's bars end on 2025-10-30 "
+    "(the fund's ticker became SPYM on 2025-10-31); this plan reads SPYM instead and is otherwise unchanged. "
+    "Registered before the run. Each rule is a published one with its published parameters (sources in "
     "personal/method.py RULES); nothing is fitted. The FULL window runs from the first decision 2017-01-31 to the last "
     "DEV session; its halves split at its middle session, each half a fresh $1000. BEATS_SPY_REPEATEDLY needs all of: "
     "excess log growth over SPY above 0 on the FULL window and on each half; FULL maximum drawdown at most 10 points "
@@ -164,7 +168,12 @@ PERSONAL_STUDY_3 = BatteryPlan(
     "record is the test.")
 
 PERSONAL_PLANS: dict[str, PersonalStudyPlan | EtfStudyPlan | BatteryPlan | LongHistoryPlan] = {
-    p.plan_id: p for p in (PERSONAL_STUDY_1, PERSONAL_STUDY_2, PERSONAL_STUDY_3, PERSONAL_STUDY_4)}
+    p.plan_id: p for p in (PERSONAL_STUDY_1, PERSONAL_STUDY_2, PERSONAL_STUDY_3B, PERSONAL_STUDY_4)}
+
+
+# Funds tracking the same index as another in a plan. SPYM was SPLG until 2025-10-31: its history before then comes from
+# the provider's symbol mapping, which this check holds to SPY's daily moves.
+TWINS = {"SPYM": BENCHMARK}
 
 
 def _holm(p: dict[str, float | None]) -> dict[str, float | None]:
@@ -264,7 +273,7 @@ def synthetic_etf_bars(symbols: tuple[str, ...], start, end, seed: int = 11) -> 
     idx = pd.DatetimeIndex([pd.Timestamp(d) for d in days])
     rng = np.random.default_rng(seed)
     base = 0.0004 + 0.011 * rng.standard_normal(len(days))
-    rets = {BENCHMARK: base, "SSO": 2 * base - 0.00004, "UPRO": 3 * base - 0.00006,
+    rets = {BENCHMARK: base, "SPYM": base, "SSO": 2 * base - 0.00004, "UPRO": 3 * base - 0.00006,
             "EFA": 0.8 * base + 0.006 * rng.standard_normal(len(days)) - 0.0001,
             "AGG": 0.00008 + 0.003 * rng.standard_normal(len(days)), "BIL": np.full(len(days), 0.00012)}
     out = {}
@@ -334,6 +343,16 @@ def load_etf_data(plan: EtfStudyPlan | BatteryPlan, source: str, *, now: datetim
     short = [s for s, q in quality.items() if q["sessions"] < 0.99 * q["expected"] or q["invalid_rows"]]
     if short:
         raise RunStop(STATUS_SOURCE_INVALID, f"incomplete or invalid daily bars for {', '.join(short)}")
+    twins = {}
+    for sym, twin in TWINS.items():  # a renamed fund's history must move with a fund that tracks the same index
+        if sym in plan.symbols and twin in plan.symbols:
+            both = pd.concat([bars[sym]["close"].pct_change(), bars[twin]["close"].pct_change()], axis=1,
+                             join="inner").dropna()
+            gap, corr = float((both.iloc[:, 0] - both.iloc[:, 1]).abs().max()), float(both.corr().iloc[0, 1])
+            twins[sym] = {"twin": twin, "max_daily_return_gap": gap, "correlation": corr}
+            if gap > 0.03 or corr < 0.98:
+                raise RunStop(STATUS_SOURCE_INVALID, f"{sym} does not track {twin} (largest daily gap {100 * gap:.1f} "
+                              f"points, correlation {corr:.3f}): its history may be mapped or spliced wrongly")
     b = compute_boundaries_v2(bars[BENCHMARK].index)
     spy_days = bars[BENCHMARK].index
     d0, d1 = b.dev_range
@@ -341,7 +360,8 @@ def load_etf_data(plan: EtfStudyPlan | BatteryPlan, source: str, *, now: datetim
             "fetched_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "window_start": str(start),
             "window_end": str(end), "dataset_hash": data_hash(bars),
             "rights_note": "derived aggregates only; no vendor OHLCV is stored or published"}
-    dq = {"symbols": quality, "data_end_after_finality_lag": str(end), "provider_requests_total": requests}
+    dq = {"symbols": quality, "data_end_after_finality_lag": str(end), "provider_requests_total": requests,
+          "twins": twins}
     return EtfData(bars, spy_days[d0 - 1].date(), spy_days[d1].date(), prov, dq)
 
 
@@ -563,7 +583,7 @@ def summary_md(body: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-__all__ = ["PERSONAL_PLANS", "PERSONAL_STUDY_1", "PERSONAL_STUDY_2", "PERSONAL_STUDY_3", "BatteryPlan", "EtfData",
+__all__ = ["PERSONAL_PLANS", "PERSONAL_STUDY_1", "PERSONAL_STUDY_2", "PERSONAL_STUDY_3B", "BatteryPlan", "EtfData",
            "EtfStudyPlan", "PersonalStudyPlan", "battery_md", "load_etf_data", "rolling_vs_spy", "run_battery",
            "run_etf_study", "run_method", "run_personal_study", "stationary_bootstrap", "summary_md",
            "synthetic_etf_bars"]

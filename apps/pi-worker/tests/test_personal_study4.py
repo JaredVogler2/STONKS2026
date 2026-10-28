@@ -195,12 +195,12 @@ def test_the_century_replication_is_registered_for_the_index_only_methods():
     plan = PS.PERSONAL_PLANS["personal-study-4"]
     assert plan is L.PERSONAL_STUDY_4 and plan.sha256() == PERSONAL_STUDY_4_SHA256
     assert plan.references == ("sso-trend200", "spy-trend200")
-    assert set(plan.candidates) <= set(PS.PERSONAL_STUDY_3.candidates)
+    assert set(plan.candidates) <= set(PS.PERSONAL_STUDY_3B.candidates)
     assert set(dict(plan.published)) == {*plan.references, *plan.candidates}
     assert plan.lag_sessions == 1 and plan.cost_bps == 5.0 and plan.source_url == L.FRENCH_DAILY_URL
     for k in (*plan.references, *plan.candidates):
         assert set(R[k].data_symbols) <= set(L.ASSET), k  # nothing beyond the index and T-bills
-    assert PS.PERSONAL_STUDY_3.sha256() == "4b67f1db20f0ecf2cf0072b0a184ef897dce7c4b168956ed6a4a21be43c0cac0"
+    assert PS.PERSONAL_STUDY_3B.sha256() == "7c94e4c7c28bc1568fec8f0748a653e3f0a3f2e93b8ec08d013489406f48cf86"
 
 
 def test_the_replication_runs_on_the_fixture_and_writes_aggregates_only(tmp_path):

@@ -34,7 +34,7 @@ from apex_worker.personal import method as M
 
 FRENCH_DAILY_URL = ("https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/"
                     "F-F_Research_Data_Factors_daily_CSV.zip")
-ASSET = {"SPY": "1x", "SPLG": "1x", "SSO": "2x", "BIL": "bills"}  # the funds' roles in the rebuilt history
+ASSET = {"SPY": "1x", "SPYM": "1x", "SSO": "2x", "BIL": "bills"}  # the funds' roles in the rebuilt history
 STATUS_SOURCE_BLOCKED = "SOURCE_BLOCKED"
 
 

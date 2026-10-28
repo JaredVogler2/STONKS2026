@@ -1,9 +1,10 @@
-# Personal $1000 method study 3: preregistration (plan `personal-study-3`)
+# Personal $1000 method study 3: preregistration (plan `personal-study-3b`)
 
 | | |
 |---|---|
-| Machine copy | `apex_worker/discovery/v3/personal_study.py::PERSONAL_STUDY_3`, with the rules in `apex_worker/personal/method.py` (`RULES`). `apex research discovery plans` prints its sha256, and the run's `personal_study.json` must show the same value |
-| Plan sha256 | `4b67f1db20f0ecf2cf0072b0a184ef897dce7c4b168956ed6a4a21be43c0cac0` (it covers every rule's parameters, sources and the decision rule) |
+| Machine copy | `apex_worker/discovery/v3/personal_study.py::PERSONAL_STUDY_3B`, with the rules in `apex_worker/personal/method.py` (`RULES`). `apex research discovery plans` prints its sha256, and the run's `personal_study.json` must show the same value |
+| Plan sha256 | `7c94e4c7c28bc1568fec8f0748a653e3f0a3f2e93b8ec08d013489406f48cf86` (it covers every rule's parameters, sources and the decision rule) |
+| Amended | **Before any evaluation** (section 11). The first registration, `personal-study-3` (sha `4b67f1db…cac0`, commit `dd343be`), stopped `SOURCE_INVALID` at the data check: its S&P 500 fund SPLG became **SPYM** on 2025-10-31. This plan reads SPYM instead and is otherwise identical |
 | Registered | 2026-10-28, before this study reads any real price. Study 2 has already read six of the ETFs below (SPY, SSO, UPRO, EFA, AGG, BIL) from 2016 on, and the author has seen its results. No earlier study in this repository read the other eleven |
 | Why | [`personal-study-2`](../../research-results/discovery-v3/personal-study-2-2026-10-28/REVIEW.md) adopted `sso-trend200` (a 2× S&P 500 fund under a 200-day trend filter) on weak evidence: one window, chosen after study 1. The owner asked for more distinct methods to be tested properly before settling on a direction. This study puts **ten more published rules** through one battery, together with the adopted `sso-trend200` for comparison |
 | Kind | A **method comparison on known dates** (`DEV_CONTAMINATED`). Ten new trials, added to the [trial index](../../research-results/discovery-v3/TRIAL_INDEX.md): 33 cumulative V3 trials. `sso-trend200` is a reference here, not a new trial. The forward record of the alerts is the test |
@@ -22,9 +23,9 @@ Ten rules from nine families. Each one is a published rule with the publication'
 |---|---|---|---|---|
 | `sso-hold` | Leveraged buy-and-hold | Hold **SSO** (2× daily S&P 500) throughout | Month-end (idle cash only) | The baseline in Gayed & Bilello (2016), *Leverage for the Long Run* |
 | `voltarget-sso` | Volatility targeting | Exposure = 15% ÷ SPY's realized volatility over the last 21 sessions (annualized), capped at 2×. Held as SSO (exposure ÷ 2 of the account) plus **BIL** for the rest | Month-end | Harvey et al. (2018), *The Impact of Volatility Targeting*; after Moreira & Muir (2017) |
-| `gtaa5` | Multi-asset trend | A fifth each in US stocks (**SPLG**), foreign stocks (**EFA**), 7–10y Treasuries (**IEF**), REITs (**VNQ**) and commodities (**DBC**). Each fifth is held only while its month-end price is above its 10-month average, else in BIL | Month-end | Faber (2007), *A Quantitative Approach to Tactical Asset Allocation* |
-| `vaa-g4` | Breadth momentum | 13612W momentum (12×1-month + 4×3-month + 2×6-month + 12-month return). Hold the best of SPLG, EFA, **EEM** and **AGG** while all four are positive; otherwise hold the best of **LQD**, IEF and **SHY** | Month-end | Keller & Keuning (2017), *Breadth Momentum and Vigilant Asset Allocation* |
-| `adm` | Dual momentum | Score = 1 + 3 + 6-month returns. Hold the stronger of SPLG and **SCZ** (foreign small caps) while its score is positive; otherwise **TLT** (20+y Treasuries) | Month-end | EngineeredPortfolio (2018), *Accelerating Dual Momentum* |
+| `gtaa5` | Multi-asset trend | A fifth each in US stocks (**SPYM**), foreign stocks (**EFA**), 7–10y Treasuries (**IEF**), REITs (**VNQ**) and commodities (**DBC**). Each fifth is held only while its month-end price is above its 10-month average, else in BIL | Month-end | Faber (2007), *A Quantitative Approach to Tactical Asset Allocation* |
+| `vaa-g4` | Breadth momentum | 13612W momentum (12×1-month + 4×3-month + 2×6-month + 12-month return). Hold the best of SPYM, EFA, **EEM** and **AGG** while all four are positive; otherwise hold the best of **LQD**, IEF and **SHY** | Month-end | Keller & Keuning (2017), *Breadth Momentum and Vigilant Asset Allocation* |
+| `adm` | Dual momentum | Score = 1 + 3 + 6-month returns. Hold the stronger of SPYM and **SCZ** (foreign small caps) while its score is positive; otherwise **TLT** (20+y Treasuries) | Month-end | EngineeredPortfolio (2018), *Accelerating Dual Momentum* |
 | `hfea` | Leveraged risk parity | 55% **UPRO** (3× S&P 500), 45% **TMF** (3× 20+y Treasuries) | Quarter-end | "Hedgefundie's Excellent Adventure", Bogleheads forum (2019) |
 | `halloween-sso` | Seasonality | SSO from November through April; BIL from May through October | Month-end | Bouman & Jacobsen (2002), *The Halloween Indicator* |
 | `tom-sso` | Calendar anomaly | SSO over the turn of the month: the last session of each month and the first three of the next. BIL otherwise | Every close | Lakonishok & Smidt (1988); McConnell & Xu (2008), *Equity Returns at the Turn of the Month* |
@@ -37,18 +38,19 @@ Ten rules from nine families. Each one is a published rule with the publication'
 
 These choices are stated before the run because they were made by the author:
 - **2× versions.** The seasonal, turn-of-month and RSI(2) rules were published for the index itself. Here they hold SSO, the 2× fund, while "in". This matches the adopted method's leverage, so the comparison is about timing, not leverage. Volatility targeting uses SSO to allow up to 2× exposure.
-- **SPLG for SPY.** SPLG tracks the S&P 500 at a fraction of SPY's share price, so a $200 slot can hold whole shares. The benchmark is still SPY.
+- **SPYM for SPY.** SPYM (SPLG until 2025-10-31) tracks the S&P 500 at a fraction of SPY's share price, so a $200 slot can hold whole shares. The benchmark is still SPY.
 - **BIL for T-bills.** BIL stands in for the papers' T-bills or cash.
 - **Months as sessions.** 1, 3, 6 and 12 months are 21, 63, 126 and 252 sessions. Volatility uses the last 21 daily log returns.
 - **Fixed parameter choices.** The RSI is Wilder's with an entry level of 10, one of the levels the book reports. HFEA uses its 55/45 version, rebalanced each quarter.
 
 ## 3. Data and windows
 
-- **Data.** Alpaca historical **SIP** daily bars for 17 symbols: SPY, SPLG, SSO, UPRO, TMF, BIL, EFA, EEM, AGG, LQD, IEF, SHY, TLT, VNQ, DBC, SCZ and MTUM.
+- **Data.** Alpaca historical **SIP** daily bars for 17 symbols: SPY, SPYM, SSO, UPRO, TMF, BIL, EFA, EEM, AGG, LQD, IEF, SHY, TLT, VNQ, DBC, SCZ and MTUM.
   - Adjusted for **splits and dividends**, so every return is a total return, SPY's too.
   - The bars start on 2016-01-04, so every rule has a year of history at the first decision.
   - Protocol-2's finality lag applies, and the run makes at most 40 provider requests.
   - Each symbol needs at least 99% of the sessions with valid prices. Otherwise the run stops `SOURCE_INVALID` and evaluates nothing.
+  - **SPYM's history before 2025-10-31** comes from Alpaca's mapping of the renamed symbol. Its daily returns must track SPY's: correlation at least 0.98, and no daily gap over 3 points. Otherwise the run stops `SOURCE_INVALID`, because a wrongly mapped or spliced history would distort three rules.
 - **FULL window.** The first decision is at the close of **2017-01-31**. The last session is protocol-2's last DEV session at run time, about five weeks before the run. FULL therefore adds protocol-2's PRESAMPLE years (2017 to 2019) to the DEV dates.
 - **Halves.** FULL is split at its middle session. Each half starts again from $1000, so the two halves do not share a single day of returns.
 - **DEV window.** The first decision is 2019-10-22, the window of studies 1 and 2. It is reported for comparison and is not one of the tests.
@@ -133,3 +135,20 @@ Only aggregates, monthly account values and the ETFs' names are published. No ba
 ## 10. After the run
 
 The scoreboard goes to the owner with the recommendation and its caveats, and the owner chooses the direction. Until then, the alerts keep `sso-trend200`. The alerts never trade: there is no group channel, no brokerage execution and no order placement anywhere.
+
+## 11. Amendment before evaluation (2026-10-28)
+
+**What happened.** The first registration, `personal-study-3` (sha `4b67f1db20f0ecf2cf0072b0a184ef897dce7c4b168956ed6a4a21be43c0cac0`, merged in [JaredVogler2/STONKS2026#49](https://github.com/JaredVogler2/STONKS2026/pull/49)), ran once on [2026-10-28](https://github.com/JaredVogler2/STONKS2026/actions/runs/40616902467). It stopped at the data check with `SOURCE_INVALID: incomplete or invalid daily bars for SPLG`. Nothing was simulated and no result exists.
+
+**Why.** State Street changed the fund's ticker from SPLG to **SPYM** before the open on 2025-10-31. The fund, its index (the S&P 500) and its fee are unchanged. The old symbol stopped trading on 2025-10-30, so the bars Alpaca returned for SPLG fell short of the 99% coverage the data check requires.
+
+**What changed.** `personal-study-3b` differs only in these points:
+- the rules `gtaa5`, `vaa-g4` and `adm` hold SPYM, and the study reads SPYM's bars instead of SPLG's;
+- the plan's notes say so;
+- a twin check holds SPYM's history to SPY's daily moves. It is a data check, so it changes no rule or test.
+
+Everything else is unchanged: the rules' parameters, the windows, the battery and the decision rule. The alerts would also name SPYM, the ticker the owner can actually buy.
+
+`personal-study-3` is no longer runnable, since its plan reads a symbol that no longer trades. Its registration stays in git and in this note, and the trial index lists the stop.
+
+**Fund history.** The fund tracked a different US large-cap index before it was renamed SPDR Portfolio S&P 500 ETF in January 2020. For the "US stocks" role in these rules, the difference is negligible.
