@@ -1,0 +1,25 @@
+{
+ "counts": {
+  "candidate_stocks_usable": 495,
+  "invalid_rows_removed": 0,
+  "late_start_stocks": [
+   "APTV",
+   "HWM",
+   "LIN",
+   "SKYD",
+   "VTRS"
+  ],
+  "requested": 512,
+  "sector_etfs_usable": 11,
+  "status": {
+   "EXCLUDED_INCOMPLETE_HISTORY": 4,
+   "MISSING": 1,
+   "OK": 507
+  },
+  "usable": 507,
+  "usable_members_at_presample_start": 347,
+  "with_data": 511
+ },
+ "data_end_after_finality_lag": "2026-10-23",
+ "provider_requests_total": 143
+}

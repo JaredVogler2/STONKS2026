@@ -21,12 +21,15 @@ from apex_worker.personal import view as V
 from apex_worker.personal.book import Book, BookError, Record, build, iso, parse_at, pending, shell
 from apex_worker.personal.commands import Command, CommandError, parse
 from apex_worker.personal.market import Request, Snapshot
-from apex_worker.personal.method import METHODS, decide, is_decision_day
+from apex_worker.personal.method import METHODS, Decision, MethodSpec, decide, is_decision_day
 from apex_worker.personal.records import decode_all, encode, nonce
 from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
 
-PERSONAL_METHOD = "sector-mom-3"  # personal-study-1 picks the method (docs/discovery-v3/PERSONAL_STUDY_1.md)
+PERSONAL_METHOD = "sector-mom-3"  # the registered studies pick it (docs/discovery-v3/PERSONAL_STUDY_1.md, _2.md)
+METHOD_STATUS = {  # what the registered studies found, shown in the alerts (research-results/discovery-v3/)
+    "sector-mom-3": "EXPERIMENT: it did not beat SPY on 2019-2026 data (personal-study-1, -4.0%/yr)",
+}
 SETTLE = timedelta(minutes=30)  # a session's daily bars are final 30 minutes after its close (SIP: 15-minute delay)
 HISTORY_DAYS = 400  # calendar days of daily bars: the 126-session signal with room to spare
 MAX_LEN = 1990
@@ -104,6 +107,7 @@ class Runner:
     def __post_init__(self) -> None:
         self.now = self.now.astimezone(UTC)
         self.spec = METHODS[self.cfg.method_id]
+        self.status = METHOD_STATUS.get(self.cfg.method_id, "UNVALIDATED: no registered study adopted it")
         self.report = RunReport(dry=not self.cfg.live)
         self._snap: Snapshot | None = None
         self._line = 0  # the line of the owner's message being answered
@@ -128,7 +132,7 @@ class Runner:
         except BookError as exc:  # only if bot messages were deleted by hand: `undo` still works
             self.broken, self.book = exc, shell(self.records)
         if not self.records:
-            self._post(V.help_text(self.spec), {"k": "hello"})
+            self._post(V.help_text(self.spec, self.status), {"k": "hello"})
             self.report.welcome = True
         blank = [m for m in todo if (str(m["id"]), 0) not in done and not self._text(m)
                  and not m.get("attachments") and not m.get("sticker_items")]
@@ -218,7 +222,7 @@ class Runner:
             since = self.book.started_at.astimezone(ET).date() if self.book.started_at else today
             try:
                 self._snap = self.market(Request(
-                    daily=tuple(sorted({BENCHMARK, *self.spec.universe, *held, *self._symbols})),
+                    daily=tuple(sorted({BENCHMARK, *self.spec.data_symbols, *held, *self._symbols})),
                     latest=tuple(sorted({BENCHMARK, *held, *self._symbols})), start=start, end=today,
                     actions=tuple(sorted({BENCHMARK, *held})), actions_start=min(since, today) - timedelta(days=7)))
             except Exception as exc:  # one private note a day; the run then fails visibly
@@ -229,12 +233,26 @@ class Runner:
         return self._snap
 
     def _final_session(self) -> date | None:
-        """The latest session whose daily bars are final for SPY and all but at most one of the method's ETFs."""
+        """The latest session whose daily bars are final for SPY and the method's symbols (a rotation tolerates one
+        missing ETF: it is simply not ranked)."""
         last = self.cal.latest_completed_session(self.now - SETTLE)
         if not self.snap.has_day(BENCHMARK, last):
             return None
-        have = sum(self.snap.has_day(s, last) for s in self.spec.universe)
-        return last if have >= len(self.spec.universe) - 1 else None
+        need = self.spec.data_symbols
+        have = sum(self.snap.has_day(s, last) for s in need)
+        return last if have >= len(need) - (1 if isinstance(self.spec, MethodSpec) else 0) else None
+
+    def _complete(self, dec: Decision) -> bool:
+        """Never trade on a partial picture (a rotation without most ranks would EXIT everything)."""
+        if isinstance(self.spec, MethodSpec):
+            return len(dec.signals) >= len(self.spec.universe) - 1
+        return bool(dec.target)
+
+    def _basis(self, dec: Decision) -> str:
+        if isinstance(self.spec, MethodSpec):
+            return "Selection (6-month return): " + (", ".join(f"{s} ({V.spct(dec.signals[s])})" for s in dec.target)
+                                                     or "none (cash)")
+        return f"Signal: {dec.explain}"
 
     def _prices_now(self) -> tuple[dict[str, float], float | None, str]:
         held = list(self.book.held())
@@ -280,7 +298,7 @@ class Runner:
         getattr(self, f"_cmd_{cmd.verb}", self._money)(m, cmd)
 
     def _cmd_help(self, m: dict, cmd: Command) -> None:
-        self._reply(m, V.help_text(self.spec), {"k": "ack"})
+        self._reply(m, V.help_text(self.spec, self.status), {"k": "ack"})
 
     def _cmd_trades(self, m: dict, cmd: Command) -> None:
         self._reply(m, V.trades_text(self.book), {"k": "ack"})
@@ -299,17 +317,17 @@ class Runner:
 
     def _cmd_plan(self, m: dict, cmd: Command) -> None:
         last = self._final_session() or self.cal.latest_completed_session(self.now - SETTLE)
-        held = {s: q for s, q in self.book.held().items() if s in self.spec.universe}
-        dec = decide(self.spec, self.snap.closes(), last, held, float(self.book.cash))
-        if not dec.signals:
+        dec = decide(self.spec, self.snap.closes(), last, self._held(), float(self.book.cash))
+        if not self._complete(dec):
             self._reply(m, "I don't have enough prices for the method right now; try again later.", {"k": "ack"})
             return
         orders = V.orders_payload(dec.orders)
-        body = [f"🧭 If the month ended on the close of {V.day(last)} (`{self.spec.method_id}`; it trades only at "
-                f"month-end, next after the close of {V.day(self._next_decision())}):"]
+        when = ("it acts when the signal flips, and sizes idle cash at month-end" if self.spec.daily else
+                "it trades only at month-end")
+        body = [f"🧭 If the month ended on the close of {V.day(last)} (`{self.spec.method_id}`; {when}, next month-end "
+                f"after the close of {V.day(self._next_decision())}):"]
         body += [f"- {V.order_line(o, self.spec, None, dec.ranks)}" for o in orders] or ["- no trades"]
-        body.append("Selection (6-month return): " + (", ".join(f"{s} ({V.spct(dec.signals[s])})" for s in dec.target)
-                                                    or "none (cash)"))
+        body.append(self._basis(dec))
         self._reply(m, "\n".join(body), {"k": "ack"})
 
     def _cmd_undo(self, m: dict, cmd: Command) -> None:
@@ -432,13 +450,24 @@ class Runner:
         self._remind()
         self._split_notices()
 
+    def _held(self) -> dict[str, int]:
+        return {s: q for s, q in self.book.held().items() if s in self.spec.universe}
+
     def _decision_due(self, last: date) -> date | None:
+        """The first decision after `start`; each month-end; and for a daily method, a close where the signal's asset
+        differs from the latest alert's (a flip, not merely orders the owner has not reported yet)."""
         alerts = self.book.of("alert")
         if not alerts:
             return last
         prev = date.fromisoformat(alerts[-1].data["day"])
         due = last if is_decision_day(self.cal, last) else self.cal.previous_session(last.replace(day=1))
-        return due if due > prev else None
+        if due > prev:
+            return due
+        if self.spec.daily and last > prev:
+            dec = decide(self.spec, self.snap.closes(), last, self._held(), float(self.book.cash), rebalance=False)
+            if self._complete(dec) and dec.target != alerts[-1].data.get("sel"):
+                return last
+        return None
 
     def _next_decision(self) -> date:
         today = self.now.astimezone(ET).date()
@@ -469,13 +498,14 @@ class Runner:
         self.report.summary = True
 
     def _alert(self, due: date) -> None:
-        held = {s: q for s, q in self.book.held().items() if s in self.spec.universe}
-        dec = decide(self.spec, self.snap.closes(), due, held, float(self.book.cash))
-        if len(dec.signals) < len(self.spec.universe) - 1:  # never trade on a partial picture (e.g. EXIT everything)
+        held = self._held()
+        first = not self.book.of("alert")
+        month_end_due = is_decision_day(self.cal, due)
+        dec = decide(self.spec, self.snap.closes(), due, held, float(self.book.cash), rebalance=first or month_end_due)
+        if not self._complete(dec):
             self._note("no-signals", f"⚠️ The {V.day(due)} decision is waiting: the market data is incomplete. I'll "
                        "try again at the next run.")
             return
-        first = not self.book.of("alert")
         today = self.now.astimezone(ET).date()
         trade_day = self.cal.next_session(due)
         if first and self.cal.is_session(today) and self.now < self.cal.session(today).close_utc:
@@ -486,9 +516,16 @@ class Runner:
                       else f"Trade at or near the open of {V.day(trade_day)}")
         orders = V.orders_payload(dec.orders)
         closes = {s: c for s in dec.target if (c := self.snap.close_on(s, due)) is not None}
-        text = V.alert_text(spec=self.spec, decided=due, trade_when=trade_when, orders=orders, target=dec.target,
-                            held=set(held), signals=dec.signals, ranks=dec.ranks, equity=dec.equity,
-                            cash_after=dec.cash_after, closes=closes, late=late, notes=dec.notes, first=first)
+        if first:
+            head = "📣 **Starting allocation**"
+        elif month_end_due:
+            head = "📣 **Month-end rebalance**" if orders else "📣 **Month-end check**"
+        else:
+            head = "📣 **Signal change**"
+        text = V.alert_text(spec=self.spec, head=head, status=self.status, decided=due, trade_when=trade_when,
+                            orders=orders, target=dec.target, held=set(held), basis=self._basis(dec),
+                            equity=dec.equity, cash_after=dec.cash_after, closes=closes, ranks=dec.ranks, late=late,
+                            notes=dec.notes)
         self._post(text, {"k": "alert", "day": due.isoformat(), "m": self.spec.method_id, "orders": orders,
                           "eq": f"{dec.equity:.2f}", "cash": f"{dec.cash_after:.2f}", "sel": dec.target,
                           "posted": iso(self.now)})
@@ -524,5 +561,5 @@ class Runner:
                        f"{sp['ex_date']}`.", day=sp["ex_date"], sym=sp["symbol"])
 
 
-__all__ = ["HISTORY_DAYS", "PERSONAL_METHOD", "SETTLE", "Config", "MarketUnavailable", "RunReport", "Runner",
-           "month_end"]
+__all__ = ["HISTORY_DAYS", "METHOD_STATUS", "PERSONAL_METHOD", "SETTLE", "Config", "MarketUnavailable", "RunReport",
+           "Runner", "month_end"]

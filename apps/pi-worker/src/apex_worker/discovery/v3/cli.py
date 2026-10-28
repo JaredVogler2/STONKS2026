@@ -118,7 +118,13 @@ def cmd_design(args) -> int:
 
 
 def cmd_personal(args) -> int:
-    from apex_worker.discovery.v3.personal_study import PERSONAL_PLANS, run_personal_study
+    from apex_worker.discovery.v3.personal_study import (
+        PERSONAL_PLANS,
+        EtfStudyPlan,
+        load_etf_data,
+        run_etf_study,
+        run_personal_study,
+    )
     from apex_worker.discovery.v3.pipeline import load_data
     from apex_worker.research.realeq.data import RunStop
 
@@ -128,14 +134,18 @@ def cmd_personal(args) -> int:
     if (why := _guard(args)) is not None:
         print(why, file=sys.stderr)
         return 5
+    plan = PERSONAL_PLANS[args.plan]
+    out = Path(args.out)
     try:
-        data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
+        if isinstance(plan, EtfStudyPlan):  # personal-study-2: the plan's own few ETFs, total returns
+            data = load_etf_data(plan, args.source, max_requests=args.max_requests or 40)
+        else:
+            data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
     except RunStop as stop:
         print(f"{stop.status}: {stop.reason}", file=sys.stderr)
         return 2 if "BLOCKED" in stop.status else 3
-    out = Path(args.out)
-    summary = run_personal_study(PERSONAL_PLANS[args.plan], data, out, experiment_id=args.experiment_id,
-                                 progress=lambda m: print(m, flush=True))
+    run = run_etf_study if isinstance(plan, EtfStudyPlan) else run_personal_study
+    summary = run(plan, data, out, experiment_id=args.experiment_id, progress=lambda m: print(m, flush=True))
     (out / "data_quality_summary.json").write_text(json.dumps(data.data_quality, indent=1, sort_keys=True, default=str))
     print(json.dumps(summary, indent=1, default=str))
     return 0

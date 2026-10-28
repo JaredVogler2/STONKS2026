@@ -4,19 +4,23 @@
 > whole-share trades for a $1000 account. **You place every trade yourself** (at Ally Invest or any broker) and tell
 > the bot what you did. Nothing here places, routes or simulates an order with a broker.
 
-The method was chosen by a pre-registered study, [`personal-study-1`](../docs/discovery-v3/PERSONAL_STUDY_1.md):
+**The method** is whichever one the pre-registered studies adopt (`PERSONAL_METHOD` in `personal/runner.py`). Each alert shows its status.
 
-- **Universe.** The 11 Select Sector SPDR ETFs.
-- **Selection.** The top 3 by 6-month return, checked after the last close of each month. A holding stays while it ranks in the top 5.
-- **Sizing.** Whole shares, a third of the account per ETF.
+- **[`personal-study-1`](../research-results/discovery-v3/personal-study-1-2026-10-27/REVIEW.md)** tested the monthly rotation into the top 3 Select Sector SPDR ETFs. It **did not beat SPY**: on 2019–2026 data it trailed by 4.0% a year. It is the current method only as a labelled EXPERIMENT.
+- **[`personal-study-2`](../docs/discovery-v3/PERSONAL_STUDY_2.md)** tests rules published before 2019:
+  - the 200-day trend filter on a 1×, 2× or 3× S&P 500 fund, from Gayed & Bilello (2016);
+  - Dual Momentum, from Antonacci (2014).
+  
+  If one of them beats SPY under the registered rule, the bot switches to it, with the same commands.
 
-Its history on old data is a diagnostic only. **Its live record against SPY bought with the same cash is the real test.**
+History on old data is a diagnostic only. **The live record against SPY bought with the same cash is the real test.**
 
 ## What the bot does
 
 | When | What you get |
 |---|---|
 | After `start 1000` | **Starting allocation**: what to buy now, in whole shares, sized on the latest closes |
+| A trend method: any close where its signal flips (about 6 PM ET) | **Signal change**: sell what you hold, buy the signal's asset, with the signal in words (e.g. "SPY is 3.1% below its 200-day average") |
 | Last trading day of each month, after the close (about 6 PM ET) | **Month-end rebalance**. **EXIT** sells a holding that left the top 5. **TRIM** sells a holding grown above 1.5× its share of the account. **BUY** is a new pick. **ADD** tops up a holding below its share, which is where deposits go. If nothing needs to change, you get a short "no trades" check |
 | Next trading morning, before the open | A **reminder** of the alert's orders you haven't reported yet |
 | Every trading day after the close | A **summary**: account value, each position's P/L, cash, realized P/L, dividends, and **SPY with the same cash** (ahead or behind) |
