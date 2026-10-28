@@ -18,6 +18,7 @@ from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
 
 SYMBOLS = (BENCHMARK, *SECTOR_MOM_3.universe)
+EXTRA = ("SSO", "UPRO", "EFA", "AGG", "BIL")  # the single-asset methods' funds, derived from SPY's synthetic path
 
 
 def synthetic_bars(cal: MarketCalendar, start: date, end: date, seed: int = 7) -> dict[str, pd.DataFrame]:
@@ -35,6 +36,15 @@ def synthetic_bars(cal: MarketCalendar, start: date, end: date, seed: int = 7) -
         hi = np.maximum(opn, close) * (1 + np.abs(0.004 * rng.standard_normal(len(days))))
         lo = np.minimum(opn, close) * (1 - np.abs(0.004 * rng.standard_normal(len(days))))
         out[sym] = pd.DataFrame({"open": opn, "high": hi, "low": lo, "close": close}, index=idx)
+    extra = np.random.default_rng(seed + 1)  # a separate stream: the series above stay as they were
+    spy = np.diff(np.log(out[BENCHMARK]["close"].to_numpy()), prepend=np.log(out[BENCHMARK]["close"].iloc[0]))
+    rets = {"SSO": 2 * spy, "UPRO": 3 * spy, "EFA": 0.8 * spy + 0.006 * extra.standard_normal(len(days)),
+            "AGG": 0.00008 + 0.003 * extra.standard_normal(len(days)), "BIL": np.full(len(days), 0.00012)}
+    for i, sym in enumerate(EXTRA):
+        close = (60.0 + 15.0 * i) * np.exp(np.cumsum(rets[sym]))
+        opn = np.concatenate([[close[0]], close[:-1]])
+        out[sym] = pd.DataFrame({"open": opn, "high": np.maximum(opn, close) * 1.002,
+                                 "low": np.minimum(opn, close) * 0.998, "close": close}, index=idx)
     return out
 
 
@@ -118,4 +128,4 @@ def rehearse() -> list[str]:
     return lines
 
 
-__all__ = ["SYMBOLS", "SyntheticMarket", "rehearse", "synthetic_bars"]
+__all__ = ["EXTRA", "SYMBOLS", "SyntheticMarket", "rehearse", "synthetic_bars"]

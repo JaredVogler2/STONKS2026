@@ -176,11 +176,11 @@ def pending_text(alert: Record, left: list[dict], spec: Spec) -> str:
 def help_text(spec: Spec, status: str) -> str:
     names = ", ".join(f"{s} ({NAMES.get(s, s)})" for s in spec.universe) if spec.slots == 1 else \
         ", ".join(sorted(spec.universe))
-    when = ("I check every close and alert you when the signal flips, and after the last close of each month I size "
-            "any idle cash" if spec.daily else "I check after the last close of each month")
+    when = ("I check every close and alert you when the signal flips (at month-end I also size idle cash)"
+            if spec.daily else "I check after the last close of each month")
     return "\n".join([
         f"👋 I'm your personal alert bot for `{spec.method_id}`: {spec.title} ({names}).",
-        f"{when}, and suggest whole-share trades sized on what you hold; you place them yourself at Ally and tell me "
+        f"{when}. I suggest whole-share trades sized on what you hold; you place them yourself at Ally and tell me "
         "what you did. I never place orders.",
         "**Start:** `start 1000` once the cash is in the account.",
         "**Trades:** `bought 2 XLK at 245.10` · `sold 3 XLE at 90.20` (add `on 10/30 9:45` if it was earlier)",

@@ -6,12 +6,21 @@
 
 **The method** is whichever one the pre-registered studies adopt (`PERSONAL_METHOD` in `personal/runner.py`). Each alert shows its status.
 
-- **[`personal-study-1`](../research-results/discovery-v3/personal-study-1-2026-10-27/REVIEW.md)** tested the monthly rotation into the top 3 Select Sector SPDR ETFs. It **did not beat SPY**: on 2019–2026 data it trailed by 4.0% a year. It is the current method only as a labelled EXPERIMENT.
-- **[`personal-study-2`](../docs/discovery-v3/PERSONAL_STUDY_2.md)** tests rules published before 2019:
-  - the 200-day trend filter on a 1×, 2× or 3× S&P 500 fund, from Gayed & Bilello (2016);
-  - Dual Momentum, from Antonacci (2014).
-  
-  If one of them beats SPY under the registered rule, the bot switches to it, with the same commands.
+**Current method: `sso-trend200`, adopted by [`personal-study-2`](../research-results/discovery-v3/personal-study-2-2026-10-28/REVIEW.md).**
+
+- **The rule:** hold **SSO** (a 2× daily S&P 500 fund) while SPY closes above its 200-day average; otherwise hold **BIL** (1–3 month T-bills). This is the published rule from Gayed & Bilello (2016), with nothing tuned.
+- **When it trades:** the bot checks every close and alerts you only when the signal flips. At month-end it also tells you to put idle cash to work.
+- **Backtest:** on real Alpaca data from Oct 2019 to Sept 2026, with dividends on both sides, $1000 became **$3,461 against $2,841 in SPY**: +19.7% a year against +16.3%. The worst drop was −35.8% against SPY's −33.8%. It was ahead of SPY in 58% of rolling 12-month windows, and it trailed SPY in 2020, 2022, 2023 and 2025.
+- **Caveat:** that edge is **not statistically significant**, and the rule family was picked after the first study failed, by someone who knew those years.
+
+**Leveraged-fund risks you take on:**
+
+- **Daily reset:** SSO moves about twice the index *each day*, so a bad day costs twice as much. Choppy markets also wear it down.
+- **The filter acts late:** it acts at the next open after a close below the average, not during the day.
+- **Taxes:** each switch realizes a gain or loss.
+- **Ally:** you may need to acknowledge Ally's leveraged-ETF disclosure before buying SSO.
+
+**Earlier result:** [`personal-study-1`](../research-results/discovery-v3/personal-study-1-2026-10-27/REVIEW.md) found that the monthly sector-ETF rotation did **not** beat SPY (−4.0% a year).
 
 History on old data is a diagnostic only. **The live record against SPY bought with the same cash is the real test.**
 

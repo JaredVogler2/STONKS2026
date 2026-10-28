@@ -26,9 +26,11 @@ from apex_worker.personal.records import decode_all, encode, nonce
 from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
 
-PERSONAL_METHOD = "sector-mom-3"  # the registered studies pick it (docs/discovery-v3/PERSONAL_STUDY_1.md, _2.md)
+PERSONAL_METHOD = "sso-trend200"  # adopted by personal-study-2 (research-results/discovery-v3/personal-study-2-*)
 METHOD_STATUS = {  # what the registered studies found, shown in the alerts (research-results/discovery-v3/)
     "sector-mom-3": "EXPERIMENT: it did not beat SPY on 2019-2026 data (personal-study-1, -4.0%/yr)",
+    "sso-trend200": "ADOPTED on 2019-2026 data, +2.9%/yr vs SPY with a similar worst drop (personal-study-2); not "
+                    "statistically significant, and SSO is a 2x leveraged fund",
 }
 SETTLE = timedelta(minutes=30)  # a session's daily bars are final 30 minutes after its close (SIP: 15-minute delay)
 HISTORY_DAYS = 400  # calendar days of daily bars: the 126-session signal with room to spare

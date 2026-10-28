@@ -33,13 +33,14 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry: read the channel and compute, post nothing (a setup check). live: what a scheduled run does"
+        description: "dry: read the channel and compute, post nothing (a setup check). live: what a scheduled run does. signal: today's signal on Alpaca data only (no Discord)"
         required: true
         default: dry
         type: choice
         options:
           - dry
           - live
+          - signal
 
 permissions:
   contents: read
@@ -91,11 +92,16 @@ jobs:
           MODE: ${{ github.event_name == 'schedule' && 'live' || inputs.mode }}
         run: |
           set +e
-          uv run --no-sync apex personal run --mode "$MODE"
+          if [ "$MODE" = "signal" ]; then
+            uv run --no-sync apex personal signal  # Alpaca only: the method's signal in percent, never a price
+          else
+            uv run --no-sync apex personal run --mode "$MODE"
+          fi
           rc=$?
           set -e
           case "$rc" in
             0) ;;
             2) echo "::error title=BLOCKED::a secret is missing (personal/README.md, owner setup)"; exit 2 ;;
+            3) echo "::warning title=NO_SIGNAL::the market data is incomplete for today's decision"; exit 3 ;;
             *) echo "::error title=RUN_FAILED::the run stopped; the next scheduled run retries (details stay private)"; exit "$rc" ;;
           esac
