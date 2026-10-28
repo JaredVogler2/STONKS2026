@@ -612,3 +612,26 @@ def test_the_default_method_is_registered_and_labelled():
 
     assert PERSONAL_METHOD in METHODS and PERSONAL_METHOD in METHOD_STATUS
     assert set(METHODS[PERSONAL_METHOD].data_symbols) <= set(synthetic_bars(CAL, date(2026, 1, 2), date(2026, 1, 9)))
+
+
+def test_the_signal_command_needs_only_alpaca_and_prints_no_price(monkeypatch, capsys):
+    from apex_worker.cli import main
+    from apex_worker.personal import market
+
+    monkeypatch.delenv("ALPACA_KEY_ID", raising=False)
+    monkeypatch.delenv("ALPACA_SECRET_KEY", raising=False)
+    assert main(["personal", "signal"]) == 2 and "ALPACA_KEY_ID" in capsys.readouterr().err
+    clock = {"now": et(2026, 10, 27, 18, 7)}
+    mk = SyntheticMarket(CAL, lambda: clock["now"], bars=cheap_bars())
+    monkeypatch.setattr(market, "alpaca_source", lambda k, s: mk)
+    import apex_worker.personal.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "datetime", _Frozen)
+    monkeypatch.setenv("ALPACA_KEY_ID", "k")
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "s")
+    clock["now"] = _Frozen.now()
+    assert main(["personal", "signal"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["method"] == "sso-trend200" and out["target"] in (["SSO"], ["BIL"]) and out["decided_on"] == "2026-10-26"
+    assert set(out["signal_pct"]) == {"SPY"} and all(s[0] == "BUY" for s in out["orders_for_a_fresh_1000"])
+    assert "." not in json.dumps(out["orders_for_a_fresh_1000"])  # share counts only: no price in the public log

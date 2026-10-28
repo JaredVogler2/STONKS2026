@@ -32,7 +32,7 @@ def test_schedule_in_new_york_time_and_a_dry_by_default_dispatch(wf):
     weekday = crons[0]["cron"].split()
     assert weekday[1] == "7-20" and weekday[4] == "1-5"  # the morning reminder through the month-end evening
     mode = on["workflow_dispatch"]["inputs"]["mode"]
-    assert mode["default"] == "dry" and mode["options"] == ["dry", "live"]
+    assert mode["default"] == "dry" and mode["options"] == ["dry", "live", "signal"]
 
 
 def test_read_only_default_branch_activation_and_its_own_concurrency(wf, raw):
@@ -58,6 +58,7 @@ def test_secrets_reach_the_run_step_only_and_schedules_post_live(wf):
     assert env["MODE"] == "${{ github.event_name == 'schedule' && 'live' || inputs.mode }}"
     run = holders[0]["run"]
     assert 'apex personal run --mode "$MODE"' in run and "secrets" not in run and "echo $" not in run
+    assert 'if [ "$MODE" = "signal" ]; then' in run and "apex personal signal" in run
     assert "${{" not in run  # inputs and secrets only through env
 
 
