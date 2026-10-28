@@ -1,7 +1,8 @@
 """Whole-share simulation of a personal method (personal/method.py) on daily bars, and its comparison with SPY.
 
 * The first decision is taken at the close of `first_decision` (the account starts in cash), later ones at the close of
-  each month's last session, and for a daily method (TrendSpec) at every close too, where only a switch makes orders.
+  each month's last session (a quarterly rule: each quarter's), and for a daily method at every close too, where only a
+  switch makes orders. A rule's rebalance that lacks a close for one of its ETFs is taken at the next complete close.
   Every decision's orders fill at the next session's OPEN: sells first, then buys in the method's order. `cost_bps` per
   side is charged on the traded value (spread and slippage; Ally charges no commission). A buy that no longer fits the
   cash at the open is cut to the shares that fit; a symbol without an open that session is retried at the next open.
@@ -56,6 +57,7 @@ def simulate(spec: M.Spec, bars: dict[str, pd.DataFrame], first_decision: date, 
     trades: list[dict] = []
     decisions: list[dict] = []
     paid = 0.0
+    carry = False  # a RuleSpec rebalance that lacked a close: taken at the next close instead
     for i, d in enumerate(sessions):
         ts = pd.Timestamp(d)
         if pending:
@@ -90,9 +92,10 @@ def simulate(spec: M.Spec, bars: dict[str, pd.DataFrame], first_decision: date, 
         value = cash + sum(q * last_close.get(s, 0.0) for s, q in holdings.items())
         eq[ts], ca[ts], npos[ts] = value, cash, len(holdings)
         last = i == len(sessions) - 1
-        scheduled = i == 0 or M.is_decision_day(cal, d)
+        scheduled = i == 0 or carry or M.rebalance_day(spec, cal, d)  # month-end (quarter-end for a quarterly rule)
         if not last and (scheduled or spec.daily):
             dec = M.decide(spec, closes, d, holdings, cash, rebalance=scheduled)
+            carry = scheduled and isinstance(spec, M.RuleSpec) and not dec.target
             pending = [*pending, *dec.orders]
             if scheduled or dec.orders:  # a daily check without a switch is not a decision
                 decisions.append({"day": d.isoformat(), "target": dec.target, "orders": len(dec.orders)})
