@@ -7,7 +7,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from apex_worker.personal.book import ZERO, Book, Record, spy_dividend_cash
-from apex_worker.personal.method import NAMES, SELLS, Order, Spec
+from apex_worker.personal.method import NAMES, SELLS, Order, RuleSpec, Spec
 from apex_worker.timeutil import ET
 
 CENT = Decimal("0.01")
@@ -40,6 +40,11 @@ def day(d: date) -> str:
 def when(at: datetime) -> str:
     t = at.astimezone(ET)
     return f"{t:%a} {t.month}/{t.day} {t:%-I:%M %p} ET"
+
+
+def period(spec: Spec) -> str:
+    """The method's rebalance period: "quarter" for a quarterly rule, else "month"."""
+    return "quarter" if getattr(spec, "schedule", "monthly") == "quarterly" else "month"
 
 
 @dataclass(frozen=True)
@@ -116,9 +121,16 @@ def account_text(v: Valuation, *, title: str) -> str:
     return "\n".join(out)
 
 
-def order_line(o: dict, spec: Spec, per_slot: Decimal | None = None, ranks: dict | None = None) -> str:
+def order_line(o: dict, spec: Spec, per_slot: Decimal | None = None, ranks: dict | None = None,
+               weights: dict[str, float] | None = None) -> str:
     n = o.get("left", o["n"])
     what = f"BUY {n} {o['s']}" if o["a"] == "BUY" else f"{o['a']}: {'sell' if o['a'] in SELLS else 'buy'} {n} {o['s']}"
+    if isinstance(spec, RuleSpec):  # a rule's target weights decide
+        w = (weights or {}).get(o["s"])
+        weight = f"its {100 * w:.0f}% weight" if w else "its weight"
+        why = {"EXIT": "out of the rule's target", "BUY": f"the rule's target ({100 * w:.0f}%)" if w else
+               "the rule's target", "ADD": f"up to {weight}", "TRIM": f"back to {weight}"}[o["a"]]
+        return f"**{what}** ≈ ${pfmt(o['px'])} · {why}"
     trim = getattr(spec, "trim_above", 1.5)
     why = {"EXIT": "left the selection", "TRIM": f"above {trim:g}x its target", "BUY": "new pick",
            "ADD": "below its target"}[o["a"]]
@@ -137,22 +149,24 @@ def orders_payload(orders: list[Order]) -> list[dict]:
 
 def alert_text(*, spec: Spec, head: str, status: str, decided: date, trade_when: str, orders: list[dict],
                target: list[str], held: set[str], basis: str, equity: float, cash_after: float,
-               closes: dict[str, float], ranks: dict[str, int], late: bool, notes: list[str]) -> str:
+               closes: dict[str, float], ranks: dict[str, int], late: bool, notes: list[str],
+               weights: dict[str, float] | None = None) -> str:
     out = [f"{head} · decided on the close of {day(decided)} · `{spec.method_id}` ({status})"]
     if late:
         out.append(f"⚠️ Posted late: these orders were sized on the {day(decided)} closes.")
     per_slot = Decimal(str(equity)) / spec.slots
+    room = {s: Decimal(str(equity * w)) for s, w in (weights or {}).items()}  # a rule's money per ETF
     bought = {o["s"] for o in orders if o["a"] in ("BUY", "ADD")}
     too_dear = [s for s in target if s not in held and s not in bought and s in closes]
     if orders:
         out.append(f"{trade_when}, whole shares (a limit order near the price is fine):")
-        out += [f"- {order_line(o, spec, per_slot if spec.slots > 1 else None, ranks)}" for o in orders]
+        out += [f"- {order_line(o, spec, per_slot if spec.slots > 1 else None, ranks, weights)}" for o in orders]
     else:
         out.append("No trades." + (f" Keep {', '.join(s for s in target if s in held)}."
                                    if any(s in held for s in target) else ""))
     out.append(basis)
     out += [f"- {s}: one share (≈ ${pfmt(round(closes[s], 2))}) costs more than this account can put in it now "
-            f"(≈ {usd(per_slot)}), so that money stays in cash." for s in too_dear]
+            f"(≈ {usd(room.get(s, per_slot))}), so that money stays in cash." for s in too_dear]
     if orders:
         out.append(f"Account at the close: {usd(equity)} · cash after these ≈ {usd(cash_after)}")
         example = orders[0]["s"]
@@ -177,7 +191,7 @@ def help_text(spec: Spec, status: str) -> str:
     names = ", ".join(f"{s} ({NAMES.get(s, s)})" for s in spec.universe) if spec.slots == 1 else \
         ", ".join(sorted(spec.universe))
     when = ("I check every close and alert you when the signal flips (at month-end I also size idle cash)"
-            if spec.daily else "I check after the last close of each month")
+            if spec.daily else f"I check after the last close of each {period(spec)}")
     return "\n".join([
         f"👋 I'm your personal alert bot for `{spec.method_id}`: {spec.title} ({names}).",
         f"{when}. I suggest whole-share trades sized on what you hold; you place them yourself at Ally and tell me "
@@ -219,5 +233,5 @@ def trades_text(book: Book, limit: int = 15) -> str:
 
 
 __all__ = ["LABEL", "Line", "Valuation", "account_text", "alert_text", "day", "describe", "help_text",
-           "order_line", "orders_payload", "pending_text", "pfmt", "reminder_text", "spct", "susd", "trades_text",
-           "usd", "valuation", "when"]
+           "order_line", "orders_payload", "pending_text", "period", "pfmt", "reminder_text", "spct", "susd",
+           "trades_text", "usd", "valuation", "when"]

@@ -21,7 +21,7 @@ from apex_worker.personal import view as V
 from apex_worker.personal.book import Book, BookError, Record, build, iso, parse_at, pending, shell
 from apex_worker.personal.commands import Command, CommandError, parse
 from apex_worker.personal.market import Request, Snapshot
-from apex_worker.personal.method import METHODS, Decision, MethodSpec, decide, is_decision_day
+from apex_worker.personal.method import METHODS, Decision, MethodSpec, decide, rebalance_day
 from apex_worker.personal.records import decode_all, encode, nonce
 from apex_worker.research.training_data import BENCHMARK
 from apex_worker.timeutil import ET
@@ -324,11 +324,13 @@ class Runner:
             self._reply(m, "I don't have enough prices for the method right now; try again later.", {"k": "ack"})
             return
         orders = V.orders_payload(dec.orders)
+        per = V.period(self.spec)
         when = ("it acts when the signal flips, and sizes idle cash at month-end" if self.spec.daily else
-                "it trades only at month-end")
-        body = [f"🧭 If the month ended on the close of {V.day(last)} (`{self.spec.method_id}`; {when}, next month-end "
+                f"it trades only at {per}-end")
+        body = [f"🧭 If the {per} ended on the close of {V.day(last)} (`{self.spec.method_id}`; {when}, next {per}-end "
                 f"after the close of {V.day(self._next_decision())}):"]
-        body += [f"- {V.order_line(o, self.spec, None, dec.ranks)}" for o in orders] or ["- no trades"]
+        body += [f"- {V.order_line(o, self.spec, None, dec.ranks, dec.weights)}" for o in orders] or [
+            "- no trades"]
         body.append(self._basis(dec))
         self._reply(m, "\n".join(body), {"k": "ack"})
 
@@ -462,7 +464,7 @@ class Runner:
         if not alerts:
             return last
         prev = date.fromisoformat(alerts[-1].data["day"])
-        due = last if is_decision_day(self.cal, last) else self.cal.previous_session(last.replace(day=1))
+        due = self._last_rebalance(last)
         if due > prev:
             return due
         if self.spec.daily and last > prev:
@@ -471,12 +473,24 @@ class Runner:
                 return last
         return None
 
+    def _last_rebalance(self, last: date) -> date:
+        """The method's latest scheduled rebalance close at or before `last` (month-end, or quarter-end)."""
+        d = last
+        for _ in range(80):
+            if rebalance_day(self.spec, self.cal, d):
+                return d
+            d = self.cal.previous_session(d)
+        return d
+
     def _next_decision(self) -> date:
         today = self.now.astimezone(ET).date()
-        nxt = month_end(self.cal, today)
-        if self.book.has("alert", nxt.isoformat()) or self.now >= self.cal.session(nxt).close_utc + SETTLE:
-            nxt = month_end(self.cal, nxt + timedelta(days=7))
-        return nxt
+        d = today if self.cal.is_session(today) else self.cal.next_session(today)
+        for _ in range(80):
+            done = self.book.has("alert", d.isoformat()) or self.now >= self.cal.session(d).close_utc + SETTLE
+            if rebalance_day(self.spec, self.cal, d) and not done:
+                return d
+            d = self.cal.next_session(d)
+        return month_end(self.cal, today)
 
     def _pending_latest(self) -> tuple[Record, list[dict]] | None:
         alert = self.book.latest("alert")
@@ -502,7 +516,7 @@ class Runner:
     def _alert(self, due: date) -> None:
         held = self._held()
         first = not self.book.of("alert")
-        month_end_due = is_decision_day(self.cal, due)
+        month_end_due = rebalance_day(self.spec, self.cal, due)
         dec = decide(self.spec, self.snap.closes(), due, held, float(self.book.cash), rebalance=first or month_end_due)
         if not self._complete(dec):
             self._note("no-signals", f"⚠️ The {V.day(due)} decision is waiting: the market data is incomplete. I'll "
@@ -521,13 +535,14 @@ class Runner:
         if first:
             head = "📣 **Starting allocation**"
         elif month_end_due:
-            head = "📣 **Month-end rebalance**" if orders else "📣 **Month-end check**"
+            when = V.period(self.spec).capitalize() + "-end"
+            head = f"📣 **{when} rebalance**" if orders else f"📣 **{when} check**"
         else:
             head = "📣 **Signal change**"
         text = V.alert_text(spec=self.spec, head=head, status=self.status, decided=due, trade_when=trade_when,
                             orders=orders, target=dec.target, held=set(held), basis=self._basis(dec),
                             equity=dec.equity, cash_after=dec.cash_after, closes=closes, ranks=dec.ranks, late=late,
-                            notes=dec.notes)
+                            notes=dec.notes, weights=dec.weights)
         self._post(text, {"k": "alert", "day": due.isoformat(), "m": self.spec.method_id, "orders": orders,
                           "eq": f"{dec.equity:.2f}", "cash": f"{dec.cash_after:.2f}", "sel": dec.target,
                           "posted": iso(self.now)})

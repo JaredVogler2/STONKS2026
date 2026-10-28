@@ -22,9 +22,9 @@
 #   the quarterly Form 3/4/5 data sets) with the owner's contact, the repository secret APEX_SEC_USER_AGENT, which the
 #   SEC's fair-access policy requires; it is sent to the SEC only, and a run without it stops before any download.
 # * A `personal-study-*` plan runs the registered personal-method study instead (docs/discovery-v3/
-#   PERSONAL_STUDY_1.md, PERSONAL_STUDY_2.md): whole-share methods for a $1000 account against SPY on the DEV window;
-#   personal-study-2 reads only its six ETFs (split- and dividend-adjusted, at most 40 requests). Aggregates and the
-#   ETFs' names only (personal_study.json, PERSONAL_STUDY.md).
+#   PERSONAL_STUDY_1.md, _2.md, _3.md): whole-share methods for a $1000 account against SPY; personal-study-2 reads
+#   only its six ETFs and personal-study-3 its seventeen (split- and dividend-adjusted, at most 40 requests).
+#   Aggregates and the ETFs' names only (personal_study.json, PERSONAL_STUDY.md).
 # * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-discovery-v3
@@ -108,7 +108,7 @@ jobs:
           cmd=run
           if [[ "$PLAN" == cost-study-* ]]; then cmd=costs; fi  # registered execution-cost measurement (PR-D)
           if [[ "$PLAN" == design-study-* ]]; then cmd=design; fi  # registered design measurement (DESIGN_STUDY_1/2.md)
-          if [[ "$PLAN" == personal-study-* ]]; then cmd=personal; fi  # personal-method study (PERSONAL_STUDY_1.md)
+          if [[ "$PLAN" == personal-study-* ]]; then cmd=personal; fi  # personal-method studies (PERSONAL_STUDY_1-3.md)
           set +e
           uv run --no-sync apex research discovery "$cmd" --plan "$PLAN" --source alpaca \
             --experiment-id "$EXPERIMENT_ID" --out "$APEX_OUT/report"
