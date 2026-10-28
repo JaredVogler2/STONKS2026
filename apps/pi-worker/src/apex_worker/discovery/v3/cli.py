@@ -118,6 +118,7 @@ def cmd_design(args) -> int:
 
 
 def cmd_personal(args) -> int:
+    from apex_worker.discovery.v3.long_history import LongHistoryPlan, load_history, run_long_history
     from apex_worker.discovery.v3.personal_study import (
         PERSONAL_PLANS,
         BatteryPlan,
@@ -139,15 +140,17 @@ def cmd_personal(args) -> int:
     plan = PERSONAL_PLANS[args.plan]
     out = Path(args.out)
     try:
-        if isinstance(plan, EtfStudyPlan | BatteryPlan):  # studies 2-3: the plan's own few ETFs, total returns
+        if isinstance(plan, LongHistoryPlan):  # study 4: the French library's public daily file, not Alpaca
+            data = load_history(plan, "fixture" if args.source == "fixture" else "french")
+        elif isinstance(plan, EtfStudyPlan | BatteryPlan):  # studies 2-3: the plan's own few ETFs, total returns
             data = load_etf_data(plan, args.source, max_requests=args.max_requests or 40)
         else:
             data = load_data(args.source, per_sector=args.per_sector, max_requests=args.max_requests)
     except RunStop as stop:
         print(f"{stop.status}: {stop.reason}", file=sys.stderr)
         return 2 if "BLOCKED" in stop.status else 3
-    run = (run_battery if isinstance(plan, BatteryPlan) else run_etf_study if isinstance(plan, EtfStudyPlan)
-           else run_personal_study)
+    run = (run_long_history if isinstance(plan, LongHistoryPlan) else run_battery if isinstance(plan, BatteryPlan)
+           else run_etf_study if isinstance(plan, EtfStudyPlan) else run_personal_study)
     summary = run(plan, data, out, experiment_id=args.experiment_id, progress=lambda m: print(m, flush=True))
     (out / "data_quality_summary.json").write_text(json.dumps(data.data_quality, indent=1, sort_keys=True, default=str))
     print(json.dumps(summary, indent=1, default=str))

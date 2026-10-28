@@ -1,5 +1,6 @@
 """Discovery V3 studies `personal-study-1` to `personal-study-3` (docs/discovery-v3/PERSONAL_STUDY_1.md, _2.md, _3.md):
-which whole-share method should a $1000 account follow, and does it beat SPY?
+which whole-share method should a $1000 account follow, and does it beat SPY? (`personal-study-4`, the century
+replication, lives in long_history.py and is registered here with the others.)
 
 personal-study-2 (EtfStudyPlan, below) tests rules published before the DEV window, with their published parameters, on
 split- and dividend-adjusted bars of the few ETFs they trade (total returns, SPY's too). Its rule and its window are
@@ -37,6 +38,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from apex_worker.discovery.v3.long_history import PERSONAL_STUDY_4, LongHistoryPlan
 from apex_worker.market.calendar import default_calendar
 from apex_worker.personal import backtest as B
 from apex_worker.personal import method as M
@@ -161,8 +163,8 @@ PERSONAL_STUDY_3 = BatteryPlan(
     "over the ten new trials (FULL monthly active returns) are reported, not tested. DEV_CONTAMINATED: the forward "
     "record is the test.")
 
-PERSONAL_PLANS: dict[str, PersonalStudyPlan | EtfStudyPlan | BatteryPlan] = {
-    p.plan_id: p for p in (PERSONAL_STUDY_1, PERSONAL_STUDY_2, PERSONAL_STUDY_3)}
+PERSONAL_PLANS: dict[str, PersonalStudyPlan | EtfStudyPlan | BatteryPlan | LongHistoryPlan] = {
+    p.plan_id: p for p in (PERSONAL_STUDY_1, PERSONAL_STUDY_2, PERSONAL_STUDY_3, PERSONAL_STUDY_4)}
 
 
 def _holm(p: dict[str, float | None]) -> dict[str, float | None]:

@@ -22,9 +22,11 @@
 #   the quarterly Form 3/4/5 data sets) with the owner's contact, the repository secret APEX_SEC_USER_AGENT, which the
 #   SEC's fair-access policy requires; it is sent to the SEC only, and a run without it stops before any download.
 # * A `personal-study-*` plan runs the registered personal-method study instead (docs/discovery-v3/
-#   PERSONAL_STUDY_1.md, _2.md, _3.md): whole-share methods for a $1000 account against SPY; personal-study-2 reads
+#   PERSONAL_STUDY_1.md to _4.md): whole-share methods for a $1000 account against SPY; personal-study-2 reads
 #   only its six ETFs and personal-study-3 its seventeen (split- and dividend-adjusted, at most 40 requests).
-#   Aggregates and the ETFs' names only (personal_study.json, PERSONAL_STUDY.md).
+#   personal-study-4 reads no Alpaca data: one download of the Kenneth R. French Data Library's public daily
+#   market file (its sha256 is recorded; the file is neither stored nor published). Aggregates and the ETFs'
+#   names only (personal_study.json, PERSONAL_STUDY.md).
 # * Max runtime: timeout-minutes 45 per manual run (manual, not part of the scheduled worst case; checked first).
 # Actions pinned to full commit SHAs (version in the trailing comment).
 name: apex-discovery-v3
