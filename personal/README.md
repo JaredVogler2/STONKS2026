@@ -22,6 +22,13 @@
 
 **Earlier result:** [`personal-study-1`](../research-results/discovery-v3/personal-study-1-2026-10-27/REVIEW.md) found that the monthly sector-ETF rotation did **not** beat SPY (−4.0% a year).
 
+**Compared with ten more methods** ([`personal-study-3b`](../research-results/discovery-v3/personal-study-3b-2026-10-28/REVIEW.md), 2017–2026 on real funds; [`personal-study-4`](../research-results/discovery-v3/personal-study-4-2026-10-28/REVIEW.md), 1927–2026 rebuilt):
+- **No method passed every test on 2017–2026.**
+  - Only three beat SPY at all: 2× buy-and-hold (+6.8% a year, but a −59% worst drop), the momentum ETF (+1.4%), and this method (+1.4%, drop −36% against SPY's −34%).
+  - Seven lost to SPY: the defensive, calendar and mean-reversion rules.
+- **Over a century, this method is the only one that held up:** +4.4% a year over the market, ahead in 8 of 9 decades, worst drop −68% against the market's −84%. 2× buy-and-hold beat the market too, but lost 98% in 1929–32.
+- **The choice of direction is yours.** The alerts keep this method unless you pick another (`PERSONAL_METHOD`).
+
 History on old data is a diagnostic only. **The live record against SPY bought with the same cash is the real test.**
 
 ## What the bot does

@@ -12,10 +12,11 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 | [`v3-pilot-2-2026-10-23`](v3-pilot-2-2026-10-23/) ([review](v3-pilot-2-2026-10-23/REVIEW.md), [decision report](v3-pilot-2-2026-10-23/DECISION_REPORT.md)) | [39921190552](https://github.com/JaredVogler2/STONKS2026/actions/runs/39921190552), 2026-10-23 | `ed8c8e5` | `v3-pilot-2` (`5a2cc40c…8c0e`), `obj-v3-2`, `cost-v3-2` | 7 | **5 REJECTED_DEV, 2 INCONCLUSIVE_DEV** (G2 quarterly buffered momentum, +8.6 pp/yr vs SPY, Holm 0.62; risk-loaded, survivorship-exposed). Aggregate NO_TRADE; nothing nominated |
 | [`personal-study-1-2026-10-27`](personal-study-1-2026-10-27/) ([review](personal-study-1-2026-10-27/REVIEW.md)) | [40604191780](https://github.com/JaredVogler2/STONKS2026/actions/runs/40604191780), 2026-10-27 | `e81e561` | `personal-study-1` (`89bd5a40…6aba`) | 2 | **2 DOES_NOT_BEAT_SPY_ON_DEV** (best: sector-mom-3, −4.0 pp/yr vs SPY, Holm 1.0). Runs only as a labelled EXPERIMENT in the owner's personal alerts |
 | [`personal-study-2-2026-10-28`](personal-study-2-2026-10-28/) ([review](personal-study-2-2026-10-28/REVIEW.md)) | [40607489452](https://github.com/JaredVogler2/STONKS2026/actions/runs/40607489452), 2026-10-28 | `94b7097` | `personal-study-2` (`1bbef24b…d6f3`) | 4 | **1 BEATS_SPY_ON_DEV** (sso-trend200, +2.9 pp/yr vs SPY on total returns, drawdown −35.8% vs −33.8%, Holm 0.65), **3 DOES_NOT_BEAT_SPY_ON_DEV** (upro-trend200 on drawdown). Adopted for the owner's personal alerts; weak evidence (DEV, chosen after study 1) |
+| [`personal-study-3b-2026-10-28`](personal-study-3b-2026-10-28/) ([review](personal-study-3b-2026-10-28/REVIEW.md)) | [40621112174](https://github.com/JaredVogler2/STONKS2026/actions/runs/40621112174), 2026-10-28 | `8265b55` | `personal-study-3b` (`7c94e4c7…cf86`) | 10 | **No method beat SPY repeatedly** (FULL 2017–2026, halves, 36-month spans, drawdown, 20 bps). **2 BEATS_SPY_PARTLY** (sso-hold +6.8 pp/yr but drawdown −59% vs −34%, Holm 0.057; mtum-hold +1.4 pp/yr), **8 DOES_NOT_BEAT_SPY**. Reference sso-trend200: +1.4 pp/yr, BEATS_SPY_PARTLY. No switch; the owner chooses |
 | `personal-study-3` (stopped, [doc §11](../../docs/discovery-v3/PERSONAL_STUDY_3.md)) | [40616902467](https://github.com/JaredVogler2/STONKS2026/actions/runs/40616902467), 2026-10-28 | `dd343be` | `personal-study-3` (`4b67f1db…cac0`) | 0 | **SOURCE_INVALID before any evaluation**: SPLG's bars fell short of the 99% coverage gate (its ticker became SPYM on 2025-10-31). Nothing simulated; superseded by `personal-study-3b` |
 | [`personal-study-4-2026-10-28`](personal-study-4-2026-10-28/) ([review](personal-study-4-2026-10-28/REVIEW.md)) | [40619097607](https://github.com/JaredVogler2/STONKS2026/actions/runs/40619097607), 2026-10-28 | `4700f1b` | `personal-study-4` (`ea525e61…d333`) | 0 (replication) | A century replication (French daily market data, 1927–2026) of the S&P 500 timing methods: **sso-trend200 HOLDS_UP** (+4.4 pp/yr over the market, 8 of 9 decades, drawdown −68% vs −84%, +2.8 pp/yr after publication); sso-hold, voltarget-sso, halloween-sso, tom-sso HOLDS_UP_PARTLY; spy-trend200, rsi2-sso DOES_NOT_HOLD_UP. Not new trials |
 
-**Cumulative real-data V3 trials:** 23. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2, p1-sector-etf-momentum-whole-shares 2, p2-published-trend-and-dual-momentum 4. Measurements (not trials): `cost-study-1-2026-10-23`, `design-study-1-2026-10-23`, `design-study-2-2026-10-25`. Replications (not trials): `personal-study-4-2026-10-28`.
+**Cumulative real-data V3 trials:** 33. By family: f1-leader-continuation 3, f5-cross-sectional-momentum 3, f2-opportunity-state 2, f9-regime-abstention 2, g1-leader-execution-timing 2, g2-cross-sectional-momentum-low-turnover 3, g3-opportunity-state-close 2, p1-sector-etf-momentum-whole-shares 2, p2-published-trend-and-dual-momentum 4, p3-published-methods-battery 10. Measurements (not trials): `cost-study-1-2026-10-23`, `design-study-1-2026-10-23`, `design-study-2-2026-10-25`. Replications (not trials): `personal-study-4-2026-10-28`.
 
 ## `v3-pilot-1-2026-10-23`
 
@@ -120,3 +121,28 @@ Protocol: [docs/discovery-v3/RESEARCH_PROTOCOL.md](../../docs/discovery-v3/RESEA
 | `rsi2-sso` | replication | DOES_NOT_HOLD_UP | −0.0514 | 3 | −57% | −0.0738 since 2009 | 1.000 | 1.0 |
 
 **Disclosed with the result** ([REVIEW.md §2](personal-study-4-2026-10-28/REVIEW.md)): P4-1 known history (the 200-day rule's paper tested 1928–2015); P4-2 single-day crashes (−35% on the 2× fund in 1987); P4-3 the rebuilt 2× fund's financing assumption; P4-4 timing (+6.0% at the signal's own close) and costs (+2.7% at 20 bps); P4-5 the CRSP index is not the S&P 500; P4-6 nothing changes automatically.
+
+## `personal-study-3b-2026-10-28`
+
+- **Data:** Alpaca SIP daily bars for 17 ETFs, 2016-01-04 → 2026-10-23, adjusted for splits **and dividends** (total returns, SPY's too); dataset `50e0381b…5fb3`. SPYM's history (SPLG until 2025-10-31) passed the twin check against SPY (correlation 0.987, largest 21-session drift 0.76 points).
+- **Windows:** FULL, first decision 2017-01-31 → 2026-09-23, with halves split at 2021-11-22 (each from $1000); DEV from 2019-10-22, reported only.
+- **Simulation:** $1000, whole shares, target weights at each rule's rebalance close, fills at the next open, 5 bps a side.
+- **Holm:** over the 10 trials.
+- **Benchmark:** SPY bought with the same $1000 at the first fill open: +15.2% a year (CAGR), $1000 → $3,899.
+
+| Trial | Rule (published) | Disposition | Excess log growth / yr vs SPY | 1st / 2nd half | Max drawdown (SPY −33.8%) | One-sided p | Holm p |
+|---|---|---|---|---|---|---|---|
+| `personal-study-3b/sso-hold` | SSO held (Gayed & Bilello 2016 baseline) | BEATS_SPY_PARTLY (drawdown) | **+0.0675** | +0.103 / +0.032 | −59.1% | 0.006 | 0.057 |
+| `personal-study-3b/mtum-hold` | MTUM held (momentum factor) | BEATS_SPY_PARTLY | +0.0138 | +0.025 / −0.007 | −33.8% | 0.271 | 1.0 |
+| `personal-study-3b/hfea` | 55% UPRO / 45% TMF, quarterly (Bogleheads 2019) | DOES_NOT_BEAT_SPY | −0.0151 | +0.159 / −0.155 | −69.3% | 0.332 | 1.0 |
+| `personal-study-3b/voltarget-sso` | 15% volatility target, ≤2× (Harvey et al. 2018) | DOES_NOT_BEAT_SPY | −0.0152 | −0.029 / −0.005 | −26.4% | 0.721 | 1.0 |
+| `personal-study-3b/adm` | Accelerating Dual Momentum (EngineeredPortfolio 2018) | DOES_NOT_BEAT_SPY | −0.0394 | −0.013 / −0.067 | −35.3% | 0.919 | 1.0 |
+| `personal-study-3b/halloween-sso` | SSO November–April (Bouman & Jacobsen 2002) | DOES_NOT_BEAT_SPY | −0.0576 | −0.047 / −0.071 | −59.0% | 0.788 | 1.0 |
+| `personal-study-3b/tom-sso` | SSO at the turn of the month (Lakonishok & Smidt 1988) | DOES_NOT_BEAT_SPY | −0.0785 | −0.081 / −0.077 | −20.7% | 0.952 | 1.0 |
+| `personal-study-3b/gtaa5` | GTAA-5, 10-month averages (Faber 2007) | DOES_NOT_BEAT_SPY | −0.0835 | −0.099 / −0.072 | −7.4% | 0.998 | 1.0 |
+| `personal-study-3b/vaa-g4` | VAA-G4, breadth momentum (Keller & Keuning 2017) | DOES_NOT_BEAT_SPY | −0.0836 | −0.075 / −0.094 | −16.8% | 0.994 | 1.0 |
+| `personal-study-3b/rsi2-sso` | SSO on RSI(2) dips (Connors & Alvarez 2008) | DOES_NOT_BEAT_SPY | −0.0847 | −0.126 / −0.044 | −27.2% | 0.992 | 1.0 |
+
+Reference (not a trial): `sso-trend200`, +0.0137 (+0.026 / −0.002), −36.0%, BEATS_SPY_PARTLY.
+
+**Disclosed with the result** ([REVIEW.md §3](personal-study-3b-2026-10-28/REVIEW.md)): P3-1 DEV contamination; P3-2 two stops and one correction before evaluation (SPLG→SPYM; the twin check); P3-3 multiple testing (none significant after Holm); P3-4 overlapping windows; P3-5 whole-share cash; P3-6 no switch, the owner chooses.
