@@ -29,6 +29,8 @@
 - **Over a century, this method is the only one that held up:** +4.4% a year over the market, ahead in 8 of 9 decades, worst drop −68% against the market's −84%. 2× buy-and-hold beat the market too, but lost 98% in 1929–32.
 - **Decision (2026-10-28):** after this comparison you chose to keep this method. Another direction needs a change of `PERSONAL_METHOD` in `personal/runner.py`.
 
+**Daily signal without Discord:** paste [`chatgpt-daily-sso-bil-alert.md`](chatgpt-daily-sso-bil-alert.md) into a ChatGPT scheduled task. Every weekday morning it says HOLD or SWITCH, adds the month-end step, and warns when SPY is close to its 200-day average. Confirm a switch with **Actions → apex-personal → Run workflow → signal**.
+
 History on old data is a diagnostic only. **The live record against SPY bought with the same cash is the real test.**
 
 ## What the bot does
